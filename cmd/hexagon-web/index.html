@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Circuit Motif Generator</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --page: #111315;
+      --panel: #191c1f;
+      --panel-raised: #202428;
+      --border: #353b40;
+      --text: #e7e9eb;
+      --muted: #a1a9af;
+      --accent: #d2915c;
+      --accent-hover: #e1a775;
+      --danger: #ff9c91;
+      --field: #101214;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      height: 100vh;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--page);
+      color: var(--text);
+      font: 14px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    header {
+      display: flex;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border);
+      background: #151719;
+    }
+    h1 { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: .01em; }
+    .subtitle { color: var(--muted); margin-top: 3px; font-size: 12px; }
+    main {
+      display: grid;
+      grid-template-columns: minmax(330px, 390px) minmax(0, 1fr);
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    aside {
+      padding: 18px;
+      border-right: 1px solid var(--border);
+      background: var(--panel);
+      min-width: 0;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+    }
+    .preview-column {
+      min-width: 0;
+      min-height: 0;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .section-title {
+      margin: 17px 0 11px;
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 750;
+      letter-spacing: .11em;
+      text-transform: uppercase;
+    }
+    .section-title:first-child { margin-top: 0; }
+    .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 10px; }
+    .field { min-width: 0; }
+    .field.full { grid-column: 1 / -1; }
+    label, .field-label { display: block; margin-bottom: 5px; font-size: 12px; color: #d4d8db; }
+    input, select {
+      width: 100%;
+      min-width: 0;
+      min-height: 35px;
+      border: 1px solid #42494f;
+      border-radius: 5px;
+      padding: 7px 9px;
+      background: var(--field);
+      color: var(--text);
+      font: inherit;
+      outline: none;
+    }
+    input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px #d2915c2b; }
+    input:disabled, select:disabled { opacity: .45; cursor: not-allowed; }
+    input[type="checkbox"] { width: 16px; min-height: 16px; height: 16px; accent-color: var(--accent); }
+    input[type="color"] { min-height: 35px; height: 35px; padding: 3px; cursor: pointer; }
+    .check-field { display: flex; align-items: center; gap: 8px; min-height: 35px; }
+    .check-field label { margin: 0; color: var(--text); }
+    .hint { color: var(--muted); font-size: 11px; margin-top: 5px; }
+    .seed-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+    button {
+      border: 1px solid #a86d40;
+      border-radius: 5px;
+      padding: 9px 12px;
+      background: var(--accent);
+      color: #1b1713;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button:hover { background: var(--accent-hover); }
+    button:disabled { opacity: .4; cursor: not-allowed; }
+    button.secondary { border-color: #464d52; background: var(--panel-raised); color: var(--text); }
+    button.secondary:hover { background: #2a3035; }
+    .preview-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .preview-heading { font-size: 13px; font-weight: 700; }
+    #status { min-height: 18px; color: var(--muted); font-size: 12px; text-align: right; }
+    #status.error { color: var(--danger); }
+    .canvas {
+      flex: 1 1 0;
+      min-height: 0;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      padding: 18px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background-color: #17191b;
+      background-image: linear-gradient(45deg, #202326 25%, transparent 25%), linear-gradient(-45deg, #202326 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #202326 75%), linear-gradient(-45deg, transparent 75%, #202326 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+    }
+    #preview { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; }
+    .empty { max-width: 340px; color: var(--muted); text-align: center; }
+    .footer-note { font-size: 11px; color: var(--muted); }
+    @media (max-width: 900px) {
+      main { grid-template-columns: minmax(260px, 320px) minmax(0, 1fr); }
+      aside { padding: 14px; }
+      .preview-column { padding: 14px; }
+    }
+    @media (max-width: 700px) {
+      header { padding: 12px 15px; }
+      h1 { font-size: 17px; }
+      main {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(180px, 42%) minmax(0, 1fr);
+      }
+      .preview-column { grid-row: 1; padding: 10px; gap: 8px; }
+      aside {
+        grid-row: 2;
+        border-right: 0;
+        border-top: 1px solid var(--border);
+      }
+      .canvas { padding: 8px; }
+      .footer-note { display: none; }
+      #status { max-width: 55%; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Circuit Motif Generator</h1>
+      <div class="subtitle">Configure the hexagon grid, components, and trace network</div>
+    </div>
+    <button id="saveButton" type="button" class="secondary" disabled>Save SVG</button>
+  </header>
+  <main>
+    <aside>
+      <form id="optionsForm" autocomplete="off">
+        <div class="section-title">Canvas and appearance</div>
+        <div class="fields">
+          <div class="field"><label for="width">Width (in)</label><input id="width" type="number" min="0.1" max="100" step="0.1" value="10" required></div>
+          <div class="field"><label for="height">Height (in)</label><input id="height" type="number" min="0.1" max="100" step="0.1" value="8" required></div>
+          <div class="field"><label for="color">Stroke color</label><input id="color" type="color" value="#c7834a"></div>
+          <div class="field"><label for="backgroundMode">Background</label><select id="backgroundMode"><option value="none">None (transparent)</option><option value="custom">Custom color</option></select></div>
+          <div class="field" id="backgroundColorField" hidden><label for="backgroundColor">Background color</label><input id="backgroundColor" type="color" value="#17191b"></div>
+          <div class="field"><label for="orientation">Orientation</label><select id="orientation"><option value="pointy">Pointy-top</option><option value="flat">Flat-top</option></select></div>
+        </div>
+
+        <div class="section-title">Background grid</div>
+        <div class="fields">
+          <div class="field"><label for="gridRadius">Grid radius (in)</label><input id="gridRadius" type="number" min="0.001" step="0.001" value="0.33255" required></div>
+          <div class="field"><label for="gridGap">Grid gap (in)</label><input id="gridGap" type="number" min="0" step="0.001" value="0.04" required></div>
+          <div class="field"><label for="gridWidth">Grid line width (in)</label><input id="gridWidth" type="number" min="0" step="0.001" value="0.004" required></div>
+          <div class="field"><label for="routingPitch">Routing pitch (in)</label><input id="routingPitch" type="number" min="0.001" step="0.01" value="0.62" required></div>
+          <div class="field full check-field"><input id="autoRoutingPitch" type="checkbox" checked><label for="autoRoutingPitch">Calculate routing pitch automatically</label></div>
+          <div class="field full check-field"><input id="omitPartialGridHexagons" type="checkbox"><label for="omitPartialGridHexagons">Omit partial grid hexagons at edges</label></div>
+        </div>
+        <div class="hint">Automatic pitch derives spacing from the grid radius, gap, and line width.</div>
+
+        <div class="section-title">Components</div>
+        <div class="fields">
+          <div class="field"><label for="componentCount">Component count</label><input id="componentCount" type="number" min="0" max="500" step="1" value="18" required></div>
+          <div class="field"><label for="componentRadius">Component radius (in)</label><input id="componentRadius" type="number" min="0.001" step="0.01" value="0.4" required></div>
+        </div>
+
+        <div class="section-title">Labels</div>
+        <div class="fields">
+          <div class="field full check-field"><input id="showLabels" type="checkbox"><label for="showLabels">Show component labels</label></div>
+          <div class="field full"><label for="labelFont">Font family</label><input id="labelFont" type="text" value="monospace" spellcheck="false"><div class="hint">A system font family resolved by the SVG viewer; the font is not embedded.</div></div>
+          <div class="field"><label for="labelFontSize">Font size (pt)</label><input id="labelFontSize" type="number" min="0.001" step="1" value="80" required></div>
+          <div class="field"><label for="labelProbability">Label probability</label><input id="labelProbability" type="number" min="0" max="1" step="0.01" value="0.35" required></div>
+          <div class="field"><label for="labelDistance">Label distance (in)</label><input id="labelDistance" type="number" min="0" step="0.001" value="0.025" required></div>
+          <div class="field check-field"><input id="labelInsideComponents" type="checkbox"><label for="labelInsideComponents">Allow labels inside components</label></div>
+          <div class="field full check-field"><input id="fontColorSpecified" type="checkbox"><label for="fontColorSpecified">Use a custom font color</label></div>
+          <div class="field full" id="fontColorField"><label for="fontColor">Font color</label><input id="fontColor" type="color" value="#c7834a"><div class="hint">When unchecked, labels use the stroke color.</div></div>
+        </div>
+
+        <div class="section-title">Traces and terminals</div>
+        <div class="fields">
+          <div class="field"><label for="connections">Connection target</label><input id="connections" type="number" min="0" max="1000" step="1" value="18" required></div>
+          <div class="field"><label for="maxParallel">Max parallel tracks</label><input id="maxParallel" type="number" min="1" max="12" step="1" value="3" required></div>
+          <div class="field full"><label for="trackCountWeights">Track-count weights (%)</label><input id="trackCountWeights" type="text" value="11.1111,44.44445,44.44445" spellcheck="false" required><div class="hint">One comma-separated weight for each track count from 1 to max parallel; total must be 100.</div></div>
+          <div class="field"><label for="parallelSpacing">Parallel spacing (in)</label><input id="parallelSpacing" type="number" min="0" step="0.001" value="0.035" required></div>
+          <div class="field"><label for="strokeWidth">Component stroke (in)</label><input id="strokeWidth" type="number" min="0.001" step="0.001" value="0.012" required></div>
+          <div class="field"><label for="traceWidth">Trace width (in)</label><input id="traceWidth" type="number" min="0.001" step="0.001" value="0.008" required></div>
+          <div class="field"><label for="nodeRadius">Terminal radius (in)</label><input id="nodeRadius" type="number" min="0.001" step="0.001" value="0.014" required></div>
+          <div class="field full"><label for="traceClearance">Trace clearance (in)</label><input id="traceClearance" type="number" min="0" step="0.001" value="0.025" required></div>
+        </div>
+
+        <div class="section-title">Routing and details</div>
+        <div class="fields">
+          <div class="field"><label for="detailProb">Detail probability</label><input id="detailProb" type="number" min="0" max="1" step="0.01" value="0.48" required></div>
+          <div class="field"><label for="maxRouteSteps">Max route steps</label><input id="maxRouteSteps" type="number" min="1" max="1000" step="1" value="24" required></div>
+          <div class="field full"><label for="routeAttempts">Route attempts</label><input id="routeAttempts" type="number" min="1" max="1000" step="1" value="12" required></div>
+          <div class="field full check-field"><input id="useDeterministicRouteCost" type="checkbox"><label for="useDeterministicRouteCost">Use deterministic route costs</label></div>
+          <div class="field full"><div class="hint">Unchecked (default) preserves the legacy method, which adds random jitter to route costs. Checked uses fixed move and turn costs; randomization still affects exploration order and ties.</div></div>
+          <div class="field full"><label for="fallbackEdgeOrder">Fallback edge ordering</label><select id="fallbackEdgeOrder"><option value="randomized" selected>Randomized (current behavior)</option><option value="ranked">Rank by cluster, then distance</option></select><div class="hint">Preferred placement links are always tried first. Randomized shuffles fallback links; ranked favors same-cluster links, then shorter axial distances. Ties remain randomized.</div></div>
+        </div>
+
+        <div class="section-title">Randomness</div>
+        <div class="fields">
+          <div class="field full check-field"><input id="seedSet" type="checkbox" checked><label for="seedSet">Keep a fixed seed while adjusting settings</label></div>
+          <div class="field full"><div class="seed-row"><div><label for="seed">Seed</label><input id="seed" type="text" inputmode="numeric" value="{{.Seed}}" spellcheck="false"></div><button id="newImageButton" type="button">Generate new image with these parameters</button></div><div class="hint">With a fixed seed, changing settings keeps the same random layout where the settings permit it. Turn off the checkbox to use a fresh seed for each update.</div></div>
+        </div>
+      </form>
+    </aside>
+
+    <section class="preview-column" aria-label="Generated SVG preview">
+      <div class="preview-toolbar">
+        <div class="preview-heading">Live preview</div>
+        <div id="status" role="status" aria-live="polite">Generating initial image…</div>
+      </div>
+      <div class="canvas" id="canvas">
+        <div class="empty" id="emptyState">The generated SVG will appear here.</div>
+        <img id="preview" alt="Generated circuit motif SVG preview" hidden>
+      </div>
+      <div class="footer-note">The preview is vector artwork. Save SVG downloads the image currently shown here.</div>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const form = document.getElementById('optionsForm');
+      const preview = document.getElementById('preview');
+      const emptyState = document.getElementById('emptyState');
+      const status = document.getElementById('status');
+      const saveButton = document.getElementById('saveButton');
+      const newImageButton = document.getElementById('newImageButton');
+      const autoPitch = document.getElementById('autoRoutingPitch');
+      const seedSet = document.getElementById('seedSet');
+      const seedInput = document.getElementById('seed');
+      const backgroundMode = document.getElementById('backgroundMode');
+      const backgroundColor = document.getElementById('backgroundColor');
+      const backgroundColorField = document.getElementById('backgroundColorField');
+      const showLabels = document.getElementById('showLabels');
+      const fontColorSpecified = document.getElementById('fontColorSpecified');
+      const fontColor = document.getElementById('fontColor');
+      let debounceTimer = null;
+      let activeController = null;
+      let requestNumber = 0;
+      let currentSVG = '';
+      let previewURL = '';
+
+      function value(id) { return document.getElementById(id).value; }
+      function number(id) { return Number(value(id)); }
+      function checked(id) { return document.getElementById(id).checked; }
+
+      function syncControls() {
+        document.getElementById('routingPitch').disabled = checked('autoRoutingPitch');
+        seedInput.disabled = !checked('seedSet');
+        backgroundColorField.hidden = backgroundMode.value !== 'custom';
+
+        const labelsEnabled = showLabels.checked;
+        for (const id of ['labelFont', 'labelFontSize', 'labelProbability', 'labelDistance', 'labelInsideComponents', 'fontColorSpecified']) {
+          document.getElementById(id).disabled = !labelsEnabled;
+        }
+        fontColor.disabled = !labelsEnabled || !fontColorSpecified.checked;
+      }
+
+      function collectOptions() {
+        let background = backgroundMode.value;
+        if (background === 'custom') background = backgroundColor.value;
+        return {
+          width: number('width'),
+          height: number('height'),
+          color: value('color'),
+          background,
+          orientation: value('orientation'),
+          componentCount: number('componentCount'),
+          componentRadius: number('componentRadius'),
+          routingPitch: number('routingPitch'),
+          autoRoutingPitch: checked('autoRoutingPitch'),
+          gridRadius: number('gridRadius'),
+          gridGap: number('gridGap'),
+          gridWidth: number('gridWidth'),
+          omitPartialGridHexagons: checked('omitPartialGridHexagons'),
+          connections: number('connections'),
+          maxParallel: number('maxParallel'),
+          trackCountWeights: value('trackCountWeights'),
+          parallelSpacing: number('parallelSpacing'),
+          strokeWidth: number('strokeWidth'),
+          traceWidth: number('traceWidth'),
+          nodeRadius: number('nodeRadius'),
+          traceClearance: number('traceClearance'),
+          detailProb: number('detailProb'),
+          showLabels: checked('showLabels'),
+          labelFont: value('labelFont'),
+          labelFontSize: number('labelFontSize'),
+          labelProbability: number('labelProbability'),
+          fontColor: value('fontColor'),
+          fontColorSpecified: checked('fontColorSpecified'),
+          labelDistance: number('labelDistance'),
+          labelInsideComponents: checked('labelInsideComponents'),
+          maxRouteSteps: number('maxRouteSteps'),
+          routeAttempts: number('routeAttempts'),
+          useDeterministicRouteCost: checked('useDeterministicRouteCost'),
+          fallbackEdgeOrder: value('fallbackEdgeOrder'),
+          seed: seedInput.value.trim(),
+          seedSet: checked('seedSet')
+        };
+      }
+
+      function setStatus(message, isError = false) {
+        status.textContent = message;
+        status.classList.toggle('error', isError);
+      }
+
+      function scheduleGenerate() {
+        syncControls();
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(generate, 300);
+      }
+
+      async function generate() {
+        const thisRequest = ++requestNumber;
+        if (activeController) activeController.abort();
+        activeController = new AbortController();
+        setStatus('Generating…');
+        newImageButton.disabled = true;
+        const options = collectOptions();
+
+        try {
+          const response = await fetch('/api/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(options),
+            signal: activeController.signal
+          });
+          const body = await response.json();
+          if (thisRequest !== requestNumber) return;
+          if (!response.ok) throw new Error(body.error || 'Generation failed.');
+          if (typeof body.svg !== 'string') {
+            throw new Error('The server did not return SVG text.');
+          }
+
+          const nextURL = URL.createObjectURL(new Blob([body.svg], { type: 'image/svg+xml;charset=utf-8' }));
+          const previousURL = previewURL;
+          previewURL = nextURL;
+          preview.onload = () => {
+            if (previousURL) URL.revokeObjectURL(previousURL);
+            if (thisRequest !== requestNumber) return;
+            currentSVG = body.svg;
+            preview.hidden = false;
+            emptyState.hidden = true;
+            saveButton.disabled = false;
+            setStatus('Up to date');
+          };
+          preview.onerror = () => {
+            if (thisRequest !== requestNumber) return;
+            if (previewURL) URL.revokeObjectURL(previewURL);
+            previewURL = '';
+            setStatus('Could not display the generated SVG.', true);
+            newImageButton.disabled = false;
+          };
+          preview.src = nextURL;
+        } catch (error) {
+          if (error.name === 'AbortError' || thisRequest !== requestNumber) return;
+          setStatus(error.message || 'Generation failed.', true);
+        } finally {
+          if (thisRequest === requestNumber) newImageButton.disabled = false;
+        }
+      }
+
+      function randomSeed() {
+        if (window.crypto && window.crypto.getRandomValues && typeof BigInt === 'function') {
+          const words = new Uint32Array(2);
+          window.crypto.getRandomValues(words);
+          return BigInt.asIntN(64, (BigInt(words[0]) << 32n) | BigInt(words[1])).toString();
+        }
+        return String(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER));
+      }
+
+      form.addEventListener('submit', event => event.preventDefault());
+      form.addEventListener('input', scheduleGenerate);
+      form.addEventListener('change', scheduleGenerate);
+      autoPitch.addEventListener('change', syncControls);
+      seedSet.addEventListener('change', syncControls);
+      backgroundMode.addEventListener('change', syncControls);
+      showLabels.addEventListener('change', syncControls);
+      fontColorSpecified.addEventListener('change', syncControls);
+
+      newImageButton.addEventListener('click', () => {
+        if (checked('seedSet')) seedInput.value = randomSeed();
+        clearTimeout(debounceTimer);
+        generate();
+      });
+
+      saveButton.addEventListener('click', () => {
+        if (!currentSVG) return;
+        const blob = new Blob([currentSVG], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'circuit_motif.svg';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      });
+
+      syncControls();
+      generate();
+    })();
+  </script>
+</body>
+</html>
