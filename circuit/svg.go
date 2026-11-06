@@ -1261,7 +1261,12 @@ func renderSVG(
 	scene := sceneForRender(o, components, connections)
 	labelFontFamily := o.LabelFont
 	if o.ShowLabels && o.LabelProbability > 0 {
-		loadedFont, err := loadLabelFont(o.LabelFont, o.LabelFontSize)
+		var wordList []string = defaultLabels
+		if o.LabelWordListSet {
+			wordList = o.LabelWordList
+		}
+
+		loadedFont, err := loadLabelFont(o.LabelFont, o.LabelFontSize, wordList)
 		if err != nil {
 			return "", err
 		}
@@ -1272,7 +1277,7 @@ func renderSVG(
 			vertexStart = 0
 		}
 		baseAngle := degreesToRadians(vertexStart + 30.0)
-		scene.Labels = placeComponentLabels(o, scene, seed, baseAngle, loadedFont)
+		scene.Labels = placeComponentLabels(o, scene, seed, baseAngle, wordList, loadedFont)
 		labelFontFamily = loadedFont.Family
 	}
 	scene.LabelFontFamily = labelFontFamily

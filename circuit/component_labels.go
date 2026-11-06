@@ -16,10 +16,7 @@ import (
 	hexgrid "github.com/sector-f/hexcircuit/hexgrid"
 )
 
-// componentLabelWords is intentionally hardcoded for now. A word's ordinal is
-// advanced only after a label is placed, so a failed placement cannot create gaps
-// such as "Filter 2" without a corresponding "Filter 1".
-var componentLabelWords = []string{
+var defaultLabels = []string{
 	"VCA", // Voltage-Controlled Amplifier
 	"VCO", // Voltage-Controlled Oscillator
 	"BGA", // Ball Grid Array
@@ -92,7 +89,7 @@ type labelMetrics = hexgrid.TextMetrics
 // loadLabelFont resolves a Linux system font through fc-match and reads its real
 // glyph metrics. It returns an error instead of silently guessing if Fontconfig,
 // the requested font, or the font file cannot be used.
-func loadLabelFont(family string, sizePoints float64) (*labelFont, error) {
+func loadLabelFont(family string, sizePoints float64, wordList []string) (*labelFont, error) {
 	format := "%{family}\\n%{file}\\n%{index}\\n"
 	output, err := exec.Command("fc-match", "--format="+format, "--", family).Output()
 	if err != nil {
@@ -158,7 +155,7 @@ func loadLabelFont(family string, sizePoints float64) (*labelFont, error) {
 	// so unsupported glyphs cannot cause the measured bounds to disagree with SVG's
 	// fallback-font rendering.
 	characters := make(map[rune]struct{})
-	for _, word := range componentLabelWords {
+	for _, word := range wordList {
 		for _, r := range word {
 			characters[r] = struct{}{}
 		}
@@ -201,6 +198,7 @@ func placeComponentLabels(
 	scene hexgrid.Scene,
 	seed int64,
 	baseAngle float64,
+	wordList []string,
 	font *labelFont,
 ) []componentLabel {
 	if !o.ShowLabels || o.LabelProbability <= 0 || len(scene.Components) == 0 {
@@ -208,7 +206,7 @@ func placeComponentLabels(
 	}
 
 	labelRNG := rand.New(rand.NewSource(seed ^ int64(0x4c4142454c)))
-	counts := make(map[string]int, len(componentLabelWords))
+	counts := make(map[string]int, len(wordList))
 	labels := make([]componentLabel, 0, int(math.Round(float64(len(scene.Components))*o.LabelProbability)))
 	placementScene := scene
 	placementScene.Labels = append([]hexgrid.Label(nil), scene.Labels...)
@@ -231,10 +229,10 @@ func placeComponentLabels(
 
 		// The generator chooses label text and side order. hexgrid owns the geometric
 		// placement and returns an error when a candidate collides with occupied space.
-		wordOrder := labelRNG.Perm(len(componentLabelWords))
+		wordOrder := labelRNG.Perm(len(wordList))
 		placed := false
 		for _, wordIndex := range wordOrder {
-			word := componentLabelWords[wordIndex]
+			word := wordList[wordIndex]
 			text := fmt.Sprintf("%s %d", word, counts[word]+1)
 			tmetrics := font.measure(text)
 			sideOrder := []int{0, 1, 2, 3, 4, 5}
@@ -272,7 +270,7 @@ func placeComponentLabels(
 		if !placed && o.LabelInsideComponents {
 			labelDebugf("no external placement found for component index=%d; trying internal placement", component.Index)
 			for _, wordIndex := range wordOrder {
-				word := componentLabelWords[wordIndex]
+				word := wordList[wordIndex]
 				text := fmt.Sprintf("%s %d", word, counts[word]+1)
 				candidate, err := hexgrid.TryPlaceLabel(placementScene, hexgrid.LabelRequest{
 					ComponentIndex: component.Index,

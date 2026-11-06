@@ -75,8 +75,11 @@ type Options struct {
 	// DetailProb is the base probability (0 to 1) that a sufficiently large
 	// component receives inner hexagon details.
 	DetailProb float64
+
 	// ShowLabels enables automatically placed component labels.
-	ShowLabels bool
+	ShowLabels       bool
+	LabelWordList    []string
+	LabelWordListSet bool
 	// LabelFont is a system font family name resolved by the SVG viewer; it is not embedded.
 	LabelFont string
 	// LabelFontSize is the label font size in points.
@@ -92,6 +95,7 @@ type Options struct {
 	LabelDistance float64
 	// LabelInsideComponents permits a label inside its component when no external position fits.
 	LabelInsideComponents bool
+
 	// UseDeterministicRouteCost selects the route-cost model. When true, route costs
 	// depend only on move count and turns. When false, the legacy model adds random
 	// jitter to each move's accumulated cost.
@@ -200,6 +204,9 @@ func normalizeOptions(o Options) (Options, error) {
 		return o, errors.New("detail probability must be between 0 and 1")
 	}
 
+	if o.LabelWordListSet && len(o.LabelWordList) < 1 {
+		return o, errors.New("label word list must contain items")
+	}
 	if !isFinite(o.LabelFontSize) || o.LabelFontSize <= 0 {
 		return o, errors.New("label font size must be finite and greater than zero")
 	}

@@ -47,9 +47,6 @@ func TestDefaultGoldenDeterministicRouteCost(t *testing.T) {
 	}
 }
 
-// TODO: this test will probably start failing if we update the word list.
-// Once we add an option to specify a word list at runtime, we should pass it in here
-// so that it stays consistent.
 func TestDefaultGoldenWithLabels(t *testing.T) {
 	opts := DefaultOptions()
 	opts.ShowLabels = true
