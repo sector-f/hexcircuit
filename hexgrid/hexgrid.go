@@ -1,6 +1,8 @@
-// Package hexgrid provides geometry and rendering primitives for hexagonal circuit art.
-// It deliberately does not validate whether traces collide or whether a scene is a
-// sensible circuit; callers own those generation rules.
+// Package hexgrid provides grid-based layout types, geometry, and SVG rendering for
+// hexagonal circuit art. GridScene is the high-level API for manually-authored layouts;
+// Scene remains available for callers that already have explicit inch-based geometry.
+// The package validates grid paths and bundle sizing but does not resolve collisions or
+// enforce circuit topology.
 package hexgrid
 
 import (
@@ -78,6 +80,7 @@ type Component struct {
 	X, Y   float64
 	Radius float64
 	Detail ComponentDetail
+	Style  ComponentStyle
 }
 
 // Trace is one polyline. A scene may contain traces that cross components or each other;
@@ -119,9 +122,11 @@ type Scene struct {
 	Terminals  []Terminal
 	Labels     []Label
 
-	ComponentStrokeWidth float64
-	TraceStrokeWidth     float64
-	NodeRadius           float64
+	ComponentStrokeWidth        float64
+	ComponentMiddleHexagonScale float64
+	ComponentInnerHexagonScale  float64
+	TraceStrokeWidth            float64
+	NodeRadius                  float64
 
 	LabelColor      string
 	LabelFontFamily string
@@ -363,11 +368,10 @@ func Render(scene Scene) string {
 	)
 	for _, component := range scene.Components {
 		drawPolygon(canvas, HexVertices(component.X, component.Y, component.Radius, scene.Orientation), "")
-		if component.Detail == ComponentDetailNestedHexagons {
-			for _, scale := range []float64{largeInnerDetailScale, smallInnerDetailScale} {
-				inner := HexVertices(component.X, component.Y, component.Radius*scale, scene.Orientation)
-				drawPolygon(canvas, inner, fmt.Sprintf("stroke-width:%d", userUnits(scene.ComponentStrokeWidth*innerDetailStrokeScale)))
-			}
+		innerScales := componentInnerScales(scene, component)
+		for _, scale := range innerScales {
+			inner := HexVertices(component.X, component.Y, component.Radius*scale, scene.Orientation)
+			drawPolygon(canvas, inner, fmt.Sprintf("stroke-width:%d", userUnits(scene.ComponentStrokeWidth*innerDetailStrokeScale)))
 		}
 	}
 	canvas.Gend()
@@ -404,6 +408,23 @@ func Render(scene Scene) string {
 
 	canvas.End()
 	return out.String()
+}
+
+func componentInnerScales(scene Scene, component Component) []float64 {
+	switch component.Style {
+	case ComponentStyleDouble:
+		return []float64{scene.ComponentMiddleHexagonScale}
+	case ComponentStyleTriple:
+		return []float64{scene.ComponentMiddleHexagonScale, scene.ComponentInnerHexagonScale}
+	case ComponentStyleSingle:
+		return nil
+	default:
+		// Preserve the original low-level ComponentDetail API and its exact output.
+		if component.Detail == ComponentDetailNestedHexagons {
+			return []float64{largeInnerDetailScale, smallInnerDetailScale}
+		}
+		return nil
+	}
 }
 
 // HexVertices returns the six corners of a regular hexagon. Pointy orientation starts
