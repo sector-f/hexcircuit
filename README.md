@@ -32,6 +32,10 @@ Each grid hexagon is described by three settings:
 
 The grid is regular: all of its hexagons have the same radius and are positioned on the same lattice. The `--orientation` option controls whether the hexagons have a vertex pointing up (`pointy`) or a vertical flat side at the top (`flat`).
 
+Grid coordinates use the conventional axial basis. In the default pointy-top
+orientation, increasing `Q` moves east, decreasing `Q` moves west, and increasing
+`R` moves southeast. The third cube coordinate is implied as `S = -Q - R`.
+
 By default, partially clipped background hexagons are allowed at the canvas edges, so the pattern can continue naturally to the border. Use `--omit-partial-grid-hexagons` to draw only background hexagons whose entire stroked outline fits inside the canvas. This option affects only the background grid, not traces or components.
 
 ### Routing pitch: the distance between grid centers
@@ -230,3 +234,78 @@ The `--routing-pitch` and `--component-radius` defaults shown above are the defa
 The SVG stores its physical width and height in inches. Internally, the generator uses 1,000 SVG user units per inch to preserve fine line-width and spacing values while drawing with the integer-coordinate API provided by SVGo.
 
 The generated SVG is layered in this order: optional background fill, background grid, traces, component outlines and details, then terminal circles. Later layers are drawn over earlier ones. The generator returns SVG text from `GenerateSVG`; the command-line wrapper is responsible for writing the text to the requested file.
+
+## 9. Use `hexgrid` directly for manually-authored artwork
+
+The `hexgrid` package also exposes a grid-based API for creating a fixed composition
+without using the randomized circuit generator. Components are placed with axial grid
+coordinates instead of inch-based `X`/`Y` values, and traces are specified as a path of
+neighboring grid positions.
+
+```go
+package main
+
+import (
+    "log"
+    "os"
+
+    "github.com/sector-f/hexcircuit/hexgrid"
+)
+
+func main() {
+    options := hexgrid.DefaultOptions()
+    options.Width = 8
+    options.Height = 6
+    options.Color = "#396cf8"
+
+    layout := hexgrid.GridScene{
+        Options: options,
+        Components: []hexgrid.GridComponent{
+            {Position: hexgrid.GridPosition{Q: -2, R: 0}, Style: hexgrid.ComponentStyleSingle},
+            {Position: hexgrid.GridPosition{Q: 2, R: 1}, Style: hexgrid.ComponentStyleTriple},
+        },
+        Traces: []hexgrid.GridTrace{
+            {
+                Start: hexgrid.GridPosition{Q: -2, R: 0},
+                Path: []hexgrid.GridPosition{
+                    {Q: -1, R: 0},
+                    {Q: 0, R: 0},
+                    {Q: 1, R: 0},
+                    {Q: 2, R: 0},
+                    {Q: 2, R: 1},
+                },
+                Lines: 2,
+            },
+        },
+    }
+
+    svg, err := hexgrid.RenderGrid(layout)
+    if err != nil {
+        log.Fatal(err)
+    }
+    if err := os.WriteFile("manual-circuit.svg", []byte(svg), 0644); err != nil {
+        log.Fatal(err)
+    }
+}
+```
+
+`ComponentStyleSingle`, `ComponentStyleDouble`, and `ComponentStyleTriple` draw one,
+two, or three concentric hexagon outlines. `RadiusScale` on a `GridComponent` optionally
+scales the configured component radius; its zero value means `1`.
+
+A trace starts at a component position. Its `Path` lists every subsequent grid cell,
+including the destination component, and each consecutive pair must be adjacent on the
+hexagonal lattice. `Lines` sets the number of parallel tracks. The library offsets the
+tracks using `Options.TraceSpacing`, clips their starts to the source component, and
+places terminal pads inside the destination component. The package validates that the
+source and destination exist and that the requested bundle fits their configured sizes;
+it does not try to prevent traces from crossing other components or traces.
+
+All physical dimensions are supplied through `hexgrid.Options` (canvas size, grid pitch
+and radius, component radius and stroke widths, trace spacing and width, and terminal
+radius). `hexgrid.BuildScene` is available when callers need to inspect or extend the
+inch-based scene before rendering. The randomized `circuit` generator also uses this
+high-level API for its final rendering handoff: it converts accepted axial routes into
+`GridTrace` values and lets `hexgrid` produce the drawable paths and terminal pads. The
+older `hexgrid.Scene` and `hexgrid.Render` API remains available for callers that already
+have explicit geometry.

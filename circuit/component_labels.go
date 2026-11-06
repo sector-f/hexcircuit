@@ -33,10 +33,6 @@ var defaultLabels = []string{
 	"CLOCK",
 }
 
-// labelRect is the measured glyph bounding box plus a small safety inset. All values
-// are in inches, matching the geometry used by the SVG generator.
-type labelRect = hexgrid.Rect
-
 // componentLabel is a placed SVG label. X and Y identify the text origin and baseline;
 // Bounds contains the measured text ink bounds plus safety padding. Inside is true when
 // it sits in its component.
@@ -301,24 +297,3 @@ func placeComponentLabels(
 	labelDebugf("end: placed %d label(s)", len(labels))
 	return labels
 }
-
-// externalLabelCandidates is retained as a thin compatibility helper for the package's
-// geometry tests. The candidate geometry itself is implemented by hexgrid.
-func externalLabelCandidates(
-	component Component,
-	text string,
-	metrics labelMetrics,
-	width, height, gap, baseAngle float64,
-) []componentLabel {
-	return hexgrid.ExternalLabelCandidates(
-		hexgrid.Component{
-			Index: component.Index,
-			X:     component.X, Y: component.Y,
-			Radius: component.Radius,
-		},
-		text, metrics, width, height, gap, baseAngle, labelTextPadding,
-	)
-}
-
-// axisSign is retained for the component-label geometry tests; hexgrid owns its logic.
-func axisSign(value float64) float64 { return hexgrid.AxisSign(value) }

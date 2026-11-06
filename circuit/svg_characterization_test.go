@@ -60,59 +60,61 @@ func TestCoordToXY(t *testing.T) {
 		height = 8.0
 		pitch  = 0.7
 	)
-	baseAngle := degreesToRadians(-60)
+	orientation := "pointy"
 
-	origin := coordToXY(Coord{}, width, height, pitch, baseAngle)
+	origin := coordToXY(Coord{}, width, height, pitch, orientation)
 	if !closeEnough(origin.X, width/2, 1e-9) || !closeEnough(origin.Y, height/2, 1e-9) {
 		t.Fatalf("origin maps to (%f, %f), want canvas center (%f, %f)", origin.X, origin.Y, width/2, height/2)
 	}
 
 	// Each of the six neighboring lattice cells must be exactly one pitch away.
 	for direction, step := range axialSteps {
-		neighbor := coordToXY(step, width, height, pitch, baseAngle)
+		neighbor := coordToXY(step, width, height, pitch, orientation)
 		if got := distance(origin, neighbor); !closeEnough(got, pitch, 1e-9) {
 			t.Errorf("neighbor in direction %d is %.12f inches away, want %.12f", direction, got, pitch)
 		}
 	}
+
+	west := coordToXY(Coord{Q: -1}, width, height, pitch, orientation)
+	if !closeEnough(west.X, origin.X-pitch, 1e-9) || !closeEnough(west.Y, origin.Y, 1e-9) {
+		t.Errorf("Q=-1, R=0 maps to (%f, %f), want west of origin (%f, %f)", west.X, west.Y, origin.X-pitch, origin.Y)
+	}
+	southeast := coordToXY(Coord{R: 1}, width, height, pitch, orientation)
+	if !closeEnough(southeast.X-origin.X, pitch/2, 1e-9) || !closeEnough(southeast.Y-origin.Y, pitch*math.Sqrt(3)/2, 1e-9) {
+		t.Errorf("Q=0, R=1 maps to (%f, %f) relative to origin, want southeast by (%f, %f)", southeast.X-origin.X, southeast.Y-origin.Y, pitch/2, pitch*math.Sqrt(3)/2)
+	}
 }
 
-func TestGetHexVertices(t *testing.T) {
-	const radius = 2.0
-	tests := []struct {
-		name        string
-		orientation string
-		firstWant   Point
-	}{
-		{name: "pointy has a top vertex", orientation: "pointy", firstWant: Point{X: 0, Y: -radius}},
-		{name: "flat has a right vertex", orientation: "flat", firstWant: Point{X: radius, Y: 0}},
+func TestConventionalPointyCoordinatesPreserveOldPhysicalCells(t *testing.T) {
+	const (
+		width  = 12.0
+		height = 8.0
+		pitch  = 0.7
+	)
+	for _, old := range []Coord{{Q: 1}, {R: 1}, {Q: -2, R: 3}, {Q: 4, R: -1}} {
+		converted := conventionalCoord(old, "pointy")
+		oldAngle := degreesToRadians(-60)
+		oldPoint := Point{
+			X: width/2 + pitch*(float64(old.Q)*math.Cos(oldAngle)+float64(old.R)),
+			Y: height/2 + pitch*float64(old.Q)*math.Sin(oldAngle),
+		}
+		newPoint := coordToXY(converted, width, height, pitch, "pointy")
+		if distance(oldPoint, newPoint) > 1e-9 {
+			t.Errorf("old coordinate %+v converts to %+v, moving its center from %+v to %+v", old, converted, oldPoint, newPoint)
+		}
 	}
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			vertices := getHexVertices(0, 0, radius, tt.orientation)
-			if len(vertices) != 6 {
-				t.Fatalf("got %d vertices, want 6", len(vertices))
-			}
-
-			if distance(vertices[0], tt.firstWant) > 1e-9 {
-				t.Errorf("first vertex is %v, want %v", vertices[0], tt.firstWant)
-			}
-
-			// All corners of a regular hexagon are one circumradius from its center.
-			for i, vertex := range vertices {
-				if got := distance(vertex, Point{}); !closeEnough(got, radius, 1e-9) {
-					t.Errorf("vertex %d is %.12f from the center, want radius %.12f", i, got, radius)
-				}
-			}
-
-			// All six sides of a regular hexagon have equal length.
-			for i := range vertices {
-				next := vertices[(i+1)%len(vertices)]
-				if got := distance(vertices[i], next); !closeEnough(got, radius, 1e-9) {
-					t.Errorf("side %d has length %.12f, want %.12f", i, got, radius)
-				}
-			}
-		})
+func TestFlatTopCoordinateBasis(t *testing.T) {
+	const pitch = 0.7
+	center := coordToXY(Coord{}, 12, 8, pitch, "flat")
+	q := coordToXY(Coord{Q: 1}, 12, 8, pitch, "flat")
+	r := coordToXY(Coord{R: 1}, 12, 8, pitch, "flat")
+	if !closeEnough(q.X-center.X, pitch*math.Sqrt(3)/2, 1e-9) || !closeEnough(q.Y-center.Y, pitch/2, 1e-9) {
+		t.Errorf("flat-top Q neighbor offset = (%f, %f), want (%f, %f)", q.X-center.X, q.Y-center.Y, pitch*math.Sqrt(3)/2, pitch/2)
+	}
+	if !closeEnough(r.X-center.X, 0, 1e-9) || !closeEnough(r.Y-center.Y, pitch, 1e-9) {
+		t.Errorf("flat-top R neighbor offset = (%f, %f), want (0, %f)", r.X-center.X, r.Y-center.Y, pitch)
 	}
 }
 
@@ -136,49 +138,6 @@ func TestPointSegmentDistance(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := pointSegmentDistance(tt.p, tt.a, tt.b); !closeEnough(got, tt.want, 1e-9) {
 				t.Errorf("pointSegmentDistance() = %f, want %f", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestSegmentsIntersect(t *testing.T) {
-	tests := []struct {
-		name string
-		a, b Point
-		c, d Point
-		want bool
-	}{
-		{
-			name: "crossing segments",
-			a:    Point{X: 0, Y: 0}, b: Point{X: 2, Y: 0},
-			c: Point{X: 1, Y: -1}, d: Point{X: 1, Y: 1}, want: true,
-		},
-		{
-			name: "segments touch at an endpoint",
-			a:    Point{X: 0, Y: 0}, b: Point{X: 1, Y: 0},
-			c: Point{X: 1, Y: 0}, d: Point{X: 1, Y: 1}, want: true,
-		},
-		{
-			name: "collinear segments overlap",
-			a:    Point{X: 0, Y: 0}, b: Point{X: 3, Y: 0},
-			c: Point{X: 2, Y: 0}, d: Point{X: 4, Y: 0}, want: true,
-		},
-		{
-			name: "parallel segments do not touch",
-			a:    Point{X: 0, Y: 0}, b: Point{X: 2, Y: 0},
-			c: Point{X: 0, Y: 1}, d: Point{X: 2, Y: 1}, want: false,
-		},
-		{
-			name: "separate collinear segments",
-			a:    Point{X: 0, Y: 0}, b: Point{X: 1, Y: 0},
-			c: Point{X: 2, Y: 0}, d: Point{X: 3, Y: 0}, want: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := segmentsIntersect(tt.a, tt.b, tt.c, tt.d); got != tt.want {
-				t.Errorf("segmentsIntersect() = %t, want %t", got, tt.want)
 			}
 		})
 	}
@@ -347,7 +306,7 @@ func TestFindRouteForSide(t *testing.T) {
 	if path[0] != src.Coord() {
 		t.Errorf("route starts at %v, want source %v", path[0], src.Coord())
 	}
-	if path[1] != (Coord{Q: 1, R: 0}) {
+	if path[1] != axialSteps[0] {
 		t.Errorf("first move is to %v, want the neighbor in direction 0", path[1])
 	}
 	if path[len(path)-1] != dst.Coord() {
@@ -359,7 +318,7 @@ func TestFindRouteForSide(t *testing.T) {
 	for i := 0; i+1 < len(path); i++ {
 		delta := Coord{Q: path[i+1].Q - path[i].Q, R: path[i+1].R - path[i].R}
 		direction := -1
-		for j, step := range axialSteps {
+		for j, step := range rt.axialSteps {
 			if delta == step {
 				direction = j
 				break
@@ -444,31 +403,10 @@ func TestWeightedChoiceReturnsSelectedIndex(t *testing.T) {
 	}
 }
 
-func TestTrimEndpointDoesNotMutateInput(t *testing.T) {
-	track := []Point{{X: 0, Y: 0}, {X: 2, Y: 0}}
-	original := append([]Point(nil), track...)
-
-	trimmed := trimEndpoint(track, 0.5)
-	wantTrimmed := []Point{{X: 0, Y: 0}, {X: 1.5, Y: 0}}
-	if !reflect.DeepEqual(trimmed, wantTrimmed) {
-		t.Fatalf("trimEndpoint() = %v, want %v", trimmed, wantTrimmed)
-	}
-	if !reflect.DeepEqual(track, original) {
-		t.Fatalf("trimEndpoint() changed the input: got %v, want original %v", track, original)
-	}
-
-	// The result must not share its backing array with the input either.
-	trimmed[0].X = 99
-	if !reflect.DeepEqual(track, original) {
-		t.Fatalf("modifying the result changed the input: got %v, want original %v", track, original)
-	}
-}
-
 func TestChooseComponentsPlacesUniqueComponents(t *testing.T) {
 	opts := DefaultOptions()
-	baseAngle := degreesToRadians(-60)
 
-	components, edges, err := chooseComponents(opts, rand.New(rand.NewSource(1234)), baseAngle)
+	components, edges, err := chooseComponents(opts, rand.New(rand.NewSource(1234)))
 	if err != nil {
 		t.Fatalf("chooseComponents() returned an error: %v", err)
 	}
@@ -505,13 +443,12 @@ func TestChooseComponentsPlacesUniqueComponents(t *testing.T) {
 
 func TestChooseComponentsIsRepeatableForFixedSeed(t *testing.T) {
 	opts := DefaultOptions()
-	baseAngle := degreesToRadians(-60)
 
-	firstComponents, firstEdges, err := chooseComponents(opts, rand.New(rand.NewSource(9876)), baseAngle)
+	firstComponents, firstEdges, err := chooseComponents(opts, rand.New(rand.NewSource(9876)))
 	if err != nil {
 		t.Fatalf("first chooseComponents() call returned an error: %v", err)
 	}
-	secondComponents, secondEdges, err := chooseComponents(opts, rand.New(rand.NewSource(9876)), baseAngle)
+	secondComponents, secondEdges, err := chooseComponents(opts, rand.New(rand.NewSource(9876)))
 	if err != nil {
 		t.Fatalf("second chooseComponents() call returned an error: %v", err)
 	}

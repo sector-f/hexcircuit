@@ -76,10 +76,16 @@ const (
 	fullComponentRadiusScale        = 1.0
 )
 
-// axialSteps lists the six legal moves between neighboring cells in the hexagonal
-// routing lattice. The order is deliberately clockwise, so adding or subtracting
-// one from a direction index means turning by 60 degrees.
+// axialSteps lists the six legal moves for pointy-top axial coordinates. The order
+// starts at -60 degrees and proceeds clockwise in 60-degree increments. Flat-top
+// layouts use flatAxialSteps to keep those same direction indices aligned with the
+// corresponding physical hexagon sides.
 var axialSteps = [...]Coord{
+	{Q: 1, R: -1}, {Q: 1, R: 0}, {Q: 0, R: 1},
+	{Q: -1, R: 1}, {Q: -1, R: 0}, {Q: 0, R: -1},
+}
+
+var flatAxialSteps = [...]Coord{
 	{Q: 1, R: 0}, {Q: 0, R: 1}, {Q: -1, R: 1},
 	{Q: -1, R: 0}, {Q: 0, R: -1}, {Q: 1, R: -1},
 }
@@ -89,30 +95,56 @@ var axialSteps = [...]Coord{
 type Point = hexgrid.Point
 
 // Coord identifies a cell in the hexagonal lattice using axial (Q, R) coordinates.
+// For pointy-top layouts, positive Q points east and positive R points southeast.
 // Each coordinate pair maps to one point in the 2D drawing through coordToXY.
 type Coord struct{ Q, R int }
+
+func axialStepsForOrientation(orientation string) [hexDirectionCount]Coord {
+	if orientation == "flat" {
+		return flatAxialSteps
+	}
+	return axialSteps
+}
+
+// conventionalCoord converts the generator's former pointy-top basis to the
+// conventional axial basis. The transform preserves the represented lattice cell.
+// Flat-top coordinates already use the conventional basis and are unchanged.
+func conventionalCoord(coord Coord, orientation string) Coord {
+	if orientation == "flat" {
+		return coord
+	}
+	return Coord{Q: coord.Q + coord.R, R: -coord.Q}
+}
 
 type HexComponent = hexgrid.Component
 
 // Component is a hexagonal circuit component placed at one lattice coordinate.
-// HexComponent supplies drawable geometry; Q, R, Cluster, and Hub are generation metadata.
+// The embedded geometry is used by the router for collision checks; final rendering
+// uses Q/R and RadiusScale to construct a hexgrid.GridComponent.
 type Component struct {
 	HexComponent
-	Q, R    int
-	Cluster int
-	Hub     bool
+	Q, R        int
+	Cluster     int
+	Hub         bool
+	RadiusScale float64
 }
 
 // Coord returns the component's lattice coordinate, independent of its pixel position.
 func (c Component) Coord() Coord { return Coord{Q: c.Q, R: c.R} }
 
-// AcceptedConnection stores one successful component-to-component route. Tracks
-// contains the parallel polylines; Endpoints contains their terminal-circle centers.
+// AcceptedConnection stores one successful component-to-component route. Path and
+// Lines are the high-level grid representation; Tracks and Endpoints are retained as
+// router geometry for collision checks while later connections are being accepted.
 type AcceptedConnection struct {
 	Source, Target         int
 	SourceSide, TargetSide int
-	Tracks                 [][]Point
-	Endpoints              []Point
+	// Path contains the axial route from source component through destination.
+	// Rendering converts it into a hexgrid.GridTrace; Tracks and Endpoints are
+	// retained for collision checks while the router is accepting connections.
+	Path      []Coord
+	Lines     int
+	Tracks    [][]Point
+	Endpoints []Point
 }
 
 // selectedComponent is the placement-time form of a component. Parent records the
@@ -214,7 +246,7 @@ func Generate(options Options) (string, int, int, error) {
 
 	// Place the hubs/components and their preferred links first. Additional candidate
 	// links will be generated from this placement in case a preferred route is blocked.
-	components, baseEdges, err := chooseComponents(opts, rng, baseAngle)
+	components, baseEdges, err := chooseComponents(opts, rng)
 	if err != nil {
 		return "", 0, 0, err
 	}
@@ -241,6 +273,7 @@ type router struct {
 	components     []Component
 	preferredEdges [][2]int
 	baseAngle      float64
+	axialSteps     [hexDirectionCount]Coord
 	rng            *rand.Rand
 
 	acceptedTracks [][]Point
@@ -254,6 +287,7 @@ func newRouter(options Options, components []Component, preferredEdges [][2]int,
 		components:     components,
 		preferredEdges: preferredEdges,
 		baseAngle:      baseAngle,
+		axialSteps:     axialStepsForOrientation(options.Orientation),
 		rng:            rng,
 		acceptedTracks: make([][]Point, 0),
 		occupiedFaces:  make(map[faceKey]bool),
@@ -360,12 +394,6 @@ func directionAngle(baseAngle float64, index int) float64 {
 	return baseAngle + degreesToRadians(degreesPerHexStep*float64(index))
 }
 
-// getHexVertices returns a regular hexagon's corners. Pointy orientation starts at
-// the top; flat orientation starts at the right.
-func getHexVertices(cx, cy, radius float64, orientation string) []Point {
-	return hexgrid.HexVertices(cx, cy, radius, orientation)
-}
-
 // faceMidpoint offsets the center along a side's outward normal by the apothem,
 // radius*sqrt(3)/2 for a regular hexagon.
 func faceMidpoint(component Component, side int, baseAngle float64) Point {
@@ -374,10 +402,17 @@ func faceMidpoint(component Component, side int, baseAngle float64) Point {
 	return Point{X: component.X + apothem*math.Cos(theta), Y: component.Y + apothem*math.Sin(theta)}
 }
 
-// coordToXY maps axial coordinates to inches. The q and r axes are 60 degrees apart;
-// (0, 0) is the center of the canvas.
-func coordToXY(coord Coord, width, height, pitch, baseAngle float64) Point {
+// coordToXY maps conventional axial coordinates to inches. For pointy-top layouts,
+// positive Q points east and positive R points southeast. The origin is the canvas
+// center. The inverse pointy-top basis conversion preserves the previous floating-point
+// operation order, so the geometry continues to match existing SVG golden files.
+func coordToXY(coord Coord, width, height, pitch float64, orientation string) Point {
+	baseAngle := degreesToRadians(30)
 	q, r := float64(coord.Q), float64(coord.R)
+	if orientation != "flat" {
+		baseAngle = degreesToRadians(-60)
+		q, r = float64(-coord.R), float64(coord.Q+coord.R)
+	}
 	theta0, theta1 := baseAngle, baseAngle+radiansPerHexStep
 	return Point{
 		X: width/2.0 + pitch*(q*math.Cos(theta0)+r*math.Cos(theta1)),
@@ -387,15 +422,15 @@ func coordToXY(coord Coord, width, height, pitch, baseAngle float64) Point {
 
 // candidateCoords returns lattice cells whose centers lie within the margin-adjusted
 // canvas. A negative margin intentionally includes off-canvas centers for the grid layer.
-func candidateCoords(width, height, pitch, baseAngle, margin float64) []gridCandidate {
+func candidateCoords(width, height, pitch, margin float64, orientation string) []gridCandidate {
 	// The search range must cover the canvas in either axial direction. The pitch
 	// floor prevents division by zero if this helper is called with invalid input.
 	limit := int(math.Ceil((width+height)/math.Max(pitch, candidatePitchFloor))) + 3
 	result := make([]gridCandidate, 0)
 	for q := -limit; q <= limit; q++ {
 		for r := -limit; r <= limit; r++ {
-			coord := Coord{Q: q, R: r}
-			point := coordToXY(coord, width, height, pitch, baseAngle)
+			coord := conventionalCoord(Coord{Q: q, R: r}, orientation)
+			point := coordToXY(coord, width, height, pitch, orientation)
 			if margin <= point.X && point.X <= width-margin && margin <= point.Y && point.Y <= height-margin {
 				result = append(result, gridCandidate{Coord: coord, Point: point})
 			}
@@ -407,9 +442,9 @@ func candidateCoords(width, height, pitch, baseAngle, margin float64) []gridCand
 // chooseComponents places the circuit's hexagonal components and returns preferred
 // connections between them. Placement is split into anchor selection, cluster growth,
 // and component/edge construction so each stage can be understood independently.
-func chooseComponents(o Options, rng *rand.Rand, baseAngle float64) ([]Component, [][2]int, error) {
+func chooseComponents(o Options, rng *rand.Rand) ([]Component, [][2]int, error) {
 	margin := o.ComponentRadius + o.TraceWidth + o.NodeRadius
-	candidates := candidateCoords(o.Width, o.Height, o.RoutingPitch, baseAngle, margin)
+	candidates := candidateCoords(o.Width, o.Height, o.RoutingPitch, margin, o.Orientation)
 	if len(candidates) < o.ComponentCount {
 		return nil, nil, fmt.Errorf("only %d candidate positions fit within the canvas for %d requested components; increase the canvas dimensions, reduce the component count, or reduce the routing pitch", len(candidates), o.ComponentCount)
 	}
@@ -607,16 +642,18 @@ func buildComponentsAndEdges(
 		// Cluster anchors become larger hubs. Other components use a weighted size
 		// distribution, so the image has a mix of small details and medium-sized nodes.
 		var radius float64
+		var radiusScale float64
 		var hub bool
 		if index < clusterCount {
-			radius = o.ComponentRadius * (hubRadiusMinimumScale + hubRadiusScaleRange*rng.Float64())
+			radiusScale = hubRadiusMinimumScale + hubRadiusScaleRange*rng.Float64()
+			radius = o.ComponentRadius * radiusScale
 			hub = true
 		} else {
 			// Radius scales are fractions of the configured maximum. The 0.55 and 0.70
 			// scales are most common, while full-size components are deliberately rare.
-			factor := radiusScales[weightedChoice(rng, radiusWeights[:])]
-			radius = o.ComponentRadius * factor
-			hub = factor >= hubRadiusThreshold
+			radiusScale = radiusScales[weightedChoice(rng, radiusWeights[:])]
+			radius = o.ComponentRadius * radiusScale
+			hub = radiusScale >= hubRadiusThreshold
 		}
 		p := candidateMap[item.coord]
 		components = append(
@@ -628,10 +665,11 @@ func buildComponentsAndEdges(
 					Y:      p.Y,
 					Radius: radius,
 				},
-				Q:       item.coord.Q,
-				R:       item.coord.R,
-				Cluster: item.cluster,
-				Hub:     hub,
+				Q:           item.coord.Q,
+				R:           item.coord.R,
+				Cluster:     item.cluster,
+				Hub:         hub,
+				RadiusScale: radiusScale,
 			},
 		)
 		if item.hasParent {
@@ -726,22 +764,6 @@ func offsetPolyline(points []Point, offset float64) []Point {
 	return result
 }
 
-func componentPolygon(component Component, orientation string) []Point {
-	return hexgrid.HexVertices(component.X, component.Y, component.Radius, orientation)
-}
-
-// pointInsideHexWithMargin tests the six half-plane constraints of a regular hexagon.
-// margin insets each side to reserve room for a terminal pad and its stroke.
-func pointInsideHexWithMargin(point Point, component Component, baseAngle, margin float64) bool {
-	return hexgrid.PointInsideHexWithMargin(point, Point{X: component.X, Y: component.Y}, component.Radius, baseAngle, margin)
-}
-
-// pointInPolygon uses ray casting: each horizontal-ray crossing toggles the inside
-// state. It is used to detect routes that enter unrelated component outlines.
-func pointInPolygon(point Point, polygon []Point) bool {
-	return hexgrid.PointInPolygon(point, polygon)
-}
-
 // pointSegmentDistance returns the shortest distance from point p to the finite segment
 // from a to b, clamping the projection so it cannot land beyond either endpoint.
 func pointSegmentDistance(p, a, b Point) float64 {
@@ -754,16 +776,10 @@ func pointSegmentDistance(p, a, b Point) float64 {
 	return distance(p, add(a, mul(ab, t)))
 }
 
-// segmentsIntersect treats touching endpoints and collinear overlap as intersections.
-// Parallel segments need a separate collinearity and interval-overlap test.
-func segmentsIntersect(a, b, c, d Point) bool {
-	return hexgrid.SegmentsIntersect(a, b, c, d)
-}
-
 // segmentSegmentDistance returns zero for intersecting segments; otherwise it returns
 // the minimum distance between an endpoint of either segment and the other segment.
 func segmentSegmentDistance(a, b, c, d Point) float64 {
-	if segmentsIntersect(a, b, c, d) {
+	if hexgrid.SegmentsIntersect(a, b, c, d) {
 		return 0
 	}
 	return math.Min(math.Min(pointSegmentDistance(a, c, d), pointSegmentDistance(b, c, d)), math.Min(pointSegmentDistance(c, a, b), pointSegmentDistance(d, a, b)))
@@ -772,10 +788,10 @@ func segmentSegmentDistance(a, b, c, d Point) float64 {
 // routeHitsComponent rejects a track that enters a component polygon or comes within
 // clearance of any of its edges.
 func routeHitsComponent(track []Point, component Component, orientation string, clearance float64) bool {
-	polygon := componentPolygon(component, orientation)
+	polygon := hexgrid.HexVertices(component.X, component.Y, component.Radius, orientation)
 	for _, pair := range segmentPairs(track) {
 		a, b := pair[0], pair[1]
-		if pointInPolygon(a, polygon) || pointInPolygon(b, polygon) {
+		if hexgrid.PointInPolygon(a, polygon) || hexgrid.PointInPolygon(b, polygon) {
 			return true
 		}
 		for i := 0; i < len(polygon); i++ {
@@ -864,7 +880,7 @@ func (rt *router) buildConnection(src, dst Component, path []Coord, side int) *A
 	for i := 0; i+1 < len(path); i++ {
 		delta := Coord{Q: path[i+1].Q - path[i].Q, R: path[i+1].R - path[i].R}
 		direction := -1
-		for j, step := range axialSteps {
+		for j, step := range rt.axialSteps {
 			if step == delta {
 				direction = j
 				break
@@ -928,7 +944,7 @@ func (rt *router) buildConnection(src, dst Component, path []Coord, side int) *A
 	// offsets of this shared centerline.
 	routePoints := []Point{faceMidpoint(src, side, baseAngle)}
 	for _, coord := range path[1:] {
-		routePoints = append(routePoints, coordToXY(coord, o.Width, o.Height, o.RoutingPitch, baseAngle))
+		routePoints = append(routePoints, coordToXY(coord, o.Width, o.Height, o.RoutingPitch, o.Orientation))
 	}
 	offsets := make([]float64, trackCount)
 	candidateTracks := make([][]Point, trackCount)
@@ -948,7 +964,13 @@ func (rt *router) buildConnection(src, dst Component, path []Coord, side int) *A
 	endpoints := make([]Point, 0, len(candidateTracks))
 	for _, track := range candidateTracks {
 		endpoint := track[len(track)-1]
-		if !pointInsideHexWithMargin(endpoint, dst, baseAngle, o.NodeRadius+o.TraceWidth/2.0) {
+		if !hexgrid.PointInsideHexWithMargin(
+			endpoint,
+			Point{X: dst.X, Y: dst.Y},
+			dst.Radius,
+			baseAngle,
+			o.NodeRadius+o.TraceWidth/2.0,
+		) {
 			return nil
 		}
 		endpoints = append(endpoints, endpoint)
@@ -974,7 +996,12 @@ func (rt *router) buildConnection(src, dst Component, path []Coord, side int) *A
 	if tracksCollide(candidateTracks, existingTracks, o.TraceClearance+o.TraceWidth) {
 		return nil
 	}
-	return &AcceptedConnection{Source: src.Index, Target: dst.Index, SourceSide: side, TargetSide: targetSide, Tracks: candidateTracks, Endpoints: endpoints}
+	return &AcceptedConnection{
+		Source: src.Index, Target: dst.Index,
+		SourceSide: side, TargetSide: targetSide,
+		Path: append([]Coord(nil), path...), Lines: trackCount,
+		Tracks: candidateTracks, Endpoints: endpoints,
+	}
 }
 
 // tryEdge tries both source/target directions and starting sides in proximity order.
@@ -1041,7 +1068,7 @@ func (rt *router) nextLegacyRouteCost(currentCost float64, turned bool) float64 
 func (rt *router) findRouteForSide(src, dst Component, reservedCoords map[Coord]bool, firstDirection int) []Coord {
 	components := rt.components
 	width, height := rt.options.Width, rt.options.Height
-	pitch, baseAngle := rt.options.RoutingPitch, rt.baseAngle
+	pitch := rt.options.RoutingPitch
 	maxSteps, rng := rt.options.MaxRouteSteps, rt.rng
 	useDeterministicRouteCost := rt.options.UseDeterministicRouteCost
 
@@ -1055,10 +1082,10 @@ func (rt *router) findRouteForSide(src, dst Component, reservedCoords map[Coord]
 	for coord := range reservedCoords {
 		blocked[coord] = true
 	}
-	step := axialSteps[firstDirection]
+	step := rt.axialSteps[firstDirection]
 	firstCoord := Coord{Q: src.Q + step.Q, R: src.R + step.R}
 	withinCanvas := func(coord Coord) bool {
-		p := coordToXY(coord, width, height, pitch, baseAngle)
+		p := coordToXY(coord, width, height, pitch, rt.options.Orientation)
 		return routeCanvasInset <= p.X && p.X <= width-routeCanvasInset &&
 			routeCanvasInset <= p.Y && p.Y <= height-routeCanvasInset
 	}
@@ -1113,7 +1140,7 @@ func (rt *router) findRouteForSide(src, dst Component, reservedCoords map[Coord]
 		}
 		rng.Shuffle(len(choices), func(i, j int) { choices[i], choices[j] = choices[j], choices[i] })
 		for _, nextDirection := range choices {
-			delta := axialSteps[nextDirection]
+			delta := rt.axialSteps[nextDirection]
 			next := Coord{Q: coord.Q + delta.Q, R: coord.R + delta.R}
 			if next != dst.Coord() && blocked[next] {
 				continue
@@ -1250,15 +1277,24 @@ func orderedPair(a, b int) [2]int {
 	return [2]int{a, b}
 }
 
-// renderSVG serializes model geometry into SVG. Layer order is intentional: grid,
-// traces, component outlines/details, labels, then terminal pads so endpoints remain clear.
+// renderSVG serializes a generated grid layout into SVG. The circuit package owns
+// placement policy, route finding, and collision avoidance; hexgrid owns conversion
+// from axial components/traces to drawable geometry and SVG rendering.
 func renderSVG(
 	o Options,
 	components []Component,
 	connections []AcceptedConnection,
 	seed int64,
 ) (string, error) {
-	scene := sceneForRender(o, components, connections)
+	layout, err := gridSceneForRender(o, components, connections)
+	if err != nil {
+		return "", fmt.Errorf("convert circuit layout to hexgrid: %w", err)
+	}
+	scene, err := hexgrid.BuildScene(layout)
+	if err != nil {
+		return "", fmt.Errorf("build hexgrid scene: %w", err)
+	}
+
 	labelFontFamily := o.LabelFont
 	if o.ShowLabels && o.LabelProbability > 0 {
 		var wordList []string = defaultLabels
@@ -1281,13 +1317,15 @@ func renderSVG(
 		labelFontFamily = loadedFont.Family
 	}
 	scene.LabelFontFamily = labelFontFamily
+	scene.LabelColor = componentLabelFontColor(o)
+	scene.LabelFontSize = o.LabelFontSize
 	assignComponentDetails(o, components, &scene, seed)
 	return hexgrid.Render(scene), nil
 }
 
 // assignComponentDetails makes randomized visual decisions in the generator. The
-// renderer receives explicit ComponentDetail values and contains no RNG or probability
-// policy. A separate RNG stream keeps detail selection from perturbing placement/routing.
+// grid renderer receives an explicit ComponentStyle; it does not make random choices.
+// A separate RNG stream keeps detail selection from perturbing placement/routing.
 func assignComponentDetails(o Options, components []Component, scene *hexgrid.Scene, seed int64) {
 	componentByIndex := make(map[int]Component, len(components))
 	for _, component := range components {
@@ -1315,52 +1353,73 @@ func assignComponentDetails(o Options, components []Component, scene *hexgrid.Sc
 		}
 		wantsDetails := visualComponent.Radius >= o.ComponentRadius*minimumDetailRadius && detailRNG.Float64() < detailChance
 		if wantsDetails && !labelsInside[visualComponent.Index] {
-			visualComponent.Detail = hexgrid.ComponentDetailNestedHexagons
+			// The former nested-detail motif contains an outer, middle, and inner
+			// hexagon, so it maps directly to the new triple component style.
+			visualComponent.Style = hexgrid.ComponentStyleTriple
 		}
 	}
 }
 
-// sceneForRender converts generation-specific structures into the renderer's visual model.
-// Routing and placement retain their richer types; hexgrid receives drawable components,
-// traces, terminals, labels, and styling only.
-func sceneForRender(
+// gridSceneForRender converts generation policy structures into the high-level
+// hexgrid API. Components retain their axial positions and relative radii; each
+// accepted route retains its axial path and selected parallel-line count.
+func gridSceneForRender(
 	o Options,
 	components []Component,
 	connections []AcceptedConnection,
-) hexgrid.Scene {
-	scene := hexgrid.Scene{
-		Width:                o.Width,
-		Height:               o.Height,
-		Orientation:          o.Orientation,
-		Color:                o.Color,
-		Background:           o.Background,
-		Grid:                 hexgrid.Grid{Pitch: o.RoutingPitch, Radius: o.GridRadius, StrokeWidth: o.GridWidth, OmitPartial: o.OmitPartialGridHexagons},
-		ComponentStrokeWidth: o.StrokeWidth,
-		TraceStrokeWidth:     o.TraceWidth,
-		NodeRadius:           o.NodeRadius,
-		LabelColor:           componentLabelFontColor(o),
-		LabelFontFamily:      o.LabelFont,
-		LabelFontSize:        o.LabelFontSize,
+) (hexgrid.GridScene, error) {
+	gridOptions := hexgrid.DefaultOptions()
+	gridOptions.Width = o.Width
+	gridOptions.Height = o.Height
+	gridOptions.Orientation = o.Orientation
+	gridOptions.Color = o.Color
+	gridOptions.Background = o.Background
+	gridOptions.Grid = hexgrid.Grid{
+		Pitch: o.RoutingPitch, Radius: o.GridRadius,
+		StrokeWidth: o.GridWidth, OmitPartial: o.OmitPartialGridHexagons,
 	}
+	gridOptions.ComponentRadius = o.ComponentRadius
+	gridOptions.ComponentStrokeWidth = o.StrokeWidth
+	gridOptions.TraceStrokeWidth = o.TraceWidth
+	gridOptions.TraceSpacing = o.ParallelSpacing
+	gridOptions.NodeRadius = o.NodeRadius
+
+	layout := hexgrid.GridScene{Options: gridOptions}
+	layout.Components = make([]hexgrid.GridComponent, 0, len(components))
 	for _, component := range components {
-		// Component embeds HexComponent, so geometry stays defined in one place.
-		scene.Components = append(scene.Components, component.HexComponent)
-	}
-	for _, connection := range connections {
-		for _, track := range connection.Tracks {
-			scene.Traces = append(scene.Traces, hexgrid.Trace{Points: track})
+		radiusScale := component.RadiusScale
+		if radiusScale == 0 {
+			// Retain compatibility for callers constructing Component values directly.
+			radiusScale = component.Radius / o.ComponentRadius
 		}
-		for _, endpoint := range connection.Endpoints {
-			scene.Terminals = append(scene.Terminals, hexgrid.Terminal{
-				X: endpoint.X, Y: endpoint.Y, Radius: o.NodeRadius,
-			})
-		}
+		layout.Components = append(layout.Components, hexgrid.GridComponent{
+			Position:    gridPosition(component.Coord()),
+			Style:       hexgrid.ComponentStyleSingle,
+			RadiusScale: radiusScale,
+		})
 	}
-	return scene
+
+	layout.Traces = make([]hexgrid.GridTrace, 0, len(connections))
+	for i, connection := range connections {
+		if len(connection.Path) < 2 {
+			return hexgrid.GridScene{}, fmt.Errorf("connection %d must contain a source and destination grid position", i)
+		}
+		if connection.Lines < 1 {
+			return hexgrid.GridScene{}, fmt.Errorf("connection %d must contain at least one parallel line", i)
+		}
+		trace := hexgrid.GridTrace{
+			Start: gridPosition(connection.Path[0]),
+			Lines: connection.Lines,
+			Path:  make([]hexgrid.GridPosition, 0, len(connection.Path)-1),
+		}
+		for _, position := range connection.Path[1:] {
+			trace.Path = append(trace.Path, gridPosition(position))
+		}
+		layout.Traces = append(layout.Traces, trace)
+	}
+	return layout, nil
 }
 
-// trimEndpoint remains as a compatibility wrapper for geometry tests; rendering now
-// owns endpoint trimming in the hexgrid package.
-func trimEndpoint(track []Point, radius float64) []Point {
-	return hexgrid.TrimEndpoint(track, radius)
+func gridPosition(coord Coord) hexgrid.GridPosition {
+	return hexgrid.GridPosition{Q: coord.Q, R: coord.R}
 }
