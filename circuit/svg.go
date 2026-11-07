@@ -368,12 +368,6 @@ func directionAngle(baseAngle float64, index int) float64 {
 	return baseAngle + degreesToRadians(degreesPerHexStep*float64(index))
 }
 
-// getHexVertices returns a regular hexagon's corners. Pointy orientation starts at
-// the top; flat orientation starts at the right.
-func getHexVertices(cx, cy, radius float64, orientation string) []Point {
-	return hexgrid.HexVertices(cx, cy, radius, orientation)
-}
-
 // faceMidpoint offsets the center along a side's outward normal by the apothem,
 // radius*sqrt(3)/2 for a regular hexagon.
 func faceMidpoint(component Component, side int, baseAngle float64) Point {
@@ -737,22 +731,6 @@ func offsetPolyline(points []Point, offset float64) []Point {
 	return result
 }
 
-func componentPolygon(component Component, orientation string) []Point {
-	return hexgrid.HexVertices(component.X, component.Y, component.Radius, orientation)
-}
-
-// pointInsideHexWithMargin tests the six half-plane constraints of a regular hexagon.
-// margin insets each side to reserve room for a terminal pad and its stroke.
-func pointInsideHexWithMargin(point Point, component Component, baseAngle, margin float64) bool {
-	return hexgrid.PointInsideHexWithMargin(point, Point{X: component.X, Y: component.Y}, component.Radius, baseAngle, margin)
-}
-
-// pointInPolygon uses ray casting: each horizontal-ray crossing toggles the inside
-// state. It is used to detect routes that enter unrelated component outlines.
-func pointInPolygon(point Point, polygon []Point) bool {
-	return hexgrid.PointInPolygon(point, polygon)
-}
-
 // pointSegmentDistance returns the shortest distance from point p to the finite segment
 // from a to b, clamping the projection so it cannot land beyond either endpoint.
 func pointSegmentDistance(p, a, b Point) float64 {
@@ -765,16 +743,10 @@ func pointSegmentDistance(p, a, b Point) float64 {
 	return distance(p, add(a, mul(ab, t)))
 }
 
-// segmentsIntersect treats touching endpoints and collinear overlap as intersections.
-// Parallel segments need a separate collinearity and interval-overlap test.
-func segmentsIntersect(a, b, c, d Point) bool {
-	return hexgrid.SegmentsIntersect(a, b, c, d)
-}
-
 // segmentSegmentDistance returns zero for intersecting segments; otherwise it returns
 // the minimum distance between an endpoint of either segment and the other segment.
 func segmentSegmentDistance(a, b, c, d Point) float64 {
-	if segmentsIntersect(a, b, c, d) {
+	if hexgrid.SegmentsIntersect(a, b, c, d) {
 		return 0
 	}
 	return math.Min(math.Min(pointSegmentDistance(a, c, d), pointSegmentDistance(b, c, d)), math.Min(pointSegmentDistance(c, a, b), pointSegmentDistance(d, a, b)))
@@ -783,10 +755,10 @@ func segmentSegmentDistance(a, b, c, d Point) float64 {
 // routeHitsComponent rejects a track that enters a component polygon or comes within
 // clearance of any of its edges.
 func routeHitsComponent(track []Point, component Component, orientation string, clearance float64) bool {
-	polygon := componentPolygon(component, orientation)
+	polygon := hexgrid.HexVertices(component.X, component.Y, component.Radius, orientation)
 	for _, pair := range segmentPairs(track) {
 		a, b := pair[0], pair[1]
-		if pointInPolygon(a, polygon) || pointInPolygon(b, polygon) {
+		if hexgrid.PointInPolygon(a, polygon) || hexgrid.PointInPolygon(b, polygon) {
 			return true
 		}
 		for i := 0; i < len(polygon); i++ {
@@ -959,7 +931,13 @@ func (rt *router) buildConnection(src, dst Component, path []Coord, side int) *A
 	endpoints := make([]Point, 0, len(candidateTracks))
 	for _, track := range candidateTracks {
 		endpoint := track[len(track)-1]
-		if !pointInsideHexWithMargin(endpoint, dst, baseAngle, o.NodeRadius+o.TraceWidth/2.0) {
+		if !hexgrid.PointInsideHexWithMargin(
+			endpoint,
+			Point{X: dst.X, Y: dst.Y},
+			dst.Radius,
+			baseAngle,
+			o.NodeRadius+o.TraceWidth/2.0,
+		) {
 			return nil
 		}
 		endpoints = append(endpoints, endpoint)
@@ -1411,10 +1389,4 @@ func gridSceneForRender(
 
 func gridPosition(coord Coord) hexgrid.GridPosition {
 	return hexgrid.GridPosition{Q: coord.Q, R: coord.R}
-}
-
-// trimEndpoint remains as a compatibility wrapper for geometry tests; rendering now
-// owns endpoint trimming in the hexgrid package.
-func trimEndpoint(track []Point, radius float64) []Point {
-	return hexgrid.TrimEndpoint(track, radius)
 }
