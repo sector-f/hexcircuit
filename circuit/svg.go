@@ -95,24 +95,32 @@ type Coord struct{ Q, R int }
 type HexComponent = hexgrid.Component
 
 // Component is a hexagonal circuit component placed at one lattice coordinate.
-// HexComponent supplies drawable geometry; Q, R, Cluster, and Hub are generation metadata.
+// The embedded geometry is used by the router for collision checks; final rendering
+// uses Q/R and RadiusScale to construct a hexgrid.GridComponent.
 type Component struct {
 	HexComponent
-	Q, R    int
-	Cluster int
-	Hub     bool
+	Q, R        int
+	Cluster     int
+	Hub         bool
+	RadiusScale float64
 }
 
 // Coord returns the component's lattice coordinate, independent of its pixel position.
 func (c Component) Coord() Coord { return Coord{Q: c.Q, R: c.R} }
 
-// AcceptedConnection stores one successful component-to-component route. Tracks
-// contains the parallel polylines; Endpoints contains their terminal-circle centers.
+// AcceptedConnection stores one successful component-to-component route. Path and
+// Lines are the high-level grid representation; Tracks and Endpoints are retained as
+// router geometry for collision checks while later connections are being accepted.
 type AcceptedConnection struct {
 	Source, Target         int
 	SourceSide, TargetSide int
-	Tracks                 [][]Point
-	Endpoints              []Point
+	// Path contains the axial route from source component through destination.
+	// Rendering converts it into a hexgrid.GridTrace; Tracks and Endpoints are
+	// retained for collision checks while the router is accepting connections.
+	Path      []Coord
+	Lines     int
+	Tracks    [][]Point
+	Endpoints []Point
 }
 
 // selectedComponent is the placement-time form of a component. Parent records the
@@ -607,16 +615,18 @@ func buildComponentsAndEdges(
 		// Cluster anchors become larger hubs. Other components use a weighted size
 		// distribution, so the image has a mix of small details and medium-sized nodes.
 		var radius float64
+		var radiusScale float64
 		var hub bool
 		if index < clusterCount {
-			radius = o.ComponentRadius * (hubRadiusMinimumScale + hubRadiusScaleRange*rng.Float64())
+			radiusScale = hubRadiusMinimumScale + hubRadiusScaleRange*rng.Float64()
+			radius = o.ComponentRadius * radiusScale
 			hub = true
 		} else {
 			// Radius scales are fractions of the configured maximum. The 0.55 and 0.70
 			// scales are most common, while full-size components are deliberately rare.
-			factor := radiusScales[weightedChoice(rng, radiusWeights[:])]
-			radius = o.ComponentRadius * factor
-			hub = factor >= hubRadiusThreshold
+			radiusScale = radiusScales[weightedChoice(rng, radiusWeights[:])]
+			radius = o.ComponentRadius * radiusScale
+			hub = radiusScale >= hubRadiusThreshold
 		}
 		p := candidateMap[item.coord]
 		components = append(
@@ -628,10 +638,11 @@ func buildComponentsAndEdges(
 					Y:      p.Y,
 					Radius: radius,
 				},
-				Q:       item.coord.Q,
-				R:       item.coord.R,
-				Cluster: item.cluster,
-				Hub:     hub,
+				Q:           item.coord.Q,
+				R:           item.coord.R,
+				Cluster:     item.cluster,
+				Hub:         hub,
+				RadiusScale: radiusScale,
 			},
 		)
 		if item.hasParent {
@@ -974,7 +985,12 @@ func (rt *router) buildConnection(src, dst Component, path []Coord, side int) *A
 	if tracksCollide(candidateTracks, existingTracks, o.TraceClearance+o.TraceWidth) {
 		return nil
 	}
-	return &AcceptedConnection{Source: src.Index, Target: dst.Index, SourceSide: side, TargetSide: targetSide, Tracks: candidateTracks, Endpoints: endpoints}
+	return &AcceptedConnection{
+		Source: src.Index, Target: dst.Index,
+		SourceSide: side, TargetSide: targetSide,
+		Path: append([]Coord(nil), path...), Lines: trackCount,
+		Tracks: candidateTracks, Endpoints: endpoints,
+	}
 }
 
 // tryEdge tries both source/target directions and starting sides in proximity order.
@@ -1250,15 +1266,24 @@ func orderedPair(a, b int) [2]int {
 	return [2]int{a, b}
 }
 
-// renderSVG serializes model geometry into SVG. Layer order is intentional: grid,
-// traces, component outlines/details, labels, then terminal pads so endpoints remain clear.
+// renderSVG serializes a generated grid layout into SVG. The circuit package owns
+// placement policy, route finding, and collision avoidance; hexgrid owns conversion
+// from axial components/traces to drawable geometry and SVG rendering.
 func renderSVG(
 	o Options,
 	components []Component,
 	connections []AcceptedConnection,
 	seed int64,
 ) (string, error) {
-	scene := sceneForRender(o, components, connections)
+	layout, err := gridSceneForRender(o, components, connections)
+	if err != nil {
+		return "", fmt.Errorf("convert circuit layout to hexgrid: %w", err)
+	}
+	scene, err := hexgrid.BuildScene(layout)
+	if err != nil {
+		return "", fmt.Errorf("build hexgrid scene: %w", err)
+	}
+
 	labelFontFamily := o.LabelFont
 	if o.ShowLabels && o.LabelProbability > 0 {
 		var wordList []string = defaultLabels
@@ -1281,13 +1306,15 @@ func renderSVG(
 		labelFontFamily = loadedFont.Family
 	}
 	scene.LabelFontFamily = labelFontFamily
+	scene.LabelColor = componentLabelFontColor(o)
+	scene.LabelFontSize = o.LabelFontSize
 	assignComponentDetails(o, components, &scene, seed)
 	return hexgrid.Render(scene), nil
 }
 
 // assignComponentDetails makes randomized visual decisions in the generator. The
-// renderer receives explicit ComponentDetail values and contains no RNG or probability
-// policy. A separate RNG stream keeps detail selection from perturbing placement/routing.
+// grid renderer receives an explicit ComponentStyle; it does not make random choices.
+// A separate RNG stream keeps detail selection from perturbing placement/routing.
 func assignComponentDetails(o Options, components []Component, scene *hexgrid.Scene, seed int64) {
 	componentByIndex := make(map[int]Component, len(components))
 	for _, component := range components {
@@ -1315,48 +1342,75 @@ func assignComponentDetails(o Options, components []Component, scene *hexgrid.Sc
 		}
 		wantsDetails := visualComponent.Radius >= o.ComponentRadius*minimumDetailRadius && detailRNG.Float64() < detailChance
 		if wantsDetails && !labelsInside[visualComponent.Index] {
-			visualComponent.Detail = hexgrid.ComponentDetailNestedHexagons
+			// The former nested-detail motif contains an outer, middle, and inner
+			// hexagon, so it maps directly to the new triple component style.
+			visualComponent.Style = hexgrid.ComponentStyleTriple
 		}
 	}
 }
 
-// sceneForRender converts generation-specific structures into the renderer's visual model.
-// Routing and placement retain their richer types; hexgrid receives drawable components,
-// traces, terminals, labels, and styling only.
-func sceneForRender(
+// gridSceneForRender converts generation policy structures into the high-level
+// hexgrid API. Components retain their axial positions and relative radii; each
+// accepted route retains its axial path and selected parallel-line count.
+func gridSceneForRender(
 	o Options,
 	components []Component,
 	connections []AcceptedConnection,
-) hexgrid.Scene {
-	scene := hexgrid.Scene{
-		Width:                o.Width,
-		Height:               o.Height,
-		Orientation:          o.Orientation,
-		Color:                o.Color,
-		Background:           o.Background,
-		Grid:                 hexgrid.Grid{Pitch: o.RoutingPitch, Radius: o.GridRadius, StrokeWidth: o.GridWidth, OmitPartial: o.OmitPartialGridHexagons},
-		ComponentStrokeWidth: o.StrokeWidth,
-		TraceStrokeWidth:     o.TraceWidth,
-		NodeRadius:           o.NodeRadius,
-		LabelColor:           componentLabelFontColor(o),
-		LabelFontFamily:      o.LabelFont,
-		LabelFontSize:        o.LabelFontSize,
+) (hexgrid.GridScene, error) {
+	gridOptions := hexgrid.DefaultOptions()
+	gridOptions.Width = o.Width
+	gridOptions.Height = o.Height
+	gridOptions.Orientation = o.Orientation
+	gridOptions.Color = o.Color
+	gridOptions.Background = o.Background
+	gridOptions.Grid = hexgrid.Grid{
+		Pitch: o.RoutingPitch, Radius: o.GridRadius,
+		StrokeWidth: o.GridWidth, OmitPartial: o.OmitPartialGridHexagons,
 	}
+	gridOptions.ComponentRadius = o.ComponentRadius
+	gridOptions.ComponentStrokeWidth = o.StrokeWidth
+	gridOptions.TraceStrokeWidth = o.TraceWidth
+	gridOptions.TraceSpacing = o.ParallelSpacing
+	gridOptions.NodeRadius = o.NodeRadius
+
+	layout := hexgrid.GridScene{Options: gridOptions}
+	layout.Components = make([]hexgrid.GridComponent, 0, len(components))
 	for _, component := range components {
-		// Component embeds HexComponent, so geometry stays defined in one place.
-		scene.Components = append(scene.Components, component.HexComponent)
-	}
-	for _, connection := range connections {
-		for _, track := range connection.Tracks {
-			scene.Traces = append(scene.Traces, hexgrid.Trace{Points: track})
+		radiusScale := component.RadiusScale
+		if radiusScale == 0 {
+			// Retain compatibility for callers constructing Component values directly.
+			radiusScale = component.Radius / o.ComponentRadius
 		}
-		for _, endpoint := range connection.Endpoints {
-			scene.Terminals = append(scene.Terminals, hexgrid.Terminal{
-				X: endpoint.X, Y: endpoint.Y, Radius: o.NodeRadius,
-			})
-		}
+		layout.Components = append(layout.Components, hexgrid.GridComponent{
+			Position:    gridPosition(component.Coord()),
+			Style:       hexgrid.ComponentStyleSingle,
+			RadiusScale: radiusScale,
+		})
 	}
-	return scene
+
+	layout.Traces = make([]hexgrid.GridTrace, 0, len(connections))
+	for i, connection := range connections {
+		if len(connection.Path) < 2 {
+			return hexgrid.GridScene{}, fmt.Errorf("connection %d must contain a source and destination grid position", i)
+		}
+		if connection.Lines < 1 {
+			return hexgrid.GridScene{}, fmt.Errorf("connection %d must contain at least one parallel line", i)
+		}
+		trace := hexgrid.GridTrace{
+			Start: gridPosition(connection.Path[0]),
+			Lines: connection.Lines,
+			Path:  make([]hexgrid.GridPosition, 0, len(connection.Path)-1),
+		}
+		for _, position := range connection.Path[1:] {
+			trace.Path = append(trace.Path, gridPosition(position))
+		}
+		layout.Traces = append(layout.Traces, trace)
+	}
+	return layout, nil
+}
+
+func gridPosition(coord Coord) hexgrid.GridPosition {
+	return hexgrid.GridPosition{Q: coord.Q, R: coord.R}
 }
 
 // trimEndpoint remains as a compatibility wrapper for geometry tests; rendering now

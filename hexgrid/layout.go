@@ -204,7 +204,10 @@ func BuildScene(layout GridScene) (Scene, error) {
 		for line := 0; line < trace.Lines; line++ {
 			offset := (float64(line) - float64(trace.Lines-1)/2) * o.TraceSpacing
 			track := offsetPolyline(points, offset)
-			track, err := clipTrackStartToComponent(track, source, baseAngle, o.TraceStrokeWidth/2)
+			// Clip the trace centerline to the component boundary. The renderer draws
+			// the stroke over the boundary by half its width, matching the established
+			// circuit artwork while keeping the line visually connected to the outline.
+			track, err := clipTrackStartToComponent(track, source, baseAngle, 0)
 			if err != nil {
 				return Scene{}, fmt.Errorf("trace %d line %d: %w", traceIndex, line+1, err)
 			}

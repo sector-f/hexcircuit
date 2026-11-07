@@ -300,6 +300,8 @@ it does not try to prevent traces from crossing other components or traces.
 All physical dimensions are supplied through `hexgrid.Options` (canvas size, grid pitch
 and radius, component radius and stroke widths, trace spacing and width, and terminal
 radius). `hexgrid.BuildScene` is available when callers need to inspect or extend the
-inch-based scene before rendering. The older `hexgrid.Scene` and `hexgrid.Render` API
-remains available for callers that already have explicit geometry, including the
-`circuit` generator.
+inch-based scene before rendering. The randomized `circuit` generator also uses this
+high-level API for its final rendering handoff: it converts accepted axial routes into
+`GridTrace` values and lets `hexgrid` produce the drawable paths and terminal pads. The
+older `hexgrid.Scene` and `hexgrid.Render` API remains available for callers that already
+have explicit geometry.
