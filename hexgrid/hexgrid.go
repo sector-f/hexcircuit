@@ -511,7 +511,7 @@ func SegmentsIntersect(a, b, c, d Point) bool {
 
 // GridCells returns lattice cells whose centers fall within the canvas rectangle inset
 // by margin. A negative margin deliberately includes off-canvas cells so the grid can
-// continue seamlessly to the image edges. Cells are returned in stable q-then-r order.
+// continue seamlessly to the image edges. Cells are returned in a stable scan order.
 func GridCells(width, height, pitch float64, orientation string, margin float64) []Cell {
 	// A non-positive or non-finite pitch means there is no enumerable lattice.
 	// Treat it as an empty grid rather than allowing a division by zero to create
@@ -522,18 +522,18 @@ func GridCells(width, height, pitch float64, orientation string, margin float64)
 		return nil
 	}
 	limit := int(math.Ceil((width+height)/pitch)) + 3
-	baseAngle := orientationBaseAngle(orientation)
-	theta1 := baseAngle + math.Pi/3
 	result := make([]Cell, 0)
 	for q := -limit; q <= limit; q++ {
 		for r := -limit; r <= limit; r++ {
-			qf, rf := float64(q), float64(r)
-			center := Point{
-				X: width/2.0 + pitch*(qf*math.Cos(baseAngle)+rf*math.Cos(theta1)),
-				Y: height/2.0 + pitch*(qf*math.Sin(baseAngle)+rf*math.Sin(theta1)),
+			position := GridPosition{Q: q, R: r}
+			if orientation != "flat" {
+				// Keep the established scan order (and therefore SVG element order)
+				// while returning coordinates in the conventional pointy-top basis.
+				position = GridPosition{Q: q + r, R: -q}
 			}
+			center := GridPositionToPoint(position, width, height, pitch, orientation)
 			if margin <= center.X && center.X <= width-margin && margin <= center.Y && center.Y <= height-margin {
-				result = append(result, Cell{Q: q, R: r, Center: center})
+				result = append(result, Cell{Q: position.Q, R: position.R, Center: center})
 			}
 		}
 	}

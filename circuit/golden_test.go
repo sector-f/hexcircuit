@@ -10,12 +10,14 @@ func TestDefaultGolden(t *testing.T) {
 	opts.Seed = 42
 	opts.SeedSet = true
 
+	filename := "testdata/golden.svg"
+
 	got, _, _, err := Generate(opts)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	want, err := os.ReadFile("testdata/golden.svg")
+	want, err := os.ReadFile(filename)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,12 +33,14 @@ func TestDefaultGoldenDeterministicRouteCost(t *testing.T) {
 	opts.Seed = 42
 	opts.SeedSet = true
 
+	filename := "testdata/golden_deterministic.svg"
+
 	got, _, _, err := Generate(opts)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	want, err := os.ReadFile("testdata/golden_deterministic.svg")
+	want, err := os.ReadFile(filename)
 
 	if err != nil {
 		t.Fatal(err)
@@ -55,12 +59,14 @@ func TestDefaultGoldenWithLabels(t *testing.T) {
 	opts.Seed = 42
 	opts.SeedSet = true
 
+	filename := "testdata/golden_labels.svg"
+
 	got, _, _, err := Generate(opts)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	want, err := os.ReadFile("testdata/golden_labels.svg")
+	want, err := os.ReadFile(filename)
 	if err != nil {
 		t.Fatal(err)
 	}

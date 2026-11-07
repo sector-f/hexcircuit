@@ -76,10 +76,16 @@ const (
 	fullComponentRadiusScale        = 1.0
 )
 
-// axialSteps lists the six legal moves between neighboring cells in the hexagonal
-// routing lattice. The order is deliberately clockwise, so adding or subtracting
-// one from a direction index means turning by 60 degrees.
+// axialSteps lists the six legal moves for pointy-top axial coordinates. The order
+// starts at -60 degrees and proceeds clockwise in 60-degree increments. Flat-top
+// layouts use flatAxialSteps to keep those same direction indices aligned with the
+// corresponding physical hexagon sides.
 var axialSteps = [...]Coord{
+	{Q: 1, R: -1}, {Q: 1, R: 0}, {Q: 0, R: 1},
+	{Q: -1, R: 1}, {Q: -1, R: 0}, {Q: 0, R: -1},
+}
+
+var flatAxialSteps = [...]Coord{
 	{Q: 1, R: 0}, {Q: 0, R: 1}, {Q: -1, R: 1},
 	{Q: -1, R: 0}, {Q: 0, R: -1}, {Q: 1, R: -1},
 }
@@ -89,8 +95,26 @@ var axialSteps = [...]Coord{
 type Point = hexgrid.Point
 
 // Coord identifies a cell in the hexagonal lattice using axial (Q, R) coordinates.
+// For pointy-top layouts, positive Q points east and positive R points southeast.
 // Each coordinate pair maps to one point in the 2D drawing through coordToXY.
 type Coord struct{ Q, R int }
+
+func axialStepsForOrientation(orientation string) [hexDirectionCount]Coord {
+	if orientation == "flat" {
+		return flatAxialSteps
+	}
+	return axialSteps
+}
+
+// conventionalCoord converts the generator's former pointy-top basis to the
+// conventional axial basis. The transform preserves the represented lattice cell.
+// Flat-top coordinates already use the conventional basis and are unchanged.
+func conventionalCoord(coord Coord, orientation string) Coord {
+	if orientation == "flat" {
+		return coord
+	}
+	return Coord{Q: coord.Q + coord.R, R: -coord.Q}
+}
 
 type HexComponent = hexgrid.Component
 
@@ -222,7 +246,7 @@ func Generate(options Options) (string, int, int, error) {
 
 	// Place the hubs/components and their preferred links first. Additional candidate
 	// links will be generated from this placement in case a preferred route is blocked.
-	components, baseEdges, err := chooseComponents(opts, rng, baseAngle)
+	components, baseEdges, err := chooseComponents(opts, rng)
 	if err != nil {
 		return "", 0, 0, err
 	}
@@ -249,6 +273,7 @@ type router struct {
 	components     []Component
 	preferredEdges [][2]int
 	baseAngle      float64
+	axialSteps     [hexDirectionCount]Coord
 	rng            *rand.Rand
 
 	acceptedTracks [][]Point
@@ -262,6 +287,7 @@ func newRouter(options Options, components []Component, preferredEdges [][2]int,
 		components:     components,
 		preferredEdges: preferredEdges,
 		baseAngle:      baseAngle,
+		axialSteps:     axialStepsForOrientation(options.Orientation),
 		rng:            rng,
 		acceptedTracks: make([][]Point, 0),
 		occupiedFaces:  make(map[faceKey]bool),
@@ -376,10 +402,17 @@ func faceMidpoint(component Component, side int, baseAngle float64) Point {
 	return Point{X: component.X + apothem*math.Cos(theta), Y: component.Y + apothem*math.Sin(theta)}
 }
 
-// coordToXY maps axial coordinates to inches. The q and r axes are 60 degrees apart;
-// (0, 0) is the center of the canvas.
-func coordToXY(coord Coord, width, height, pitch, baseAngle float64) Point {
+// coordToXY maps conventional axial coordinates to inches. For pointy-top layouts,
+// positive Q points east and positive R points southeast. The origin is the canvas
+// center. The inverse pointy-top basis conversion preserves the previous floating-point
+// operation order, so the geometry continues to match existing SVG golden files.
+func coordToXY(coord Coord, width, height, pitch float64, orientation string) Point {
+	baseAngle := degreesToRadians(30)
 	q, r := float64(coord.Q), float64(coord.R)
+	if orientation != "flat" {
+		baseAngle = degreesToRadians(-60)
+		q, r = float64(-coord.R), float64(coord.Q+coord.R)
+	}
 	theta0, theta1 := baseAngle, baseAngle+radiansPerHexStep
 	return Point{
 		X: width/2.0 + pitch*(q*math.Cos(theta0)+r*math.Cos(theta1)),
@@ -389,15 +422,15 @@ func coordToXY(coord Coord, width, height, pitch, baseAngle float64) Point {
 
 // candidateCoords returns lattice cells whose centers lie within the margin-adjusted
 // canvas. A negative margin intentionally includes off-canvas centers for the grid layer.
-func candidateCoords(width, height, pitch, baseAngle, margin float64) []gridCandidate {
+func candidateCoords(width, height, pitch, margin float64, orientation string) []gridCandidate {
 	// The search range must cover the canvas in either axial direction. The pitch
 	// floor prevents division by zero if this helper is called with invalid input.
 	limit := int(math.Ceil((width+height)/math.Max(pitch, candidatePitchFloor))) + 3
 	result := make([]gridCandidate, 0)
 	for q := -limit; q <= limit; q++ {
 		for r := -limit; r <= limit; r++ {
-			coord := Coord{Q: q, R: r}
-			point := coordToXY(coord, width, height, pitch, baseAngle)
+			coord := conventionalCoord(Coord{Q: q, R: r}, orientation)
+			point := coordToXY(coord, width, height, pitch, orientation)
 			if margin <= point.X && point.X <= width-margin && margin <= point.Y && point.Y <= height-margin {
 				result = append(result, gridCandidate{Coord: coord, Point: point})
 			}
@@ -409,9 +442,9 @@ func candidateCoords(width, height, pitch, baseAngle, margin float64) []gridCand
 // chooseComponents places the circuit's hexagonal components and returns preferred
 // connections between them. Placement is split into anchor selection, cluster growth,
 // and component/edge construction so each stage can be understood independently.
-func chooseComponents(o Options, rng *rand.Rand, baseAngle float64) ([]Component, [][2]int, error) {
+func chooseComponents(o Options, rng *rand.Rand) ([]Component, [][2]int, error) {
 	margin := o.ComponentRadius + o.TraceWidth + o.NodeRadius
-	candidates := candidateCoords(o.Width, o.Height, o.RoutingPitch, baseAngle, margin)
+	candidates := candidateCoords(o.Width, o.Height, o.RoutingPitch, margin, o.Orientation)
 	if len(candidates) < o.ComponentCount {
 		return nil, nil, fmt.Errorf("only %d candidate positions fit within the canvas for %d requested components; increase the canvas dimensions, reduce the component count, or reduce the routing pitch", len(candidates), o.ComponentCount)
 	}
@@ -847,7 +880,7 @@ func (rt *router) buildConnection(src, dst Component, path []Coord, side int) *A
 	for i := 0; i+1 < len(path); i++ {
 		delta := Coord{Q: path[i+1].Q - path[i].Q, R: path[i+1].R - path[i].R}
 		direction := -1
-		for j, step := range axialSteps {
+		for j, step := range rt.axialSteps {
 			if step == delta {
 				direction = j
 				break
@@ -911,7 +944,7 @@ func (rt *router) buildConnection(src, dst Component, path []Coord, side int) *A
 	// offsets of this shared centerline.
 	routePoints := []Point{faceMidpoint(src, side, baseAngle)}
 	for _, coord := range path[1:] {
-		routePoints = append(routePoints, coordToXY(coord, o.Width, o.Height, o.RoutingPitch, baseAngle))
+		routePoints = append(routePoints, coordToXY(coord, o.Width, o.Height, o.RoutingPitch, o.Orientation))
 	}
 	offsets := make([]float64, trackCount)
 	candidateTracks := make([][]Point, trackCount)
@@ -1035,7 +1068,7 @@ func (rt *router) nextLegacyRouteCost(currentCost float64, turned bool) float64 
 func (rt *router) findRouteForSide(src, dst Component, reservedCoords map[Coord]bool, firstDirection int) []Coord {
 	components := rt.components
 	width, height := rt.options.Width, rt.options.Height
-	pitch, baseAngle := rt.options.RoutingPitch, rt.baseAngle
+	pitch := rt.options.RoutingPitch
 	maxSteps, rng := rt.options.MaxRouteSteps, rt.rng
 	useDeterministicRouteCost := rt.options.UseDeterministicRouteCost
 
@@ -1049,10 +1082,10 @@ func (rt *router) findRouteForSide(src, dst Component, reservedCoords map[Coord]
 	for coord := range reservedCoords {
 		blocked[coord] = true
 	}
-	step := axialSteps[firstDirection]
+	step := rt.axialSteps[firstDirection]
 	firstCoord := Coord{Q: src.Q + step.Q, R: src.R + step.R}
 	withinCanvas := func(coord Coord) bool {
-		p := coordToXY(coord, width, height, pitch, baseAngle)
+		p := coordToXY(coord, width, height, pitch, rt.options.Orientation)
 		return routeCanvasInset <= p.X && p.X <= width-routeCanvasInset &&
 			routeCanvasInset <= p.Y && p.Y <= height-routeCanvasInset
 	}
@@ -1107,7 +1140,7 @@ func (rt *router) findRouteForSide(src, dst Component, reservedCoords map[Coord]
 		}
 		rng.Shuffle(len(choices), func(i, j int) { choices[i], choices[j] = choices[j], choices[i] })
 		for _, nextDirection := range choices {
-			delta := axialSteps[nextDirection]
+			delta := rt.axialSteps[nextDirection]
 			next := Coord{Q: coord.Q + delta.Q, R: coord.R + delta.R}
 			if next != dst.Coord() && blocked[next] {
 				continue

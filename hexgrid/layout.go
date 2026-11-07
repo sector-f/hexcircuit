@@ -6,6 +6,7 @@ import (
 )
 
 // GridPosition identifies a cell in the hexagonal lattice using axial coordinates.
+// For pointy-top layouts, positive Q points east and positive R points southeast.
 // The origin (0, 0) is at the center of the canvas.
 type GridPosition struct {
 	Q, R int
@@ -237,11 +238,19 @@ func RenderGrid(layout GridScene) (string, error) {
 }
 
 // GridPositionToPoint converts an axial coordinate to a model-space point in inches.
-// The origin is the canvas center and the q/r axes follow the selected orientation.
+// For pointy-top layouts, positive Q points east and positive R points southeast.
+// The origin is the canvas center.
 func GridPositionToPoint(position GridPosition, width, height, pitch float64, orientation string) Point {
 	baseAngle := orientationBaseAngle(orientation)
-	theta1 := baseAngle + math.Pi/3
 	q, r := float64(position.Q), float64(position.R)
+	if orientation != "flat" {
+		// Convert conventional pointy-top axial coordinates back to the previous
+		// basis before evaluating the equivalent geometry. Besides making the
+		// coordinate convention explicit at the API, this retains the exact
+		// floating-point operation order used by existing SVG golden files.
+		q, r = float64(-position.R), float64(position.Q+position.R)
+	}
+	theta1 := baseAngle + math.Pi/3
 	return Point{
 		X: width/2 + pitch*(q*math.Cos(baseAngle)+r*math.Cos(theta1)),
 		Y: height/2 + pitch*(q*math.Sin(baseAngle)+r*math.Sin(theta1)),

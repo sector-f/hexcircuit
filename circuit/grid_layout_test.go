@@ -129,8 +129,8 @@ func TestGridTraceGeometryMatchesRouterGeometry(t *testing.T) {
 		{
 			HexComponent: HexComponent{
 				Index:  1,
-				X:      coordToXY(path[len(path)-1], options.Width, options.Height, options.RoutingPitch, baseAngle).X,
-				Y:      coordToXY(path[len(path)-1], options.Width, options.Height, options.RoutingPitch, baseAngle).Y,
+				X:      coordToXY(path[len(path)-1], options.Width, options.Height, options.RoutingPitch, options.Orientation).X,
+				Y:      coordToXY(path[len(path)-1], options.Width, options.Height, options.RoutingPitch, options.Orientation).Y,
 				Radius: options.ComponentRadius,
 			},
 			Q: 2, R: 2, RadiusScale: 1,
@@ -138,9 +138,9 @@ func TestGridTraceGeometryMatchesRouterGeometry(t *testing.T) {
 	}
 
 	// Reconstruct the router's established centerline and parallel tracks.
-	routePoints := []Point{faceMidpoint(components[0], 0, baseAngle)}
+	routePoints := []Point{faceMidpoint(components[0], 1, baseAngle)}
 	for _, coord := range path[1:] {
-		routePoints = append(routePoints, coordToXY(coord, options.Width, options.Height, options.RoutingPitch, baseAngle))
+		routePoints = append(routePoints, coordToXY(coord, options.Width, options.Height, options.RoutingPitch, options.Orientation))
 	}
 	legacyTracks := make([][]Point, 2)
 	legacyEndpoints := make([]Point, 2)

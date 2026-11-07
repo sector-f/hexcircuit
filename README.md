@@ -32,6 +32,10 @@ Each grid hexagon is described by three settings:
 
 The grid is regular: all of its hexagons have the same radius and are positioned on the same lattice. The `--orientation` option controls whether the hexagons have a vertex pointing up (`pointy`) or a vertical flat side at the top (`flat`).
 
+Grid coordinates use the conventional axial basis. In the default pointy-top
+orientation, increasing `Q` moves east, decreasing `Q` moves west, and increasing
+`R` moves southeast. The third cube coordinate is implied as `S = -Q - R`.
+
 By default, partially clipped background hexagons are allowed at the canvas edges, so the pattern can continue naturally to the border. Use `--omit-partial-grid-hexagons` to draw only background hexagons whose entire stroked outline fits inside the canvas. This option affects only the background grid, not traces or components.
 
 ### Routing pitch: the distance between grid centers

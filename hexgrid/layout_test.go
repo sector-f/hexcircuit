@@ -59,9 +59,43 @@ func TestGridPositionToPointUsesCanvasCenterAsOrigin(t *testing.T) {
 	if center != (Point{X: 5, Y: 4}) {
 		t.Fatalf("origin = %+v, want center of canvas (5, 4)", center)
 	}
-	q := GridPositionToPoint(GridPosition{Q: 1}, 10, 8, 0.5, "pointy")
-	if q.X == center.X || q.Y == center.Y {
-		t.Fatalf("q-axis did not follow pointy orientation: center=%+v q=%+v", center, q)
+	west := GridPositionToPoint(GridPosition{Q: -1}, 10, 8, 0.5, "pointy")
+	if west != (Point{X: 4.5, Y: 4}) {
+		t.Fatalf("Q=-1, R=0 maps to %+v, want one pitch west of center", west)
+	}
+	southeast := GridPositionToPoint(GridPosition{R: 1}, 10, 8, 0.5, "pointy")
+	wantSoutheast := Point{X: 5.25, Y: 4 + 0.5*math.Sqrt(3)/2}
+	if distance(southeast, wantSoutheast) > 1e-9 {
+		t.Fatalf("Q=0, R=1 maps to %+v, want southeast neighbor %+v", southeast, wantSoutheast)
+	}
+}
+
+func TestGridPositionToPointUsesFlatTopAxialBasis(t *testing.T) {
+	const pitch = 0.5
+	center := GridPositionToPoint(GridPosition{}, 10, 8, pitch, "flat")
+	q := GridPositionToPoint(GridPosition{Q: 1}, 10, 8, pitch, "flat")
+	r := GridPositionToPoint(GridPosition{R: 1}, 10, 8, pitch, "flat")
+	wantQ := Point{X: center.X + pitch*math.Sqrt(3)/2, Y: center.Y + pitch/2}
+	wantR := Point{X: center.X, Y: center.Y + pitch}
+	if distance(q, wantQ) > 1e-9 {
+		t.Errorf("flat-top Q neighbor = %+v, want %+v", q, wantQ)
+	}
+	if distance(r, wantR) > 1e-9 {
+		t.Errorf("flat-top R neighbor = %+v, want %+v", r, wantR)
+	}
+}
+
+func TestGridCellsRetainPhysicalCentersWithConventionalCoordinates(t *testing.T) {
+	const width, height, pitch = 6.0, 4.0, 0.5
+	cells := GridCells(width, height, pitch, "pointy", 0)
+	if len(cells) == 0 {
+		t.Fatal("GridCells() returned no cells")
+	}
+	for _, cell := range cells {
+		center := GridPositionToPoint(GridPosition{Q: cell.Q, R: cell.R}, width, height, pitch, "pointy")
+		if distance(center, cell.Center) > 1e-9 {
+			t.Errorf("cell (%d, %d) stores center %+v, but its axial coordinate maps to %+v", cell.Q, cell.R, cell.Center, center)
+		}
 	}
 }
 
