@@ -139,7 +139,8 @@ func generateLayout(o Options, rng *rand.Rand) (*design, *design, error) {
 	// First route the main devices and a handful of power feeds to the connector
 	// bank. Passive parts are placed afterward, leaving irregular open trace lanes.
 	traceCells := make(map[hexgrid.GridPosition]bool)
-	connectionCount := addClusterNetwork(base, accent, anchors, connectors, allCells, traceCells, o, rng)
+	traceEdges := make(map[string]bool)
+	connectionCount := addClusterNetwork(base, accent, anchors, connectors, allCells, traceCells, traceEdges, o, rng)
 	if connectionCount == 0 {
 		return nil, nil, fmt.Errorf("could not route any connections; increase canvas dimensions or reduce component density")
 	}
@@ -318,7 +319,7 @@ func containsPosition(positions []hexgrid.GridPosition, target hexgrid.GridPosit
 }
 
 func addClusterNetwork(base, accent *design, anchors, connectors []hexgrid.GridPosition,
-	allCells, traceCells map[hexgrid.GridPosition]bool, o Options, rng *rand.Rand) int {
+	allCells, traceCells map[hexgrid.GridPosition]bool, traceEdges map[string]bool, o Options, rng *rand.Rand) int {
 	blocked := make(map[hexgrid.GridPosition]bool, len(base.cells))
 	for position := range base.cells {
 		blocked[position] = true
@@ -371,18 +372,22 @@ func addClusterNetwork(base, accent *design, anchors, connectors []hexgrid.GridP
 		pairs = pairs[:o.Connections]
 	}
 
-	// Keep the search graph bounded to the drawable canvas. Route cost is a
-	// randomized A* score with a modest bend penalty; this is intentionally much
-	// simpler than circuit's face-aware component router.
+	// Keep the search graph bounded to the drawable canvas. A* uses a modest bend
+	// penalty, but previously used cells and edges are hard obstacles: routes may
+	// share a component endpoint, but they cannot reuse a segment or cross at an
+	// intermediate lattice cell.
 	for _, pair := range pairs {
-		path := findRoute(pair[0], pair[1], allCells, blocked, traceCells, rng)
+		path := findRoute(pair[0], pair[1], allCells, blocked, traceCells, traceEdges, rng)
 		if len(path) == 0 {
 			continue
 		}
 		lines := randomBundleSize(o.MaxParallel, rng)
 		base.addTrace(pair[0], path, lines)
+		previous := pair[0]
 		for _, position := range path {
 			traceCells[position] = true
+			traceEdges[pairKey(previous, position)] = true
+			previous = position
 		}
 		if isPowerFeed(pair[1], connectors) || rng.Float64() < 0.28 {
 			addAccentTrace(accent, pair[0], path)
@@ -407,7 +412,11 @@ func isPowerFeed(position hexgrid.GridPosition, connectors []hexgrid.GridPositio
 	return false
 }
 
-func findRoute(start, end hexgrid.GridPosition, allowed, blocked, used map[hexgrid.GridPosition]bool, rng *rand.Rand) []hexgrid.GridPosition {
+func findRoute(start, end hexgrid.GridPosition,
+	allowed, blocked, used map[hexgrid.GridPosition]bool,
+	usedEdges map[string]bool,
+	rng *rand.Rand,
+) []hexgrid.GridPosition {
 	if start == end || !allowed[start] || !allowed[end] {
 		return nil
 	}
@@ -437,15 +446,20 @@ func findRoute(start, end hexgrid.GridPosition, allowed, blocked, used map[hexgr
 		}
 		for directionIndex, direction := range directions {
 			next := add(current.state.position, direction)
+			edge := pairKey(current.state.position, next)
 			if !allowed[next] || (blocked[next] && next != end) {
+				continue
+			}
+			// Reaching an already-used component is allowed when it is this route's
+			// destination (a legitimate junction). Reusing an intermediate cell or
+			// any existing edge is not: on the triangular axial lattice, distinct
+			// edges can only cross by sharing a vertex or overlapping an edge.
+			if (used[next] && next != end) || usedEdges[edge] {
 				continue
 			}
 			stepCost := 1.0
 			if current.state.direction >= 0 && current.state.direction != directionIndex {
 				stepCost += 0.18
-			}
-			if used[next] {
-				stepCost += 0.08
 			}
 			nextState := routeState{position: next, direction: directionIndex}
 			nextCost := current.cost + stepCost

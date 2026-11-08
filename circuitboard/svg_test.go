@@ -5,6 +5,8 @@ import (
 	"math/rand"
 	"strings"
 	"testing"
+
+	hexgrid "github.com/sector-f/hexcircuit/hexgrid"
 )
 
 func TestGenerateIsDeterministicWhenSeeded(t *testing.T) {
@@ -159,6 +161,83 @@ func TestGeneratedLayoutUsesSeparateBaseAndAccentLayers(t *testing.T) {
 	}
 	if len(accent.scene.Components) == 0 {
 		t.Fatal("expected accent component cores")
+	}
+}
+
+func TestRoutesDoNotIntersectAcrossSeeds(t *testing.T) {
+	options := DefaultOptions()
+	options.SeedSet = true
+
+	for seed := int64(0); seed < 60; seed++ {
+		options.Seed = seed
+		base, _, err := generateLayout(options, rand.New(rand.NewSource(seed)))
+		if err != nil {
+			t.Fatalf("seed %d: %v", seed, err)
+		}
+
+		componentPositions := make(map[hexgrid.GridPosition]bool, len(base.scene.Components))
+		for _, component := range base.scene.Components {
+			componentPositions[component.Position] = true
+		}
+		type routedSegment struct {
+			from, to hexgrid.GridPosition
+			trace    int
+		}
+		occupiedInterior := make(map[hexgrid.GridPosition]int)
+		occupiedEdges := make(map[string]int)
+		segments := make([]routedSegment, 0)
+
+		for traceIndex, trace := range base.scene.Traces {
+			path := make([]hexgrid.GridPosition, 1, len(trace.Path)+1)
+			path[0] = trace.Start
+			path = append(path, trace.Path...)
+
+			if previousTrace, exists := occupiedInterior[path[0]]; exists {
+				t.Fatalf("seed %d: trace %d starts inside trace %d", seed, traceIndex, previousTrace)
+			}
+
+			for index := 1; index < len(path); index++ {
+				from, to := path[index-1], path[index]
+				fromPoint, toPoint := point(from, options), point(to, options)
+				for _, previous := range segments {
+					if previous.trace == traceIndex {
+						continue
+					}
+					previousFrom := point(previous.from, options)
+					previousTo := point(previous.to, options)
+					if !hexgrid.SegmentsIntersect(fromPoint, toPoint, previousFrom, previousTo) {
+						continue
+					}
+					sharedComponent := (from == previous.from || from == previous.to) && componentPositions[from] ||
+						(to == previous.from || to == previous.to) && componentPositions[to]
+					if !sharedComponent {
+						t.Fatalf("seed %d: trace %d geometrically intersects trace %d between (%d,%d)-(%d,%d) and (%d,%d)-(%d,%d)",
+							seed, traceIndex, previous.trace,
+							from.Q, from.R, to.Q, to.R,
+							previous.from.Q, previous.from.R, previous.to.Q, previous.to.R)
+					}
+				}
+				segments = append(segments, routedSegment{from: from, to: to, trace: traceIndex})
+
+				edge := pairKey(from, to)
+				if previousTrace, exists := occupiedEdges[edge]; exists {
+					t.Fatalf("seed %d: trace %d reuses edge %s from trace %d", seed, traceIndex, edge, previousTrace)
+				}
+				occupiedEdges[edge] = traceIndex
+
+				// A destination component can be a shared junction, but an interior
+				// lattice cell must belong to exactly one independent trace bundle.
+				if index < len(path)-1 {
+					if previousTrace, exists := occupiedInterior[to]; exists {
+						t.Fatalf("seed %d: trace %d crosses trace %d at cell (%d,%d)", seed, traceIndex, previousTrace, to.Q, to.R)
+					}
+					if componentPositions[to] {
+						t.Fatalf("seed %d: trace %d passes through component (%d,%d)", seed, traceIndex, to.Q, to.R)
+					}
+					occupiedInterior[to] = traceIndex
+				}
+			}
+		}
 	}
 }
 
