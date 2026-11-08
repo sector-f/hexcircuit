@@ -1,10 +1,17 @@
 # circuitboard
 
-`circuitboard` is a hand-composed hexagonal PCB illustration generator. It shares
-`hexgrid`'s geometry and SVG renderer with `circuit`, but it does not use the
-circuit package's randomized component placement or general-purpose route search.
-Its component clusters, buses, and highlighted power paths are specified as a
-separate board layout.
+`circuitboard` generates randomized hexagonal PCB-inspired artwork using the shared
+`hexgrid` geometry and SVG renderer. Its composition algorithm is separate from the
+`circuit` package: it places several spatially distributed component clusters, builds
+an irregular branched network with a lightweight randomized A* router, then fills
+remaining spaces with smaller, often unconnected components.
+
+The design always includes a horizontal row of connector components at the bottom.
+The base color draws ordinary components and signal traces; the accent color marks
+power feeds and selected component cores. The optional background hex field is off
+by default.
+
+## Usage
 
 ```go
 package main
@@ -17,22 +24,33 @@ import (
 
 func main() {
     options := circuitboard.DefaultOptions()
-    options.ShowBackgroundGrid = true // false by default
+    options.ShowBackgroundGrid = true
+    options.Seed = 1234
+    options.SeedSet = true
 
     svg, _, _, err := circuitboard.Generate(options)
     if err != nil {
         panic(err)
     }
-    if err := os.WriteFile("circuit-board.svg", []byte(svg), 0644); err != nil {
+    if err := os.WriteFile("board.svg", []byte(svg), 0644); err != nil {
         panic(err)
     }
 }
 ```
 
-The bottom connector bank is always generated. `ConnectorCount` controls its
-number of contacts, and `ConnectorInset` controls how far their centers sit from
-the bottom edge. The default 12-contact row matches the original design.
+Leaving `SeedSet` false selects a new seed for each call. Set it true to make the
+same options produce identical SVG output.
 
-All dimensions and stroke widths are in inches. `TopWidth` and `BottomWidth`
-define the tapered panel outline; generated content, including the optional
-background hex field, is clipped to that outline.
+## Options
+
+All dimensions are in inches. `Width` and `Height` define a rectangular canvas.
+`ComponentCount` is the requested number of generated components and does not
+include the mandatory connector row. The returned component count does include it.
+`ClusterCount` controls the number of large component clusters. `Connections`
+is the target number of routed trace bundles. `MaxParallel` can be 1, 2, or 3.
+
+`ShowBackgroundGrid` enables the hexagonal background field. It defaults to false.
+`BaseColor` and `AccentColor` control ordinary signal artwork and power highlights.
+
+The default canvas is 10 x 8 inches, with 38 generated components, six clusters,
+18 trace bundles, and 13 bottom-edge contacts.
