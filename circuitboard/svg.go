@@ -97,19 +97,18 @@ func generateLayout(o Options, rng *rand.Rand) (*design, *design, error) {
 		base.addComponent(position, hexgrid.ComponentStyleSingle, 0.62)
 	}
 
-	routeMargin := o.NodeRadius + o.TraceStrokeWidth/2 + float64(o.MaxParallel-1)*o.TraceSpacing/2
-	if routeMargin < 0.02 {
-		routeMargin = 0.02
-	}
+	// Restrict both components and routing to lattice cells whose equivalent
+	// background hexagon (and the largest component/trace envelope) fits fully
+	// inside the canvas. This leaves a consistent margin around the board.
+	cellClearance := edgeCellClearance(o)
 	allCells := make(map[hexgrid.GridPosition]bool)
 	componentCells := make([]hexgrid.GridPosition, 0)
-	for _, cell := range hexgrid.GridCells(o.Width, o.Height, o.Pitch, "pointy", routeMargin) {
+	for _, cell := range hexgrid.GridCells(o.Width, o.Height, o.Pitch, "pointy", -cellClearance) {
 		position := hexgrid.GridPosition{Q: cell.Q, R: cell.R}
-		allCells[position] = true
-		margin := o.ComponentRadius + o.ComponentStrokeWidth
-		if cell.Center.X < margin || cell.Center.X > o.Width-margin || cell.Center.Y < margin {
+		if !hexagonFullyInsideCanvas(cell.Center, cellClearance, 0, o) {
 			continue
 		}
+		allCells[position] = true
 		nearConnector := false
 		for _, connector := range connectors {
 			if axialDistance(position, connector) < minComponentDistance {
@@ -182,6 +181,7 @@ func newDesign(o Options, color, background string, showGrid bool) *design {
 		Pitch:       o.Pitch,
 		Radius:      o.GridRadius,
 		StrokeWidth: gridStroke,
+		OmitPartial: o.OmitPartialGridHexagons,
 	}
 	visual.ComponentRadius = o.ComponentRadius
 	visual.ComponentStrokeWidth = o.ComponentStrokeWidth
@@ -347,8 +347,8 @@ func addClusterNetwork(base, accent *design, anchors, connectors []hexgrid.GridP
 	for i := 0; i < feedCount; i++ {
 		source := anchors[rng.Intn(len(anchors))]
 		destination := connectors[(i*len(connectors))/feedCount]
-		pairs = append(pairs, [2]hexgrid.GridPosition{source, destination})
-		markPair(source, destination)
+		pairs = append(pairs, [2]hexgrid.GridPosition{destination, source})
+		markPair(destination, source)
 	}
 
 	// Add random cross-links and additional connector feeds until the requested
@@ -356,8 +356,8 @@ func addClusterNetwork(base, accent *design, anchors, connectors []hexgrid.GridP
 	for attempts := 0; len(pairs) < o.Connections && attempts < o.Connections*30; attempts++ {
 		var a, b hexgrid.GridPosition
 		if rng.Intn(4) == 0 {
-			a = anchors[rng.Intn(len(anchors))]
-			b = connectors[rng.Intn(len(connectors))]
+			a = connectors[rng.Intn(len(connectors))]
+			b = anchors[rng.Intn(len(anchors))]
 		} else {
 			a = anchors[rng.Intn(len(anchors))]
 			b = anchors[rng.Intn(len(anchors))]
@@ -372,25 +372,47 @@ func addClusterNetwork(base, accent *design, anchors, connectors []hexgrid.GridP
 		pairs = pairs[:o.Connections]
 	}
 
+	// Route connector feeds before the other links. This reserves their required
+	// northeast/northwest exits before unrelated routes can occupy those cells.
+	orderedPairs := make([][2]hexgrid.GridPosition, 0, len(pairs))
+	for _, pair := range pairs {
+		if isPowerFeed(pair[0], connectors) || isPowerFeed(pair[1], connectors) {
+			orderedPairs = append(orderedPairs, pair)
+		}
+	}
+	for _, pair := range pairs {
+		if !isPowerFeed(pair[0], connectors) && !isPowerFeed(pair[1], connectors) {
+			orderedPairs = append(orderedPairs, pair)
+		}
+	}
+
 	// Keep the search graph bounded to the drawable canvas. A* uses a modest bend
 	// penalty, but previously used cells and edges are hard obstacles: routes may
 	// share a component endpoint, but they cannot reuse a segment or cross at an
 	// intermediate lattice cell.
-	for _, pair := range pairs {
-		path := findRoute(pair[0], pair[1], allCells, blocked, traceCells, traceEdges, rng)
+	for _, pair := range orderedPairs {
+		start, end := pair[0], pair[1]
+		// Traces attached to the bottom connector bank are represented as
+		// originating at the connector, so their first segment can be constrained
+		// to leave toward the board interior (northeast or northwest).
+		if isPowerFeed(end, connectors) && !isPowerFeed(start, connectors) {
+			start, end = end, start
+		}
+		connectorExit := isPowerFeed(start, connectors)
+		path := findRoute(start, end, allCells, blocked, traceCells, traceEdges, rng, connectorExit)
 		if len(path) == 0 {
 			continue
 		}
 		lines := randomBundleSize(o.MaxParallel, rng)
-		base.addTrace(pair[0], path, lines)
-		previous := pair[0]
+		base.addTrace(start, path, lines)
+		previous := start
 		for _, position := range path {
 			traceCells[position] = true
 			traceEdges[pairKey(previous, position)] = true
 			previous = position
 		}
-		if isPowerFeed(pair[1], connectors) || rng.Float64() < 0.28 {
-			addAccentTrace(accent, pair[0], path)
+		if connectorExit || rng.Float64() < 0.28 {
+			addAccentTrace(accent, start, path)
 		}
 	}
 	return len(base.scene.Traces)
@@ -416,6 +438,7 @@ func findRoute(start, end hexgrid.GridPosition,
 	allowed, blocked, used map[hexgrid.GridPosition]bool,
 	usedEdges map[string]bool,
 	rng *rand.Rand,
+	connectorExit bool,
 ) []hexgrid.GridPosition {
 	if start == end || !allowed[start] || !allowed[end] {
 		return nil
@@ -445,6 +468,10 @@ func findRoute(start, end hexgrid.GridPosition,
 			break
 		}
 		for directionIndex, direction := range directions {
+			if connectorExit && current.state.position == start &&
+				!isConnectorExitDirection(direction) {
+				continue
+			}
 			next := add(current.state.position, direction)
 			edge := pairKey(current.state.position, next)
 			if !allowed[next] || (blocked[next] && next != end) {
@@ -630,8 +657,9 @@ func connectorPositions(o Options) ([]hexgrid.GridPosition, error) {
 	// with the nearest row to the requested bottom inset and move inward only if
 	// the connector outlines would cross the canvas edge.
 	verticalStep := math.Sqrt(3) * o.Pitch / 2
-	desiredRow := int(math.Round((o.Height/2 - o.ConnectorInset) / verticalStep))
 	connectorRadius := o.ComponentRadius * 0.62
+	connectorInset := math.Max(o.ConnectorInset, edgeCellClearance(o))
+	desiredRow := int(math.Round((o.Height/2 - connectorInset) / verticalStep))
 	for row := desiredRow; row >= 0; row-- {
 		firstQ := int(math.Round(-float64(row)/2 - float64(o.ConnectorCount-1)/2))
 		positions := make([]hexgrid.GridPosition, o.ConnectorCount)
@@ -639,10 +667,11 @@ func connectorPositions(o Options) ([]hexgrid.GridPosition, error) {
 		for index := range positions {
 			position := hexgrid.GridPosition{Q: firstQ + index, R: row}
 			center := point(position, o)
-			if center.X < connectorRadius+o.ComponentStrokeWidth ||
-				center.X > o.Width-connectorRadius-o.ComponentStrokeWidth ||
-				center.Y < connectorRadius+o.ComponentStrokeWidth ||
-				center.Y > o.Height-connectorRadius-o.ComponentStrokeWidth {
+			if !hexagonFullyInsideCanvas(center, edgeCellClearance(o), 0, o) ||
+				center.X < connectorRadius+o.ComponentStrokeWidth/2 ||
+				center.X > o.Width-connectorRadius-o.ComponentStrokeWidth/2 ||
+				center.Y < connectorRadius+o.ComponentStrokeWidth/2 ||
+				center.Y > o.Height-connectorRadius-o.ComponentStrokeWidth/2 {
 				fits = false
 				break
 			}
@@ -695,6 +724,36 @@ func renderLayers(o Options, layers ...*design) (string, error) {
 	}
 	output.WriteString("</svg>\n")
 	return output.String(), nil
+}
+
+// edgeCellClearance is the circumradius of the largest hypothetical hexagon
+// that must fit around every usable lattice center. It covers background-grid
+// cells, full-size components, and the outer envelope of the largest trace bundle.
+func edgeCellClearance(o Options) float64 {
+	gridEnvelope := o.GridRadius + o.GridStrokeWidth/2
+	componentEnvelope := o.ComponentRadius + o.ComponentStrokeWidth/2
+	traceEnvelope := o.NodeRadius + o.TraceStrokeWidth/2 + float64(o.MaxParallel-1)*o.TraceSpacing/2
+	return math.Max(gridEnvelope, math.Max(componentEnvelope, traceEnvelope))
+}
+
+// hexagonFullyInsideCanvas mirrors hexgrid's partial-grid-cell test. Using the
+// exported HexVertices geometry keeps placement policy aligned with rendering.
+func hexagonFullyInsideCanvas(center hexgrid.Point, radius, strokeWidth float64, o Options) bool {
+	margin := strokeWidth / 2
+	for _, vertex := range hexgrid.HexVertices(center.X, center.Y, radius, "pointy") {
+		if vertex.X < margin || vertex.X > o.Width-margin ||
+			vertex.Y < margin || vertex.Y > o.Height-margin {
+			return false
+		}
+	}
+	return true
+}
+
+// isConnectorExitDirection accepts only the two northward axial moves from a
+// pointy-top connector row: northeast (1,-1) and northwest (0,-1).
+func isConnectorExitDirection(direction hexgrid.GridPosition) bool {
+	return direction == (hexgrid.GridPosition{Q: 1, R: -1}) ||
+		direction == (hexgrid.GridPosition{Q: 0, R: -1})
 }
 
 func point(position hexgrid.GridPosition, o Options) hexgrid.Point {

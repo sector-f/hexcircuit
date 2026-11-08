@@ -57,6 +57,10 @@ type Options struct {
 
 	// ShowBackgroundGrid enables the low-contrast hexagonal field. It is off by default.
 	ShowBackgroundGrid bool
+	// OmitPartialGridHexagons skips background hexagons whose stroked outlines
+	// would extend beyond the canvas. Placement and routing avoid edge cells
+	// regardless of this rendering option.
+	OmitPartialGridHexagons bool
 	// GridRadius is the circumradius of background hexagons, in inches.
 	GridRadius float64
 	// GridStrokeWidth is the outline width of background hexagons, in inches.
@@ -96,6 +100,7 @@ func DefaultOptions() Options {
 		TraceSpacing:                0.032,
 		NodeRadius:                  0.014,
 		ShowBackgroundGrid:          false,
+		OmitPartialGridHexagons:     false,
 		GridRadius:                  0.26,
 		GridStrokeWidth:             0.0035,
 		ConnectorCount:              13,
