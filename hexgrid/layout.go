@@ -46,14 +46,17 @@ type GridComponent struct {
 	RadiusScale float64
 }
 
-// GridTrace describes a bundle between two component positions. Start is the
-// source component's grid position. Path contains every subsequent grid position,
-// including the destination component's position. Consecutive positions must be
-// neighboring cells. Lines is the number of parallel traces in the bundle.
+// GridTrace describes a bundle that starts at a component and follows a sequence
+// of straight grid-axis segments. Path contains one or more waypoints after Start;
+// intermediate cells may be omitted when a segment continues along a single grid
+// axis. The final position may identify a component or a free terminal location.
+// HideTerminal requires the final position to contain a component and clips each
+// track at that component's outer boundary instead of drawing a terminal circle.
 type GridTrace struct {
-	Start GridPosition
-	Path  []GridPosition
-	Lines int
+	Start        GridPosition
+	Path         []GridPosition
+	Lines        int
+	HideTerminal bool
 }
 
 // Options contains the physical dimensions and styling used to turn a grid layout
@@ -175,9 +178,9 @@ func BuildScene(layout GridScene) (Scene, error) {
 			return Scene{}, fmt.Errorf("trace %d starts at grid position (%d, %d), which has no component", traceIndex, trace.Start.Q, trace.Start.R)
 		}
 		destinationPosition := trace.Path[len(trace.Path)-1]
-		destination, found := componentsByPosition[destinationPosition]
-		if !found {
-			return Scene{}, fmt.Errorf("trace %d ends at grid position (%d, %d), which has no component", traceIndex, destinationPosition.Q, destinationPosition.R)
+		destination, destinationFound := componentsByPosition[destinationPosition]
+		if trace.HideTerminal && !destinationFound {
+			return Scene{}, fmt.Errorf("trace %d hides its terminal but ends at grid position (%d, %d), which has no component", traceIndex, destinationPosition.Q, destinationPosition.R)
 		}
 
 		positions := make([]GridPosition, 1, len(trace.Path)+1)
@@ -185,8 +188,8 @@ func BuildScene(layout GridScene) (Scene, error) {
 		positions = append(positions, trace.Path...)
 		points := make([]Point, len(positions))
 		for i, position := range positions {
-			if i > 0 && !areNeighbors(positions[i-1], position) {
-				return Scene{}, fmt.Errorf("trace %d path positions %d and %d are not neighboring grid cells", traceIndex, i-1, i)
+			if i > 0 && !areOnSameGridAxis(positions[i-1], position) {
+				return Scene{}, fmt.Errorf("trace %d path positions %d and %d do not lie on the same straight grid axis", traceIndex, i-1, i)
 			}
 			points[i] = GridPositionToPoint(position, o.Width, o.Height, o.Grid.Pitch, o.Orientation)
 		}
@@ -198,30 +201,47 @@ func BuildScene(layout GridScene) (Scene, error) {
 		if maxOffset+o.TraceStrokeWidth/2 >= source.Radius*sqrt3/2 {
 			return Scene{}, fmt.Errorf("trace %d bundle does not fit inside its source component", traceIndex)
 		}
-		if maxOffset+o.NodeRadius+o.TraceStrokeWidth/2 >= destination.Radius*sqrt3/2 {
-			return Scene{}, fmt.Errorf("trace %d bundle does not fit inside its destination component", traceIndex)
+		if destinationFound {
+			destinationMargin := o.NodeRadius
+			if trace.HideTerminal {
+				destinationMargin = 0
+			}
+			if maxOffset+destinationMargin+o.TraceStrokeWidth/2 >= destination.Radius*sqrt3/2 {
+				return Scene{}, fmt.Errorf("trace %d bundle does not fit inside its destination component", traceIndex)
+			}
 		}
 
 		for line := 0; line < trace.Lines; line++ {
 			offset := (float64(line) - float64(trace.Lines-1)/2) * o.TraceSpacing
 			track := offsetPolyline(points, offset)
-			// Clip the trace centerline to the component boundary. The renderer draws
-			// the stroke over the boundary by half its width, matching the established
-			// circuit artwork while keeping the line visually connected to the outline.
+			// Clip the source end at the source boundary. The SVG stroke extends
+			// across that boundary by half its width, keeping the line connected.
 			track, err := clipTrackStartToComponent(track, source, baseAngle, 0)
 			if err != nil {
 				return Scene{}, fmt.Errorf("trace %d line %d: %w", traceIndex, line+1, err)
 			}
-			endpoint := track[len(track)-1]
-			if !PointInsideHexWithMargin(endpoint, Point{X: destination.X, Y: destination.Y}, destination.Radius, baseAngle, o.NodeRadius+o.TraceStrokeWidth/2) {
-				return Scene{}, fmt.Errorf("trace %d line %d terminal does not fit inside its destination component", traceIndex, line+1)
+
+			if trace.HideTerminal {
+				track, err = clipTrackEndToComponent(track, destination, baseAngle, 0)
+				if err != nil {
+					return Scene{}, fmt.Errorf("trace %d line %d: %w", traceIndex, line+1, err)
+				}
+			} else if destinationFound {
+				endpoint := track[len(track)-1]
+				if !PointInsideHexWithMargin(endpoint, Point{X: destination.X, Y: destination.Y}, destination.Radius, baseAngle, o.NodeRadius+o.TraceStrokeWidth/2) {
+					return Scene{}, fmt.Errorf("trace %d line %d terminal does not fit inside its destination component", traceIndex, line+1)
+				}
 			}
-			visual.Traces = append(visual.Traces, Trace{Points: track})
-			visual.Terminals = append(visual.Terminals, Terminal{
-				X:      endpoint.X,
-				Y:      endpoint.Y,
-				Radius: o.NodeRadius,
-			})
+
+			endpoint := track[len(track)-1]
+			visual.Traces = append(visual.Traces, Trace{Points: track, HideTerminal: trace.HideTerminal})
+			if !trace.HideTerminal {
+				visual.Terminals = append(visual.Terminals, Terminal{
+					X:      endpoint.X,
+					Y:      endpoint.Y,
+					Radius: o.NodeRadius,
+				})
+			}
 		}
 	}
 
@@ -296,9 +316,14 @@ func validateOptions(o Options) error {
 	return nil
 }
 
-func areNeighbors(a, b GridPosition) bool {
+// areOnSameGridAxis reports whether two distinct axial coordinates are collinear
+// along one of the six legal hex-grid directions. The distance may span multiple cells.
+func areOnSameGridAxis(a, b GridPosition) bool {
 	dq, dr := b.Q-a.Q, b.R-a.R
-	return maxInt(absInt(dq), absInt(dr), absInt(dq+dr)) == 1
+	if dq == 0 && dr == 0 {
+		return false
+	}
+	return dq == 0 || dr == 0 || dq+dr == 0
 }
 
 func clipTrackStartToComponent(track []Point, component Component, baseAngle, margin float64) ([]Point, error) {
@@ -334,6 +359,44 @@ func clipTrackStartToComponent(track []Point, component Component, baseAngle, ma
 		return result, nil
 	}
 	return nil, fmt.Errorf("trace path never exits its source component")
+}
+
+// clipTrackEndToComponent trims a track at the first point where it enters the
+// destination component. Unlike a terminal-terminated trace, the returned endpoint
+// lies on the component's outer hexagonal boundary.
+func clipTrackEndToComponent(track []Point, component Component, baseAngle, margin float64) ([]Point, error) {
+	if len(track) < 2 {
+		return nil, fmt.Errorf("trace path must contain at least two points")
+	}
+	center := Point{X: component.X, Y: component.Y}
+	inside := func(point Point) bool {
+		return PointInsideHexWithMargin(point, center, component.Radius, baseAngle, margin)
+	}
+	if !inside(track[len(track)-1]) {
+		return nil, fmt.Errorf("ending line does not fit inside its destination component")
+	}
+
+	for i := len(track) - 2; i >= 0; i-- {
+		if inside(track[i]) {
+			continue
+		}
+		outside, delta := track[i], sub(track[i+1], track[i])
+		low, high := 0.0, 1.0 // low is outside; high is inside.
+		for iteration := 0; iteration < 60; iteration++ {
+			middle := (low + high) / 2
+			candidate := Point{X: outside.X + delta.X*middle, Y: outside.Y + delta.Y*middle}
+			if inside(candidate) {
+				high = middle
+			} else {
+				low = middle
+			}
+		}
+		boundary := Point{X: outside.X + delta.X*high, Y: outside.Y + delta.Y*high}
+		result := append([]Point(nil), track[:i+1]...)
+		result = append(result, boundary)
+		return result, nil
+	}
+	return nil, fmt.Errorf("trace path never enters its destination component from outside")
 }
 
 func offsetPolyline(points []Point, offset float64) []Point {

@@ -85,8 +85,11 @@ type Component struct {
 
 // Trace is one polyline. A scene may contain traces that cross components or each other;
 // the renderer draws the provided geometry without applying circuit-validity rules.
+// HideTerminal prevents TrimEndpoint from shortening the final point, allowing a
+// high-level grid trace to terminate exactly at a component boundary without a pad.
 type Trace struct {
-	Points []Point
+	Points       []Point
+	HideTerminal bool
 }
 
 // Terminal is a hollow circular trace endpoint.
@@ -354,7 +357,11 @@ func Render(scene Scene) string {
 		`stroke-linejoin="round"`,
 	)
 	for _, trace := range scene.Traces {
-		drawPolyline(canvas, TrimEndpoint(trace.Points, scene.NodeRadius), "")
+		points := trace.Points
+		if !trace.HideTerminal {
+			points = TrimEndpoint(points, scene.NodeRadius)
+		}
+		drawPolyline(canvas, points, "")
 	}
 	canvas.Gend()
 

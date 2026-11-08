@@ -2,6 +2,7 @@ package hexgrid
 
 import (
 	"math"
+	"strings"
 	"testing"
 )
 
@@ -52,6 +53,24 @@ func TestGridSceneBuildsComponentsAndParallelTrace(t *testing.T) {
 		}
 	}
 
+}
+
+func TestRenderDoesNotTrimHideTerminalTrace(t *testing.T) {
+	scene := Scene{
+		Width:            2,
+		Height:           2,
+		Color:            "#000000",
+		TraceStrokeWidth: 0.01,
+		NodeRadius:       0.2,
+		Traces: []Trace{{
+			Points:       []Point{{X: 0.5, Y: 0.5}, {X: 1.5, Y: 0.5}},
+			HideTerminal: true,
+		}},
+	}
+	rendered := Render(scene)
+	if !strings.Contains(rendered, "1500,500") {
+		t.Fatalf("Render() shortened a HideTerminal trace instead of preserving its final point: %s", rendered)
+	}
 }
 
 func TestGridPositionToPointUsesCanvasCenterAsOrigin(t *testing.T) {
@@ -115,27 +134,69 @@ func TestComponentStyleHexagonCounts(t *testing.T) {
 	}
 }
 
-func TestGridSceneRejectsInvalidTracePath(t *testing.T) {
+func TestGridSceneRejectsPathSegmentThatIsNotOnAGridAxis(t *testing.T) {
 	opts := DefaultOptions()
 	layout := GridScene{
 		Options: opts,
 		Components: []GridComponent{
 			{Position: GridPosition{Q: 0, R: 0}, Style: ComponentStyleSingle},
-			{Position: GridPosition{Q: 2, R: 0}, Style: ComponentStyleSingle},
+			{Position: GridPosition{Q: 2, R: 1}, Style: ComponentStyleSingle},
 		},
 		Traces: []GridTrace{{
 			Start: GridPosition{Q: 0, R: 0},
-			Path:  []GridPosition{{Q: 2, R: 0}},
+			Path:  []GridPosition{{Q: 2, R: 1}},
 			Lines: 1,
 		}},
 	}
 	if _, err := BuildScene(layout); err == nil {
-		t.Fatal("BuildScene() accepted a path that skips a neighboring cell")
+		t.Fatal("BuildScene() accepted a path segment that is not aligned with a hex-grid axis")
 	}
 }
 
-func TestGridSceneRejectsMissingEndpointComponent(t *testing.T) {
+func TestGridSceneAcceptsStraightPathSegmentThatSkipsCells(t *testing.T) {
 	opts := DefaultOptions()
+	layout := GridScene{
+		Options: opts,
+		Components: []GridComponent{
+			{Position: GridPosition{Q: 0, R: 0}, Style: ComponentStyleSingle},
+			{Position: GridPosition{Q: 0, R: -2}, Style: ComponentStyleSingle},
+		},
+		Traces: []GridTrace{{
+			Start: GridPosition{Q: 0, R: 0},
+			Path:  []GridPosition{{Q: 0, R: -2}},
+			Lines: 1,
+		}},
+	}
+	if _, err := BuildScene(layout); err != nil {
+		t.Fatalf("BuildScene() rejected a straight segment spanning two grid steps: %v", err)
+	}
+}
+
+func TestGridSceneAcceptsStraightRunsAndTurns(t *testing.T) {
+	opts := DefaultOptions()
+	layout := GridScene{
+		Options: opts,
+		Components: []GridComponent{
+			{Position: GridPosition{Q: 0, R: 0}, Style: ComponentStyleSingle},
+			{Position: GridPosition{Q: 2, R: -2}, Style: ComponentStyleDouble},
+		},
+		Traces: []GridTrace{{
+			Start: GridPosition{Q: 0, R: 0},
+			Path: []GridPosition{
+				{Q: 0, R: -2},
+				{Q: 2, R: -2},
+			},
+			Lines: 1,
+		}},
+	}
+	if _, err := BuildScene(layout); err != nil {
+		t.Fatalf("BuildScene() rejected straight runs separated by a turn: %v", err)
+	}
+}
+
+func TestGridSceneAllowsTerminalAtCoordinateWithoutComponent(t *testing.T) {
+	opts := DefaultOptions()
+	endpoint := GridPosition{Q: 0, R: 2}
 	layout := GridScene{
 		Options: opts,
 		Components: []GridComponent{
@@ -143,12 +204,91 @@ func TestGridSceneRejectsMissingEndpointComponent(t *testing.T) {
 		},
 		Traces: []GridTrace{{
 			Start: GridPosition{Q: 0, R: 0},
-			Path:  []GridPosition{{Q: 1, R: 0}},
+			Path:  []GridPosition{endpoint},
 			Lines: 1,
 		}},
 	}
+	scene, err := BuildScene(layout)
+	if err != nil {
+		t.Fatalf("BuildScene() rejected a free terminal coordinate: %v", err)
+	}
+	if len(scene.Terminals) != 1 {
+		t.Fatalf("got %d terminal pads, want 1", len(scene.Terminals))
+	}
+	want := GridPositionToPoint(endpoint, opts.Width, opts.Height, opts.Grid.Pitch, opts.Orientation)
+	got := scene.Terminals[0]
+	if distance(Point{X: got.X, Y: got.Y}, want) > 1e-9 {
+		t.Errorf("terminal center = (%v, %v), want endpoint (%v, %v)", got.X, got.Y, want.X, want.Y)
+	}
+}
+
+func TestGridSceneHideTerminalRequiresDestinationComponent(t *testing.T) {
+	opts := DefaultOptions()
+	layout := GridScene{
+		Options: opts,
+		Components: []GridComponent{
+			{Position: GridPosition{Q: 0, R: 0}, Style: ComponentStyleSingle},
+		},
+		Traces: []GridTrace{{
+			Start:        GridPosition{Q: 0, R: 0},
+			Path:         []GridPosition{{Q: 0, R: 2}},
+			Lines:        1,
+			HideTerminal: true,
+		}},
+	}
 	if _, err := BuildScene(layout); err == nil {
-		t.Fatal("BuildScene() accepted a trace whose endpoint has no component")
+		t.Fatal("BuildScene() accepted HideTerminal without a destination component")
+	}
+}
+
+func TestGridSceneHideTerminalClipsBundleToDestinationBoundary(t *testing.T) {
+	opts := DefaultOptions()
+	destinationPosition := GridPosition{Q: 0, R: 2}
+	layout := GridScene{
+		Options: opts,
+		Components: []GridComponent{
+			{Position: GridPosition{Q: 0, R: 0}, Style: ComponentStyleSingle},
+			{Position: destinationPosition, Style: ComponentStyleTriple, RadiusScale: 0.9},
+		},
+		Traces: []GridTrace{{
+			Start:        GridPosition{Q: 0, R: 0},
+			Path:         []GridPosition{destinationPosition},
+			Lines:        3,
+			HideTerminal: true,
+		}},
+	}
+	scene, err := BuildScene(layout)
+	if err != nil {
+		t.Fatalf("BuildScene() error = %v", err)
+	}
+	if len(scene.Traces) != 3 {
+		t.Fatalf("got %d tracks, want 3", len(scene.Traces))
+	}
+	if len(scene.Terminals) != 0 {
+		t.Fatalf("got %d terminal pads, want none", len(scene.Terminals))
+	}
+	destination := scene.Components[1]
+	center := Point{X: destination.X, Y: destination.Y}
+	baseAngle := orientationBaseAngle(opts.Orientation)
+	apothem := destination.Radius * sqrt3 / 2
+	for i, trace := range scene.Traces {
+		if !trace.HideTerminal {
+			t.Errorf("track %d did not preserve HideTerminal in the rendered scene", i)
+		}
+		endpoint := trace.Points[len(trace.Points)-1]
+		maxProjection := math.Inf(-1)
+		for side := 0; side < hexSideCount; side++ {
+			theta := baseAngle + float64(side)*math.Pi/3
+			normal := Point{X: math.Cos(theta), Y: math.Sin(theta)}
+			delta := sub(endpoint, center)
+			projection := dot(delta, normal)
+			if projection > maxProjection {
+				maxProjection = projection
+			}
+		}
+		if math.Abs(maxProjection-apothem) > 1e-8 {
+			t.Errorf("track %d ends %.9f inches from the supporting boundary, want apothem %.9f", i, maxProjection, apothem)
+		}
 	}
 }
 

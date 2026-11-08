@@ -237,10 +237,9 @@ The generated SVG is layered in this order: optional background fill, background
 
 ## 9. Use `hexgrid` directly for manually-authored artwork
 
-The `hexgrid` package also exposes a grid-based API for creating a fixed composition
-without using the randomized circuit generator. Components are placed with axial grid
-coordinates instead of inch-based `X`/`Y` values, and traces are specified as a path of
-neighboring grid positions.
+The `hexgrid` package exposes a grid-based API for creating a fixed composition
+without using the randomized circuit generator. Components and trace waypoints use
+axial grid coordinates instead of inch-based `X`/`Y` values.
 
 ```go
 package main
@@ -262,19 +261,23 @@ func main() {
         Options: options,
         Components: []hexgrid.GridComponent{
             {Position: hexgrid.GridPosition{Q: -2, R: 0}, Style: hexgrid.ComponentStyleSingle},
-            {Position: hexgrid.GridPosition{Q: 2, R: 1}, Style: hexgrid.ComponentStyleTriple},
+            {Position: hexgrid.GridPosition{Q: 2, R: 0}, Style: hexgrid.ComponentStyleTriple},
+            {Position: hexgrid.GridPosition{Q: -2, R: 3}, Style: hexgrid.ComponentStyleDouble},
         },
         Traces: []hexgrid.GridTrace{
             {
-                Start: hexgrid.GridPosition{Q: -2, R: 0},
+                Start:        hexgrid.GridPosition{Q: -2, R: 0},
+                Path:         []hexgrid.GridPosition{{Q: 2, R: 0}},
+                Lines:        2,
+                HideTerminal: true,
+            },
+            {
+                Start: hexgrid.GridPosition{Q: -2, R: 3},
                 Path: []hexgrid.GridPosition{
-                    {Q: -1, R: 0},
-                    {Q: 0, R: 0},
-                    {Q: 1, R: 0},
-                    {Q: 2, R: 0},
-                    {Q: 2, R: 1},
+                    {Q: 0, R: 3},
+                    {Q: 0, R: 1},
                 },
-                Lines: 2,
+                Lines: 1,
             },
         },
     }
@@ -293,19 +296,28 @@ func main() {
 two, or three concentric hexagon outlines. `RadiusScale` on a `GridComponent` optionally
 scales the configured component radius; its zero value means `1`.
 
-A trace starts at a component position. Its `Path` lists every subsequent grid cell,
-including the destination component, and each consecutive pair must be adjacent on the
-hexagonal lattice. `Lines` sets the number of parallel tracks. The library offsets the
-tracks using `Options.TraceSpacing`, clips their starts to the source component, and
-places terminal pads inside the destination component. The package validates that the
-source and destination exist and that the requested bundle fits their configured sizes;
-it does not try to prevent traces from crossing other components or traces.
+A trace always starts at a component position. Its `Path` contains one or more
+subsequent waypoints, with the last waypoint serving as the endpoint. Each segment
+between waypoints must follow one of the six straight directions of the hexagonal grid,
+but it does not need to visit every cell along that direction. For example, a path can
+move directly from `(Q=0, R=0)` to `(Q=0, R=-2)` without listing `(Q=0, R=-1)`. Add a
+waypoint whenever the route changes direction. `Lines` sets the number of parallel
+tracks, and `Options.TraceSpacing` controls their perpendicular centerline spacing.
 
-All physical dimensions are supplied through `hexgrid.Options` (canvas size, grid pitch
-and radius, component radius and stroke widths, trace spacing and width, and terminal
-radius). `hexgrid.BuildScene` is available when callers need to inspect or extend the
-inch-based scene before rendering. The randomized `circuit` generator also uses this
-high-level API for its final rendering handoff: it converts accepted axial routes into
-`GridTrace` values and lets `hexgrid` produce the drawable paths and terminal pads. The
+By default, `HideTerminal` is `false`. The endpoint may be either another component or
+an unoccupied grid coordinate. In both cases, the library draws a hollow terminal circle
+at the endpoint. When the endpoint is a component, the trace continues inside that
+component and the terminal is drawn within it. When the endpoint has no component, the
+terminal is drawn at the specified coordinate.
+
+Set `HideTerminal: true` when the trace should connect to a component outline without
+entering the component or showing a terminal circle. The endpoint must identify an
+existing component. Each parallel track is clipped to the exact outer boundary of that
+component, taking its configured radius (including `RadiusScale`) and the bundle spacing
+into account.
+
+`hexgrid.BuildScene` converts the grid-based layout into the inch-based `Scene`, which
+can be inspected or extended before rendering with `hexgrid.Render`. The randomized
+`circuit` generator also uses this high-level API for its final rendering handoff. The
 older `hexgrid.Scene` and `hexgrid.Render` API remains available for callers that already
 have explicit geometry.
