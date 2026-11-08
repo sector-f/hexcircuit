@@ -208,14 +208,15 @@ func (d *design) addComponent(position hexgrid.GridPosition, style hexgrid.Compo
 	})
 }
 
-func (d *design) addTrace(start hexgrid.GridPosition, path []hexgrid.GridPosition, lines int) {
+func (d *design) addTrace(start hexgrid.GridPosition, path []hexgrid.GridPosition, lines int, hideTerminal bool) {
 	if len(path) == 0 {
 		return
 	}
 	d.scene.Traces = append(d.scene.Traces, hexgrid.GridTrace{
-		Start: start,
-		Path:  append([]hexgrid.GridPosition(nil), path...),
-		Lines: lines,
+		Start:        start,
+		Path:         append([]hexgrid.GridPosition(nil), path...),
+		Lines:        lines,
+		HideTerminal: hideTerminal,
 	})
 }
 
@@ -404,7 +405,7 @@ func addClusterNetwork(base, accent *design, anchors, connectors []hexgrid.GridP
 			continue
 		}
 		lines := randomBundleSize(o.MaxParallel, rng)
-		base.addTrace(start, path, lines)
+		base.addTrace(start, path, lines, true)
 		previous := start
 		for _, position := range path {
 			traceCells[position] = true
@@ -422,7 +423,7 @@ func addAccentTrace(accent *design, start hexgrid.GridPosition, path []hexgrid.G
 	end := path[len(path)-1]
 	accent.addComponent(start, hexgrid.ComponentStyleSingle, 0.42)
 	accent.addComponent(end, hexgrid.ComponentStyleSingle, 0.28)
-	accent.addTrace(start, path, 1)
+	accent.addTrace(start, path, 1, false)
 }
 
 func isPowerFeed(position hexgrid.GridPosition, connectors []hexgrid.GridPosition) bool {
