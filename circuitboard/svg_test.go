@@ -241,6 +241,110 @@ func TestRoutesDoNotIntersectAcrossSeeds(t *testing.T) {
 	}
 }
 
+func TestOmitPartialGridHexagons(t *testing.T) {
+	opts := DefaultOptions()
+	if opts.OmitPartialGridHexagons {
+		t.Fatal("OmitPartialGridHexagons should be disabled by default")
+	}
+	opts.Seed, opts.SeedSet = 31, true
+	opts.ShowBackgroundGrid = true
+
+	withoutOmission, _, _, err := Generate(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	partialCount := strings.Count(svgGroup(withoutOmission, `id="background-grid"`), "<polygon")
+
+	opts.OmitPartialGridHexagons = true
+	withOmission, _, _, err := Generate(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	completeCount := strings.Count(svgGroup(withOmission, `id="background-grid"`), "<polygon")
+	if completeCount == 0 {
+		t.Fatal("omitting partial hexagons removed the entire background grid")
+	}
+	if completeCount >= partialCount {
+		t.Fatalf("OmitPartialGridHexagons left %d hexagons; expected fewer than %d", completeCount, partialCount)
+	}
+}
+
+func TestComponentsAndRoutesStayInsideEdgeSafeCells(t *testing.T) {
+	opts := DefaultOptions()
+	for seed := int64(0); seed < 40; seed++ {
+		opts.Seed, opts.SeedSet = seed, true
+		base, _, err := generateLayout(opts, rand.New(rand.NewSource(seed)))
+		if err != nil {
+			t.Fatalf("seed %d: %v", seed, err)
+		}
+
+		for index, component := range base.scene.Components {
+			center := point(component.Position, opts)
+			if !hexagonFullyInsideCanvas(center, opts.GridRadius, opts.GridStrokeWidth, opts) {
+				t.Fatalf("seed %d: component %d occupies a partial background-grid cell at (%d,%d)", seed, index, component.Position.Q, component.Position.R)
+			}
+			if !hexagonFullyInsideCanvas(center, opts.ComponentRadius, opts.ComponentStrokeWidth, opts) {
+				t.Fatalf("seed %d: component %d extends beyond the canvas at (%d,%d)", seed, index, component.Position.Q, component.Position.R)
+			}
+		}
+
+		clearance := edgeCellClearance(opts)
+		for traceIndex, trace := range base.scene.Traces {
+			positions := append([]hexgrid.GridPosition{trace.Start}, trace.Path...)
+			for _, position := range positions {
+				if !hexagonFullyInsideCanvas(point(position, opts), clearance, 0, opts) {
+					t.Fatalf("seed %d: trace %d travels through an edge cell at (%d,%d)", seed, traceIndex, position.Q, position.R)
+				}
+			}
+		}
+	}
+}
+
+func TestConnectorTracesInitiallyExitNortheastOrNorthwest(t *testing.T) {
+	opts := DefaultOptions()
+	connectors, err := connectorPositions(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	connectorSet := make(map[hexgrid.GridPosition]bool, len(connectors))
+	for _, connector := range connectors {
+		connectorSet[connector] = true
+	}
+
+	for seed := int64(0); seed < 40; seed++ {
+		opts.Seed, opts.SeedSet = seed, true
+		base, _, err := generateLayout(opts, rand.New(rand.NewSource(seed)))
+		if err != nil {
+			t.Fatalf("seed %d: %v", seed, err)
+		}
+		found := false
+		for traceIndex, trace := range base.scene.Traces {
+			if !connectorSet[trace.Start] {
+				for _, position := range trace.Path {
+					if connectorSet[position] {
+						t.Fatalf("seed %d: trace %d terminates at a connector instead of originating there", seed, traceIndex)
+					}
+				}
+				continue
+			}
+			if len(trace.Path) == 0 {
+				t.Fatalf("seed %d: connector trace %d has no first step", seed, traceIndex)
+			}
+			firstDirection := hexgrid.GridPosition{
+				Q: trace.Path[0].Q - trace.Start.Q,
+				R: trace.Path[0].R - trace.Start.R,
+			}
+			if !isConnectorExitDirection(firstDirection) {
+				t.Fatalf("seed %d: connector trace %d initially exits in direction (%d,%d)", seed, traceIndex, firstDirection.Q, firstDirection.R)
+			}
+			found = true
+		}
+		if !found {
+			t.Fatalf("seed %d: no connector-originating trace was generated", seed)
+		}
+	}
+}
+
 func generateLayoutForTest(opts Options) (*design, *design, error) {
 	return generateLayout(opts, rand.New(rand.NewSource(opts.Seed+17)))
 }

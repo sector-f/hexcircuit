@@ -49,8 +49,15 @@ include the mandatory connector row. The returned component count does include i
 `ClusterCount` controls the number of large component clusters. `Connections`
 is the target number of routed trace bundles. `MaxParallel` can be 1, 2, or 3.
 
-`ShowBackgroundGrid` enables the hexagonal background field. It defaults to false.
-`BaseColor` and `AccentColor` control ordinary signal artwork and power highlights.
+`ShowBackgroundGrid` enables the hexagonal background field; it defaults to false.
+`OmitPartialGridHexagons` controls whether background hexagons clipped by the
+rectangular canvas are omitted; it defaults to false. Components and routing are
+kept away from edge cells regardless of this setting. `BaseColor` and `AccentColor`
+control ordinary signal artwork and power highlights.
+
+The router uses the same edge-safe interior for all trace paths, so bundles do not
+run along the canvas boundary. Traces attached to the mandatory bottom connector
+row originate at the connector and begin by heading northeast or northwest.
 
 The default canvas is 10 x 8 inches, with 38 generated components, six clusters,
 18 trace bundles, and 13 bottom-edge contacts.
