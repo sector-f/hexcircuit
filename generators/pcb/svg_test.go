@@ -1,4 +1,4 @@
-package circuitboard
+package pcb
 
 import (
 	"encoding/xml"
@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	hexgrid "github.com/sector-f/hexcircuit/hexgrid"
+	"github.com/sector-f/hexgrid"
 )
 
 func TestGenerateIsDeterministicWhenSeeded(t *testing.T) {

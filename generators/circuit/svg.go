@@ -8,7 +8,7 @@ import (
 	"sort"
 	"time"
 
-	hexgrid "github.com/sector-f/hexcircuit/hexgrid"
+	"github.com/sector-f/hexgrid"
 )
 
 const (

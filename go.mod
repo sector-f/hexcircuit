@@ -1,4 +1,4 @@
-module github.com/sector-f/hexcircuit
+module github.com/sector-f/hexgrid
 
 go 1.25.0
 

@@ -1,4 +1,4 @@
-package circuitboard
+package pcb
 
 import (
 	"container/heap"
@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	hexgrid "github.com/sector-f/hexcircuit/hexgrid"
+	"github.com/sector-f/hexgrid"
 )
 
 const (

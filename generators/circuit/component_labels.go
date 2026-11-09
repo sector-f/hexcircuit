@@ -13,7 +13,7 @@ import (
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
 
-	hexgrid "github.com/sector-f/hexcircuit/hexgrid"
+	"github.com/sector-f/hexgrid"
 )
 
 var defaultLabels = []string{

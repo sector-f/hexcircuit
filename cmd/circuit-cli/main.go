@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/sector-f/hexcircuit/circuit"
+	"github.com/sector-f/hexgrid/generators/circuit"
 	"github.com/spf13/pflag"
 )
 

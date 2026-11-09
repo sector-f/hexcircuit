@@ -7,9 +7,9 @@ The generator writes vector artwork rather than a raster image. SVG files can be
 ## 1. Build and run
 
 ```sh
-cd cmd/hexagon-cli/
+cd cmd/circuit-cli/
 go build
-./hexagon-cli -o circuit.svg
+./circuit-cli -o circuit.svg
 ```
 
 ## 2. Understand the picture
@@ -248,7 +248,7 @@ import (
     "log"
     "os"
 
-    "github.com/sector-f/hexcircuit/hexgrid"
+    "github.com/sector-f/hexgrid"
 )
 
 func main() {

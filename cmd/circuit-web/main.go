@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	hexsvg "github.com/sector-f/hexcircuit/circuit"
+	"github.com/sector-f/hexgrid/generators/circuit"
 )
 
 //go:embed index.html
@@ -138,7 +138,7 @@ func handleGenerate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	svgText, _, _, err := hexsvg.Generate(options)
+	svgText, _, _, err := circuit.Generate(options)
 	if err != nil {
 		writeJSONError(w, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -151,89 +151,89 @@ func handleGenerate(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (r generateRequest) options() (hexsvg.Options, error) {
+func (r generateRequest) options() (circuit.Options, error) {
 	if !positiveFinite(r.Width) || r.Width > 100 || !positiveFinite(r.Height) || r.Height > 100 {
-		return hexsvg.Options{}, fmt.Errorf("canvas width and height must be greater than 0 and no more than 100 inches")
+		return circuit.Options{}, fmt.Errorf("canvas width and height must be greater than 0 and no more than 100 inches")
 	}
 	if r.Orientation != "pointy" && r.Orientation != "flat" {
-		return hexsvg.Options{}, fmt.Errorf("orientation must be pointy or flat")
+		return circuit.Options{}, fmt.Errorf("orientation must be pointy or flat")
 	}
 	if !paintPattern.MatchString(r.Color) {
-		return hexsvg.Options{}, fmt.Errorf("color must be a hex color or a CSS color name")
+		return circuit.Options{}, fmt.Errorf("color must be a hex color or a CSS color name")
 	}
 	if r.Background != "none" && r.Background != "transparent" && !paintPattern.MatchString(r.Background) {
-		return hexsvg.Options{}, fmt.Errorf("background must be none, transparent, a hex color, or a CSS color name")
+		return circuit.Options{}, fmt.Errorf("background must be none, transparent, a hex color, or a CSS color name")
 	}
 	if r.ComponentCount < 0 || r.ComponentCount > 500 {
-		return hexsvg.Options{}, fmt.Errorf("component count must be between 0 and 500")
+		return circuit.Options{}, fmt.Errorf("component count must be between 0 and 500")
 	}
 	if !positiveFinite(r.ComponentRadius) {
-		return hexsvg.Options{}, fmt.Errorf("component radius must be greater than 0")
+		return circuit.Options{}, fmt.Errorf("component radius must be greater than 0")
 	}
 	if !positiveFinite(r.RoutingPitch) {
-		return hexsvg.Options{}, fmt.Errorf("routing pitch must be greater than 0")
+		return circuit.Options{}, fmt.Errorf("routing pitch must be greater than 0")
 	}
 	if !positiveFinite(r.GridRadius) || !nonnegativeFinite(r.GridGap) || !nonnegativeFinite(r.GridWidth) {
-		return hexsvg.Options{}, fmt.Errorf("grid radius must be greater than 0; grid gap and grid width cannot be negative")
+		return circuit.Options{}, fmt.Errorf("grid radius must be greater than 0; grid gap and grid width cannot be negative")
 	}
 	if r.Connections < 0 || r.Connections > 1000 {
-		return hexsvg.Options{}, fmt.Errorf("connections must be between 0 and 1000")
+		return circuit.Options{}, fmt.Errorf("connections must be between 0 and 1000")
 	}
 	if r.MaxParallel < 1 || r.MaxParallel > 12 {
-		return hexsvg.Options{}, fmt.Errorf("max parallel must be between 1 and 12")
+		return circuit.Options{}, fmt.Errorf("max parallel must be between 1 and 12")
 	}
 	if !nonnegativeFinite(r.ParallelSpacing) || !positiveFinite(r.StrokeWidth) || !positiveFinite(r.TraceWidth) || !positiveFinite(r.NodeRadius) || !nonnegativeFinite(r.TraceClearance) {
-		return hexsvg.Options{}, fmt.Errorf("parallel spacing and trace clearance cannot be negative; stroke width, trace width, and node radius must be greater than 0")
+		return circuit.Options{}, fmt.Errorf("parallel spacing and trace clearance cannot be negative; stroke width, trace width, and node radius must be greater than 0")
 	}
 	if !nonnegativeFinite(r.DetailProb) || r.DetailProb > 1 {
-		return hexsvg.Options{}, fmt.Errorf("detail probability must be between 0 and 1")
+		return circuit.Options{}, fmt.Errorf("detail probability must be between 0 and 1")
 	}
 	if !positiveFinite(r.LabelFontSize) {
-		return hexsvg.Options{}, fmt.Errorf("label font size must be greater than 0")
+		return circuit.Options{}, fmt.Errorf("label font size must be greater than 0")
 	}
 	if !nonnegativeFinite(r.LabelProbability) || r.LabelProbability > 1 {
-		return hexsvg.Options{}, fmt.Errorf("label probability must be between 0 and 1")
+		return circuit.Options{}, fmt.Errorf("label probability must be between 0 and 1")
 	}
 	if !nonnegativeFinite(r.LabelDistance) {
-		return hexsvg.Options{}, fmt.Errorf("label distance cannot be negative")
+		return circuit.Options{}, fmt.Errorf("label distance cannot be negative")
 	}
 	if r.ShowLabels && strings.TrimSpace(r.LabelFont) == "" {
-		return hexsvg.Options{}, fmt.Errorf("font family cannot be empty when labels are enabled")
+		return circuit.Options{}, fmt.Errorf("font family cannot be empty when labels are enabled")
 	}
 	if r.FontColorSpecified && !paintPattern.MatchString(r.FontColor) {
-		return hexsvg.Options{}, fmt.Errorf("font color must be a hex color or a CSS color name")
+		return circuit.Options{}, fmt.Errorf("font color must be a hex color or a CSS color name")
 	}
 	if r.MaxRouteSteps < 1 || r.MaxRouteSteps > 1000 {
-		return hexsvg.Options{}, fmt.Errorf("max route steps must be between 1 and 1000")
+		return circuit.Options{}, fmt.Errorf("max route steps must be between 1 and 1000")
 	}
 	if r.RouteAttempts < 1 || r.RouteAttempts > 1000 {
-		return hexsvg.Options{}, fmt.Errorf("route attempts must be between 1 and 1000")
+		return circuit.Options{}, fmt.Errorf("route attempts must be between 1 and 1000")
 	}
-	fallbackEdgeOrder := hexsvg.FallbackEdgeOrder(r.FallbackEdgeOrder)
+	fallbackEdgeOrder := circuit.FallbackEdgeOrder(r.FallbackEdgeOrder)
 	if fallbackEdgeOrder == "" {
-		fallbackEdgeOrder = hexsvg.FallbackEdgeOrderRandomized
+		fallbackEdgeOrder = circuit.FallbackEdgeOrderRandomized
 	}
-	if fallbackEdgeOrder != hexsvg.FallbackEdgeOrderRandomized && fallbackEdgeOrder != hexsvg.FallbackEdgeOrderRanked {
-		return hexsvg.Options{}, fmt.Errorf("fallback edge order must be %q or %q", hexsvg.FallbackEdgeOrderRandomized, hexsvg.FallbackEdgeOrderRanked)
+	if fallbackEdgeOrder != circuit.FallbackEdgeOrderRandomized && fallbackEdgeOrder != circuit.FallbackEdgeOrderRanked {
+		return circuit.Options{}, fmt.Errorf("fallback edge order must be %q or %q", circuit.FallbackEdgeOrderRandomized, circuit.FallbackEdgeOrderRanked)
 	}
 
 	weights, err := parseWeights(r.TrackCountWeights, r.MaxParallel)
 	if err != nil {
-		return hexsvg.Options{}, err
+		return circuit.Options{}, err
 	}
 
 	var seed int64
 	if r.SeedSet {
 		if strings.TrimSpace(r.Seed) == "" {
-			return hexsvg.Options{}, fmt.Errorf("enter an integer seed or turn off the fixed-seed option")
+			return circuit.Options{}, fmt.Errorf("enter an integer seed or turn off the fixed-seed option")
 		}
 		seed, err = strconv.ParseInt(strings.TrimSpace(r.Seed), 10, 64)
 		if err != nil {
-			return hexsvg.Options{}, fmt.Errorf("seed must be a signed 64-bit integer")
+			return circuit.Options{}, fmt.Errorf("seed must be a signed 64-bit integer")
 		}
 	}
 
-	return hexsvg.Options{
+	return circuit.Options{
 		Width:                     r.Width,
 		Height:                    r.Height,
 		Color:                     r.Color,

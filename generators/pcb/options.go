@@ -1,5 +1,5 @@
 // Package circuitboard generates randomized, PCB-inspired hexagonal artwork.
-package circuitboard
+package pcb
 
 import (
 	"fmt"

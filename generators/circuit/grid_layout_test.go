@@ -3,7 +3,7 @@ package circuit
 import (
 	"testing"
 
-	"github.com/sector-f/hexcircuit/hexgrid"
+	"github.com/sector-f/hexgrid"
 )
 
 func TestGridSceneForRenderUsesAxialComponentsAndGridTraces(t *testing.T) {
