@@ -61,8 +61,8 @@ All physical dimensions are in inches.
 | `ClusterCount` | Number of component clusters and active power feeds |
 | `MinComponentsPerCluster` | Minimum cluster size; defaults to `1`, allowing singleton clusters |
 | `Connections` | Target number of additional intra-cluster signal connections beyond required spanning trees |
-| `TopPowerSourceCount` | Number of potential power-source positions along the top row |
-| `BottomPowerSourceCount` | Number of potential power-source positions along the bottom row |
+| `TopPowerSourceCount` | Number of physical power-source contacts along the top row |
+| `BottomPowerSourceCount` | Number of physical power-source contacts along the bottom row |
 | `PowerSourceSpacing` | `PowerSourceSpacingSeparated` places physical contacts two lattice cells apart; `PowerSourceSpacingAdjacent` places them in neighboring cells |
 | `PowerSourceStyle` | `PowerSourceStyleSingle` or `PowerSourceStyleDouble` base-layer hexagons for rendered source contacts |
 | `ConstrainComponentsToPowerSourceSpan` | Restricts all ordinary components to the horizontal span between the leftmost and rightmost active power-source contacts; disabled by default |

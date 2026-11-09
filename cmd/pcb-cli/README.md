@@ -114,7 +114,7 @@ Selected power-source contacts receive an accent-colored core and a power feed. 
 
 When `--constrain-components-to-power-source-span` is enabled, every ordinary component must lie horizontally between the leftmost and rightmost active power-source contacts. The option is disabled by default. Narrow source spans may leave insufficient room for the requested component count, in which case generation returns an error rather than placing components outside the requested bounds.
 
-Power-source count flags describe the number of potential contact positions on each edge, not the number that will be active. Exactly one position per cluster is selected as active. In `separated` mode, neighboring physical contacts are placed two lattice cells apart. In `adjacent` mode, they occupy neighboring lattice cells.
+Power-source count flags describe the number of physical contact components on each edge, not the number that will be active. Exactly one position per cluster is selected as active. In `separated` mode, neighboring physical contacts are placed two lattice cells apart. In `adjacent` mode, they occupy neighboring lattice cells.
 
 The base color is used for ordinary components, all source-contact outlines (including unused contacts), signal traces, and the optional background grid. The accent color is reserved exclusively for power feeds and their connected power-entry cores. The background hexagonal field is disabled by default; enable it with `--show-background-grid`.
 
@@ -184,12 +184,12 @@ The requested connection count is a target; the generator's routing constraints 
 
 | Flag | Default | Description |
 | --- | ---: | --- |
-| `--top-power-source-count` | `13` | Number of physical power contacts along the top edge. |
-| `--bottom-power-source-count` | `13` | Number of physical power contacts along the bottom edge. |
+| `--top-power-source-count` | `10` | Number of physical power contacts along the top edge. |
+| `--bottom-power-source-count` | `10` | Number of physical power contacts along the bottom edge. |
 | `--power-source-spacing` | `separated` | `separated` places physical contacts two lattice cells apart; `adjacent` places them in neighboring cells. |
 | `--power-source-style` | `single` | Base-layer style for all contacts: `single` or concentric `double` hexagons. |
 | `--connector-inset` | `0.25` | Requested gap between each enabled source row and its nearest canvas edge. |
-| `--connector-count` | `13` | Deprecated alias for `--bottom-power-source-count`. |
+| `--connector-count` | `10` | Deprecated alias for `--bottom-power-source-count`. |
 
 The two row counts may individually be zero, but their sum must be at least `cluster-count`. Each enabled row must fit on its corresponding canvas edge. In separated mode, the combined rows must also have enough potential positions to leave an unused contact between active contacts on the same row.
 

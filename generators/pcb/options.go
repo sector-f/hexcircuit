@@ -14,15 +14,15 @@ const (
 	powerCoreRadiusScale          = 0.36
 )
 
-// PowerSourceSpacing controls whether active power contacts must have at least
-// one empty grid position between them on the same source row.
+// PowerSourceSpacing controls the physical spacing between neighboring contacts
+// on the same source row.
 type PowerSourceSpacing string
 
 const (
 	// PowerSourceSpacingAdjacent allows active power contacts in neighboring cells.
 	PowerSourceSpacingAdjacent PowerSourceSpacing = "adjacent"
-	// PowerSourceSpacingSeparated leaves at least one empty grid position between
-	// active contacts; inactive positions inside that span are not rendered.
+	// PowerSourceSpacingSeparated leaves one empty grid position between physical
+	// contacts on the same row.
 	PowerSourceSpacingSeparated PowerSourceSpacing = "separated"
 )
 
@@ -100,8 +100,8 @@ type Options struct {
 	// In separated mode, neighboring contacts are two lattice cells apart.
 	TopPowerSourceCount    int
 	BottomPowerSourceCount int
-	// PowerSourceSpacing selects whether active contacts may be adjacent or must
-	// are placed with one empty grid position between neighboring contacts in each row.
+	// PowerSourceSpacing selects whether physical contacts may be adjacent or must
+	// have one empty grid position between neighboring contacts in each row.
 	PowerSourceSpacing PowerSourceSpacing
 	// PowerSourceStyle controls the base-layer style of every contact in both rows.
 	PowerSourceStyle PowerSourceStyle

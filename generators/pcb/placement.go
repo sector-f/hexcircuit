@@ -331,7 +331,7 @@ func choosePowerSourceAssignments(
 	topIndices := choosePowerSourceIndices(len(topSources), topCount, PowerSourceSpacingAdjacent, rng)
 	bottomIndices := choosePowerSourceIndices(len(bottomSources), bottomCount, PowerSourceSpacingAdjacent, rng)
 	if len(topIndices) != topCount || len(bottomIndices) != bottomCount {
-		return nil, fmt.Errorf("could not choose %d top and %d bottom power contacts with %q spacing", topCount, bottomCount, spacing)
+		return nil, fmt.Errorf("could not choose %d top and %d bottom power contacts", topCount, bottomCount)
 	}
 
 	selected := make([]powerSource, 0, clusterCount)
