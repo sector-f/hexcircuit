@@ -1,17 +1,14 @@
-# pcb
+# `generators/pcb`
 
-![Example PCB SVG](example.svg)
+The `pcb` package generates PCB-inspired SVG artwork on the shared hexagonal grid.
+The generator plans an explicit board topology before rendering it: components are
+placed in compact local clusters, signal traces connect the components within each
+cluster, and every cluster receives a separate power feed from a selected contact in
+the bottom connector row.
 
-`PCB` generates randomized hexagonal PCB-inspired artwork using the shared
-`hexgrid` geometry and SVG renderer. Its composition algorithm is separate from the
-`circuit` package: it places several spatially distributed component clusters, builds
-an irregular branched network with a lightweight randomized A* router, then fills
-remaining spaces with smaller, often unconnected components.
-
-The design always includes a horizontal row of connector components at the bottom.
-The base color draws ordinary components and signal traces; the accent color marks
-power feeds and selected component cores. The optional background hex field is off
-by default.
+The package uses `github.com/sector-f/hexgrid` for grid geometry and SVG rendering.
+It does not model real electrical components, pin assignments, or manufacturable PCB
+layouts; it generates procedural artwork.
 
 ## Usage
 
@@ -19,47 +16,87 @@ by default.
 package main
 
 import (
-    "os"
+	"log"
+	"os"
 
-    "github.com/sector-f/hexcircuit/pcb"
+	"github.com/sector-f/hexgrid/generators/pcb"
 )
 
 func main() {
-    options := pcb.DefaultOptions()
-    options.ShowBackgroundGrid = true
-    options.Seed = 1234
-    options.SeedSet = true
+	options := pcb.DefaultOptions()
+	options.ShowBackgroundGrid = true
+	options.MinComponentsPerCluster = 2
+	options.Seed = 1234
+	options.SeedSet = true
 
-    svg, _, _, err := pcb.Generate(options)
-    if err != nil {
-        panic(err)
-    }
-    if err := os.WriteFile("board.svg", []byte(svg), 0644); err != nil {
-        panic(err)
-    }
+	svg, componentCount, traceCount, err := pcb.Generate(options)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("rendered %d components and %d trace bundles", componentCount, traceCount)
+	if err := os.WriteFile("board.svg", []byte(svg), 0644); err != nil {
+		log.Fatal(err)
+	}
 }
 ```
 
-Leaving `SeedSet` false selects a new seed for each call. Set it true to make the
-same options produce identical SVG output.
+`Generate` returns the SVG document, the number of components including the mandatory
+bottom connector row, the number of routed bundles (signal plus power), and an error.
+It does not perform file I/O. Set `SeedSet` to true to make output reproducible;
+otherwise each call uses a fresh seed.
+
+## Generation model
+
+1. **Connector row.** The generator creates the bottom row first. It selects one
+   distinct power contact per cluster. When the connector count permits it, selected
+   contacts are separated by at least one unused contact. The selected positions are
+   randomized for each seed, so used contacts are interspersed with unused contacts
+   instead of forming a contiguous block. Selected contacts are sorted left-to-right
+   only for assignment to similarly ordered cluster hubs; this keeps the feeds from
+   crossing without making the selected contacts themselves contiguous.
+2. **Cluster placement.** The generator allocates the requested component count across
+   clusters, respecting `MinComponentsPerCluster`. Cluster centers are distributed
+   using farthest-point sampling. Additional components grow outward from each hub
+   through adjacent lattice cells. Cluster footprints use a compact, size-scaled
+   radius and retain a one-cell buffer between neighboring clusters.
+3. **Signal topology.** The placement parent relationships form a spanning tree, so
+   every component in a multi-component cluster is connected. `Connections` requests
+   additional local signal connections beyond these required tree edges. Optional
+   links never connect different clusters.
+4. **Power topology.** Every cluster hub receives one route from its assigned bottom
+   connector. A* routing follows legal hex-grid neighbors, blocks occupied components,
+   avoids previously routed paths, and requires a power feed's first move to head
+   northward from the connector row.
+5. **Rendering.** Components and signal traces use `BaseColor`. `AccentColor` is used
+   only for power traces and the small power-entry cores at used connector contacts and
+   cluster hubs. Every accent element therefore belongs to a visible power path rooted
+   at the bottom connector row. Power-core sizing is included in bundle validation so
+   generated parallel tracks fit inside their smaller endpoint cores.
 
 ## Options
 
-All dimensions are in inches. `Width` and `Height` define a rectangular canvas.
-`ComponentCount` is the requested number of generated components and does not
-include the mandatory connector row. The returned component count does include it.
-`ClusterCount` controls the number of large component clusters. `Connections`
-is the target number of routed trace bundles. `MaxParallel` can be 1, 2, or 3.
+All physical dimensions are in inches.
 
-`ShowBackgroundGrid` enables the hexagonal background field; it defaults to false.
-`OmitPartialGridHexagons` controls whether background hexagons clipped by the
-rectangular canvas are omitted; it defaults to false. Components and routing are
-kept away from edge cells regardless of this setting. `BaseColor` and `AccentColor`
-control ordinary signal artwork and power highlights.
+| Option | Meaning |
+|---|---|
+| `Width`, `Height` | SVG canvas dimensions |
+| `ComponentCount` | Number of clustered components, excluding the connector row |
+| `ClusterCount` | Number of component clusters |
+| `MinComponentsPerCluster` | Minimum cluster size; defaults to `1`, allowing singleton clusters |
+| `Connections` | Target number of additional intra-cluster signal connections, beyond required spanning trees |
+| `ConnectorCount` | Number of contacts in the mandatory bottom row; must be at least the cluster count |
+| `MaxParallel` | Maximum number of parallel tracks per bundle (`1`–`3`) |
+| `BaseColor` | Components, signal traces, and optional background grid |
+| `AccentColor` | Power feeds and their connected power-entry cores only |
+| `ShowBackgroundGrid` | Enables the optional low-contrast hexagonal background grid |
+| `Seed`, `SeedSet` | Reproducible generation settings |
 
-The router uses the same edge-safe interior for all trace paths, so bundles do not
-run along the canvas boundary. Traces attached to the mandatory bottom connector
-row originate at the connector and begin by heading northeast or northwest.
+The remaining options control grid pitch, component geometry, trace geometry, connector
+inset, canvas background, and partial background-grid clipping. See `Options` for their
+full documentation.
 
-The default canvas is 10 x 8 inches, with 38 generated components, six clusters,
-18 trace bundles, and 13 bottom-edge contacts.
+`MinComponentsPerCluster` must be at least one, and the requested component count must
+be sufficient to satisfy that minimum across all clusters. `ConnectorCount` must be at
+least `ClusterCount`, because each cluster receives its own power source. When there are
+too few contacts to leave an unused contact between every selected source, the source
+selection relaxes that spacing constraint while still choosing distinct contacts.
