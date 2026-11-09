@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"math"
 	"math/rand"
 	"reflect"
 	"strings"
@@ -259,6 +260,10 @@ func TestGenerateIsDeterministicForExplicitSeed(t *testing.T) {
 	o := DefaultOptions()
 	o.Seed = 912
 	o.SeedSet = true
+	top, bottom, err := powerSourcePositions(o)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	firstSVG, firstComponents, firstTraces, err := Generate(o)
 	if err != nil {
@@ -274,7 +279,7 @@ func TestGenerateIsDeterministicForExplicitSeed(t *testing.T) {
 	if firstComponents != secondComponents || firstTraces != secondTraces {
 		t.Fatalf("generation counts changed for an explicit seed: (%d, %d) vs (%d, %d)", firstComponents, firstTraces, secondComponents, secondTraces)
 	}
-	wantComponents := o.ComponentCount + o.TopPowerSourceCount + o.BottomPowerSourceCount
+	wantComponents := o.ComponentCount + len(top) + len(bottom)
 	if firstComponents != wantComponents {
 		t.Fatalf("component count = %d, want %d", firstComponents, wantComponents)
 	}
@@ -314,11 +319,100 @@ func TestSourceStyleControlsBaseLayerComponents(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if got, want := len(plan.Components)-o.ComponentCount, len(top)+len(bottom); got != want {
+			t.Fatalf("got %d rendered source components, want all %d configured contacts", got, want)
+		}
 		for _, component := range plan.Components[o.ComponentCount:] {
 			if component.Style != test.want {
 				t.Fatalf("source component style = %v, want %v", component.Style, test.want)
 			}
 		}
+	}
+}
+
+func TestAllPowerSourceContactsAreRendered(t *testing.T) {
+	o := DefaultOptions()
+	o.TopPowerSourceCount = 11
+	o.BottomPowerSourceCount = 9
+	o.Seed = 818
+	o.SeedSet = true
+	top, bottom, err := powerSourcePositions(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := buildBoard(o, rand.New(rand.NewSource(o.Seed)), top, bottom)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	active := make(map[hexgrid.GridPosition]bool, o.ClusterCount)
+	for _, cluster := range plan.Clusters {
+		active[cluster.PowerSource] = true
+	}
+	powerCores := make(map[hexgrid.GridPosition]bool, len(plan.PowerCores))
+	for _, component := range plan.PowerCores {
+		powerCores[component.Position] = true
+	}
+	drawn := make(map[hexgrid.GridPosition]hexgrid.GridComponent, len(plan.Components))
+	for _, component := range plan.Components {
+		drawn[component.Position] = component
+	}
+
+	allSources := append(append([]hexgrid.GridPosition(nil), top...), bottom...)
+	for _, source := range allSources {
+		component, exists := drawn[source]
+		if !exists {
+			t.Errorf("configured power source %v was not rendered as a base-layer component", source)
+			continue
+		}
+		if component.Style != powerSourceComponentStyle(o.PowerSourceStyle) {
+			t.Errorf("power source %v has style %v, want %v", source, component.Style, powerSourceComponentStyle(o.PowerSourceStyle))
+		}
+		if active[source] != powerCores[source] {
+			t.Errorf("source %v active=%v but accent power core present=%v", source, active[source], powerCores[source])
+		}
+	}
+	if got, want := len(plan.Components), o.ComponentCount+len(top)+len(bottom); got != want {
+		t.Fatalf("rendered base component count = %d, want %d ordinary components + %d configured power contacts = %d", got, o.ComponentCount, len(allSources), want)
+	}
+	if len(active) != o.ClusterCount {
+		t.Fatalf("got %d active sources, want one for each of %d clusters", len(active), o.ClusterCount)
+	}
+}
+
+func TestConstrainComponentsToActivePowerSourceSpan(t *testing.T) {
+	for seed := int64(0); seed < 40; seed++ {
+		o := DefaultOptions()
+		o.ConstrainComponentsToPowerSourceSpan = true
+		top, bottom, err := powerSourcePositions(o)
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan, err := buildBoard(o, rand.New(rand.NewSource(seed)), top, bottom)
+		if err != nil {
+			t.Fatalf("seed %d: %v", seed, err)
+		}
+		minimumX, maximumX := math.Inf(1), math.Inf(-1)
+		for _, cluster := range plan.Clusters {
+			x := hexgrid.GridPositionToPoint(cluster.PowerSource, o.Width, o.Height, o.Pitch, "pointy").X
+			minimumX = math.Min(minimumX, x)
+			maximumX = math.Max(maximumX, x)
+		}
+		for _, cluster := range plan.Clusters {
+			for _, component := range cluster.Components {
+				x := hexgrid.GridPositionToPoint(component.Position, o.Width, o.Height, o.Pitch, "pointy").X
+				if x < minimumX-1e-9 || x > maximumX+1e-9 {
+					t.Fatalf("seed %d: component %v at x=%f is outside active source span [%f, %f]", seed, component.Position, x, minimumX, maximumX)
+				}
+			}
+		}
+	}
+}
+
+func TestConstrainComponentsToPowerSourceSpanCanBeDisabled(t *testing.T) {
+	o := DefaultOptions()
+	if o.ConstrainComponentsToPowerSourceSpan {
+		t.Fatal("horizontal power-source span constraint should default to disabled")
 	}
 }
 

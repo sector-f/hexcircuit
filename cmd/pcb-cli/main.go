@@ -44,11 +44,12 @@ func parseOptions(arguments []string, stderr io.Writer) (CLIOptions, error) {
 	flags.Float64VarP(&opts.Generator.Width, "width", "W", opts.Generator.Width, "Canvas width in inches.")
 	flags.Float64VarP(&opts.Generator.Height, "height", "H", opts.Generator.Height, "Canvas height in inches.")
 	flags.StringVar(&opts.Generator.BaseColor, "base-color", opts.Generator.BaseColor, "Color for ordinary components and signal traces.")
-	flags.StringVar(&opts.Generator.AccentColor, "accent-color", opts.Generator.AccentColor, "Color for power feeds and selected component cores.")
+	flags.StringVar(&opts.Generator.AccentColor, "accent-color", opts.Generator.AccentColor, "Color exclusively for power feeds and connected power-entry cores.")
 	flags.StringVar(&opts.Generator.Background, "background", opts.Generator.Background, "Canvas background fill; use 'none' or 'transparent' for no fill.")
 
-	flags.IntVar(&opts.Generator.ComponentCount, "component-count", opts.Generator.ComponentCount, "Target number of generated components, excluding the bottom connector row.")
-	flags.IntVar(&opts.Generator.ClusterCount, "cluster-count", opts.Generator.ClusterCount, "Number of major component clusters.")
+	flags.IntVar(&opts.Generator.ComponentCount, "component-count", opts.Generator.ComponentCount, "Number of ordinary components placed in clusters, excluding active power-source contacts.")
+	flags.IntVar(&opts.Generator.ClusterCount, "cluster-count", opts.Generator.ClusterCount, "Number of major component clusters and active power feeds.")
+	flags.IntVar(&opts.Generator.MinComponentsPerCluster, "min-components-per-cluster", opts.Generator.MinComponentsPerCluster, "Minimum number of ordinary components in each cluster.")
 	flags.IntVar(&opts.Generator.Connections, "connections", opts.Generator.Connections, "Target number of routed trace bundles.")
 	flags.IntVar(&opts.Generator.MaxParallel, "max-parallel", opts.Generator.MaxParallel, "Maximum number of parallel traces per bundle (1-3).")
 
@@ -67,8 +68,15 @@ func parseOptions(arguments []string, stderr io.Writer) (CLIOptions, error) {
 	flags.Float64Var(&opts.Generator.GridRadius, "grid-radius", opts.Generator.GridRadius, "Circumradius of background grid hexagons, in inches.")
 	flags.Float64Var(&opts.Generator.GridStrokeWidth, "grid-stroke-width", opts.Generator.GridStrokeWidth, "Background grid outline width, in inches; zero disables grid outlines.")
 
-	flags.IntVar(&opts.Generator.ConnectorCount, "connector-count", opts.Generator.ConnectorCount, "Number of contacts in the mandatory bottom connector row.")
-	flags.Float64Var(&opts.Generator.ConnectorInset, "connector-inset", opts.Generator.ConnectorInset, "Requested gap between connector centers and the bottom canvas edge, in inches.")
+	flags.IntVar(&opts.Generator.TopPowerSourceCount, "top-power-source-count", opts.Generator.TopPowerSourceCount, "Number of potential power-source positions along the top edge.")
+	flags.IntVar(&opts.Generator.BottomPowerSourceCount, "bottom-power-source-count", opts.Generator.BottomPowerSourceCount, "Number of potential power-source positions along the bottom edge.")
+	flags.IntVar(&opts.Generator.ConnectorCount, "connector-count", opts.Generator.ConnectorCount, "Deprecated alias for --bottom-power-source-count.")
+	spacing := string(opts.Generator.PowerSourceSpacing)
+	flags.StringVar(&spacing, "power-source-spacing", spacing, "Spacing between active contacts on each row: 'adjacent' or 'separated'.")
+	style := string(opts.Generator.PowerSourceStyle)
+	flags.StringVar(&style, "power-source-style", style, "Base-layer style for active power contacts: 'single' or 'double'.")
+	flags.BoolVar(&opts.Generator.ConstrainComponentsToPowerSourceSpan, "constrain-components-to-power-source-span", opts.Generator.ConstrainComponentsToPowerSourceSpan, "Keep ordinary components horizontally between the leftmost and rightmost active power sources.")
+	flags.Float64Var(&opts.Generator.ConnectorInset, "connector-inset", opts.Generator.ConnectorInset, "Requested gap between each enabled power-source row and its nearest canvas edge, in inches.")
 
 	seedText := "random"
 	flags.StringVar(&seedText, "seed", seedText, "Integer seed for reproducible output, or 'random' for a different pattern each run.")
@@ -76,7 +84,7 @@ func parseOptions(arguments []string, stderr io.Writer) (CLIOptions, error) {
 	flags.BoolVarP(&help, "help", "h", false, "Print this help.")
 
 	flags.Usage = func() {
-		fmt.Fprintf(flags.Output(), "Usage: %s [flags]\n\nGenerate a randomized PCB-inspired illustration with hexagonal components, branched signal traces, and a bottom connector row. All dimensional flags use inches.\n\nFlags:\n", flags.Name())
+		fmt.Fprintf(flags.Output(), "Usage: %s [flags]\n\nGenerate a randomized PCB-inspired illustration with clustered hexagonal components, local signal traces, and top/bottom power-source rows. All dimensional flags use inches.\n\nFlags:\n", flags.Name())
 		flags.PrintDefaults()
 	}
 
@@ -93,6 +101,9 @@ func parseOptions(arguments []string, stderr io.Writer) (CLIOptions, error) {
 	if flags.NArg() > 0 {
 		return opts, fmt.Errorf("unexpected positional arguments: %s", strings.Join(flags.Args(), " "))
 	}
+
+	opts.Generator.PowerSourceSpacing = pcb.PowerSourceSpacing(spacing)
+	opts.Generator.PowerSourceStyle = pcb.PowerSourceStyle(style)
 
 	if seedText != "random" {
 		seed, err := strconv.ParseInt(seedText, 10, 64)

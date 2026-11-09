@@ -116,7 +116,9 @@ func placeClusters(
 		bottomY = hexgrid.GridPositionToPoint(bottomSources[0], o.Width, o.Height, o.Pitch, "pointy").Y
 	}
 
-	eligible := make(map[hexgrid.GridPosition]bool, len(allCells))
+	// These candidates are bounded vertically by the power rows. When the
+	// optional horizontal constraint is enabled, a per-attempt filter narrows
+	// them to the span of the active (selected) power sources.
 	candidates := make([]hexgrid.GridPosition, 0, len(allCells))
 	for _, cell := range allCells {
 		if len(topSources) > 0 && cell.Center.Y < topY+1.6*o.Pitch {
@@ -125,9 +127,7 @@ func placeClusters(
 		if len(bottomSources) > 0 && cell.Center.Y > bottomY-1.6*o.Pitch {
 			continue
 		}
-		position := hexgrid.GridPosition{Q: cell.Q, R: cell.R}
-		eligible[position] = true
-		candidates = append(candidates, position)
+		candidates = append(candidates, hexgrid.GridPosition{Q: cell.Q, R: cell.R})
 	}
 	sort.Slice(candidates, func(i, j int) bool {
 		if candidates[i].Q != candidates[j].Q {
@@ -146,11 +146,30 @@ func placeClusters(
 	}
 	sort.SliceStable(order, func(i, j int) bool { return sizes[order[i]] > sizes[order[j]] })
 	allowedRoutes := routingCells(o)
+	constrainedCandidatesFailed := false
 
-	// Retry different center/source combinations when a set of non-crossing feeds
-	// cannot be routed. A successful set reserves every cell used by every feed.
+	// Retry different source, center, and placement combinations when a set of
+	// non-crossing feeds or compact clusters cannot be constructed.
 	for attempt := 0; attempt < 192; attempt++ {
-		centers := selectClusterCenters(candidates, o.ClusterCount, rng)
+		sources, err := choosePowerSourceAssignments(topSources, bottomSources, o.ClusterCount, o.PowerSourceSpacing, rng)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		attemptCandidates := candidates
+		if o.ConstrainComponentsToPowerSourceSpan {
+			attemptCandidates = candidatesWithinPowerSourceSpan(candidates, sources, o)
+			if len(attemptCandidates) < o.ComponentCount {
+				constrainedCandidatesFailed = true
+				continue
+			}
+		}
+		eligible := make(map[hexgrid.GridPosition]bool, len(attemptCandidates))
+		for _, position := range attemptCandidates {
+			eligible[position] = true
+		}
+
+		centers := selectClusterCenters(attemptCandidates, o.ClusterCount, rng)
 		if len(centers) != o.ClusterCount {
 			continue
 		}
@@ -160,13 +179,8 @@ func placeClusters(
 		}
 		sortClustersByX(centerClusters, o)
 
-		sources, err := choosePowerSourceAssignments(topSources, bottomSources, o.ClusterCount, o.PowerSourceSpacing, rng)
-		if err != nil {
-			return nil, nil, err
-		}
-		// Match the selected contacts to clusters from left to right. The choice
-		// of source row remains randomized, but preserving horizontal order avoids
-		// creating a crossing topology before pathfinding even begins.
+		// Match selected contacts to cluster hubs from left to right. The active
+		// contacts themselves are still randomized, including their choice of row.
 		sort.Slice(sources, func(i, j int) bool {
 			a := hexgrid.GridPositionToPoint(sources[i].Position, o.Width, o.Height, o.Pitch, "pointy")
 			b := hexgrid.GridPositionToPoint(sources[j].Position, o.Width, o.Height, o.Pitch, "pointy")
@@ -193,7 +207,7 @@ func placeClusters(
 
 		// Route the longest feeds first. On an axial hex lattice, two grid-axis
 		// segments can intersect only at a lattice vertex; reserving every path
-		// vertex therefore prevents power-feed crossings as well as shared segments.
+		// vertex prevents power-feed crossings as well as shared segments.
 		routeOrder := make([]int, len(centerClusters))
 		for i := range routeOrder {
 			routeOrder[i] = i
@@ -254,7 +268,39 @@ func placeClusters(
 			return placements, clusters, nil
 		}
 	}
+	if constrainedCandidatesFailed {
+		return nil, nil, fmt.Errorf("could not place %d components within the horizontal span of the active power sources; increase the source-row width or disable ConstrainComponentsToPowerSourceSpan", o.ComponentCount)
+	}
 	return nil, nil, fmt.Errorf("could not place %d components in %d separated clusters with non-crossing power feeds; reduce component density or cluster size, or increase the canvas dimensions", o.ComponentCount, o.ClusterCount)
+}
+
+// candidatesWithinPowerSourceSpan keeps ordinary component positions between
+// the leftmost and rightmost selected power-source centers. Inactive potential
+// contacts do not affect the span because they are not rendered as components.
+func candidatesWithinPowerSourceSpan(
+	candidates []hexgrid.GridPosition,
+	sources []powerSource,
+	o Options,
+) []hexgrid.GridPosition {
+	minimumX, maximumX := math.Inf(1), math.Inf(-1)
+	for _, source := range sources {
+		x := hexgrid.GridPositionToPoint(source.Position, o.Width, o.Height, o.Pitch, "pointy").X
+		minimumX = math.Min(minimumX, x)
+		maximumX = math.Max(maximumX, x)
+	}
+	if math.IsInf(minimumX, 0) || math.IsInf(maximumX, 0) {
+		return nil
+	}
+
+	const epsilon = 1e-9
+	filtered := make([]hexgrid.GridPosition, 0, len(candidates))
+	for _, candidate := range candidates {
+		x := hexgrid.GridPositionToPoint(candidate, o.Width, o.Height, o.Pitch, "pointy").X
+		if x >= minimumX-epsilon && x <= maximumX+epsilon {
+			filtered = append(filtered, candidate)
+		}
+	}
+	return filtered
 }
 
 func choosePowerSourceAssignments(

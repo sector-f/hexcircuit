@@ -27,26 +27,27 @@ const (
 )
 
 // PowerSourceStyle controls the base-layer hexagon style used for every contact
-// in the top and bottom power-source rows.
+// in the top and bottom power-source rows, active or unused.
 type PowerSourceStyle string
 
 const (
-	// PowerSourceStyleSingle draws one base-layer hexagon per power contact.
+	// PowerSourceStyleSingle draws one base-layer hexagon per active power contact.
 	PowerSourceStyleSingle PowerSourceStyle = "single"
-	// PowerSourceStyleDouble draws two concentric base-layer hexagons per power contact.
+	// PowerSourceStyleDouble draws two concentric base-layer hexagons per active power contact.
 	PowerSourceStyleDouble PowerSourceStyle = "double"
 )
 
 // Options contains the settings used to generate a PCB-inspired illustration.
-// All dimensions are expressed in inches. ComponentCount excludes the top and
-// bottom power-source rows; the component count returned by Generate includes
-// both rows.
+// All dimensions are expressed in inches. ComponentCount excludes power-source
+// row contacts; the component count returned by Generate includes every configured
+// top- and bottom-row contact, whether or not it is actively connected.
 type Options struct {
 	// Width and Height are the physical dimensions of the SVG canvas.
 	Width  float64
 	Height float64
 
-	// BaseColor is used for ordinary components, signal traces, and the background grid.
+	// BaseColor is used for ordinary components, all source-contact outlines,
+	// signal traces, and the background grid.
 	// AccentColor is reserved exclusively for power feeds and their connected terminals.
 	BaseColor   string
 	AccentColor string
@@ -93,16 +94,20 @@ type Options struct {
 	// GridStrokeWidth is the outline width of background hexagons, in inches.
 	GridStrokeWidth float64
 
-	// TopPowerSourceCount and BottomPowerSourceCount are the numbers of contacts
-	// in the top and bottom power-source rows. Only ClusterCount contacts are
-	// selected as active power sources; the remaining contacts are unused.
+	// TopPowerSourceCount and BottomPowerSourceCount are the numbers of physical
+	// contact components rendered in the top and bottom power-source rows. Every
+	// configured contact is drawn in BaseColor; ClusterCount contacts are selected
+	// to receive an accent-colored power core and a route to a component cluster.
 	TopPowerSourceCount    int
 	BottomPowerSourceCount int
 	// PowerSourceSpacing selects whether active contacts may be adjacent or must
 	// have at least one unused contact between them within each row.
 	PowerSourceSpacing PowerSourceSpacing
-	// PowerSourceStyle controls the base-layer style of all contacts in both rows.
+	// PowerSourceStyle controls the base-layer style of every contact in both rows.
 	PowerSourceStyle PowerSourceStyle
+	// ConstrainComponentsToPowerSourceSpan restricts every ordinary component to
+	// the horizontal interval between the leftmost and rightmost active power sources.
+	ConstrainComponentsToPowerSourceSpan bool
 	// ConnectorInset is the requested gap between each power-source row and its
 	// nearest canvas edge. Lattice snapping and component clearance may leave a larger gap.
 	ConnectorInset float64
@@ -121,34 +126,35 @@ type Options struct {
 // DefaultOptions returns the default settings for SVG generation.
 func DefaultOptions() Options {
 	return Options{
-		Width:                       defaultWidth,
-		Height:                      defaultHeight,
-		BaseColor:                   "#396CF8",
-		AccentColor:                 "#FF6A00",
-		Background:                  "none",
-		ComponentCount:              38,
-		ClusterCount:                6,
-		MinComponentsPerCluster:     1,
-		Connections:                 18,
-		MaxParallel:                 3,
-		Pitch:                       0.50,
-		ComponentRadius:             0.26,
-		ComponentStrokeWidth:        0.012,
-		ComponentMiddleHexagonScale: 0.60,
-		ComponentInnerHexagonScale:  0.34,
-		TraceStrokeWidth:            0.009,
-		TraceSpacing:                0.032,
-		NodeRadius:                  0.014,
-		ShowBackgroundGrid:          false,
-		OmitPartialGridHexagons:     false,
-		GridRadius:                  0.26,
-		GridStrokeWidth:             0.0035,
-		TopPowerSourceCount:         13,
-		BottomPowerSourceCount:      defaultBottomPowerSourceCount,
-		ConnectorCount:              defaultBottomPowerSourceCount,
-		PowerSourceSpacing:          PowerSourceSpacingSeparated,
-		PowerSourceStyle:            PowerSourceStyleSingle,
-		ConnectorInset:              0.25,
+		Width:                                defaultWidth,
+		Height:                               defaultHeight,
+		BaseColor:                            "#396CF8",
+		AccentColor:                          "#FF6A00",
+		Background:                           "none",
+		ComponentCount:                       38,
+		ClusterCount:                         6,
+		MinComponentsPerCluster:              1,
+		Connections:                          18,
+		MaxParallel:                          3,
+		Pitch:                                0.50,
+		ComponentRadius:                      0.26,
+		ComponentStrokeWidth:                 0.012,
+		ComponentMiddleHexagonScale:          0.60,
+		ComponentInnerHexagonScale:           0.34,
+		TraceStrokeWidth:                     0.009,
+		TraceSpacing:                         0.032,
+		NodeRadius:                           0.014,
+		ShowBackgroundGrid:                   false,
+		OmitPartialGridHexagons:              false,
+		GridRadius:                           0.26,
+		GridStrokeWidth:                      0.0035,
+		TopPowerSourceCount:                  13,
+		BottomPowerSourceCount:               defaultBottomPowerSourceCount,
+		ConnectorCount:                       defaultBottomPowerSourceCount,
+		PowerSourceSpacing:                   PowerSourceSpacingSeparated,
+		PowerSourceStyle:                     PowerSourceStyleSingle,
+		ConstrainComponentsToPowerSourceSpan: false,
+		ConnectorInset:                       0.25,
 	}
 }
 

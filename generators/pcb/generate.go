@@ -36,8 +36,9 @@ type boardPlan struct {
 }
 
 // Generate constructs and renders a PCB-inspired illustration.
-// It returns the SVG, the number of components including both power-source rows,
-// the number of rendered trace bundles (signal plus power), and any generation error.
+// It returns the SVG, the number of rendered base-layer components (cluster
+// components plus every configured top- and bottom-row source contact), the
+// number of rendered trace bundles (signal plus power), and any generation error.
 func Generate(options Options) (string, int, int, error) {
 	o, err := normalizeOptions(options)
 	if err != nil {
@@ -62,8 +63,7 @@ func Generate(options Options) (string, int, int, error) {
 	if err != nil {
 		return "", 0, 0, fmt.Errorf("render PCB: %w", err)
 	}
-	componentCount := o.ComponentCount + len(topSources) + len(bottomSources)
-	return svg, componentCount, len(plan.SignalTraces) + len(plan.PowerTraces), nil
+	return svg, len(plan.Components), len(plan.SignalTraces) + len(plan.PowerTraces), nil
 }
 
 func buildBoard(
@@ -86,6 +86,10 @@ func buildBoard(
 			RadiusScale: p.RadiusScale,
 		})
 	}
+
+	// Every configured contact is a physical component, regardless of whether
+	// it is selected to power a cluster. Active contacts are distinguished by
+	// their accent-colored core and attached power route in the overlay layer.
 	sourceStyle := powerSourceComponentStyle(o.PowerSourceStyle)
 	for _, source := range topSources {
 		allPositions[source] = true
