@@ -320,7 +320,7 @@ func choosePowerSourceAssignments(
 		maximumTop = min(maximumTop, clusterCount-1)
 	}
 	if minimumTop > maximumTop {
-		return nil, fmt.Errorf("cannot assign %d clusters to the available top and bottom power sources using %q spacing", clusterCount, spacing)
+		return nil, fmt.Errorf("cannot assign %d clusters to the available top and bottom power sources", clusterCount)
 	}
 	topCount := minimumTop
 	if maximumTop > minimumTop {

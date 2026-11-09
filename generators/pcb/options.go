@@ -19,7 +19,7 @@ const (
 type PowerSourceSpacing string
 
 const (
-	// PowerSourceSpacingAdjacent allows active power contacts in neighboring cells.
+	// PowerSourceSpacingAdjacent places physical contacts in neighboring cells.
 	PowerSourceSpacingAdjacent PowerSourceSpacing = "adjacent"
 	// PowerSourceSpacingSeparated leaves one empty grid position between physical
 	// contacts on the same row.
@@ -39,8 +39,7 @@ const (
 
 // Options contains the settings used to generate a PCB-inspired illustration.
 // All dimensions are expressed in inches. ComponentCount excludes power-source
-// row contacts; Generate reports only source contacts that are actually rendered.
-// In separated mode, all configured physical contacts are rendered.
+// row contacts; Generate reports all configured physical source contacts.
 type Options struct {
 	// Width and Height are the physical dimensions of the SVG canvas.
 	Width  float64

@@ -191,7 +191,7 @@ The requested connection count is a target; the generator's routing constraints 
 | `--connector-inset` | `0.25` | Requested gap between each enabled source row and its nearest canvas edge. |
 | `--connector-count` | `10` | Deprecated alias for `--bottom-power-source-count`. |
 
-The two row counts may individually be zero, but their sum must be at least `cluster-count`. Each enabled row must fit on its corresponding canvas edge. In separated mode, the combined rows must also have enough potential positions to leave an unused contact between active contacts on the same row.
+The two row counts may individually be zero, but their sum must be at least `cluster-count`. Each enabled row must fit on its corresponding canvas edge. In separated mode, each physical contact occupies every other lattice position.
 
 ### Randomness and help
 
