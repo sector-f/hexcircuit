@@ -1,8 +1,8 @@
-# circuitboard
+# pcb
 
-![Example circuitboard SVG](example.svg)
+![Example PCB SVG](example.svg)
 
-`circuitboard` generates randomized hexagonal PCB-inspired artwork using the shared
+`PCB` generates randomized hexagonal PCB-inspired artwork using the shared
 `hexgrid` geometry and SVG renderer. Its composition algorithm is separate from the
 `circuit` package: it places several spatially distributed component clusters, builds
 an irregular branched network with a lightweight randomized A* router, then fills
@@ -21,16 +21,16 @@ package main
 import (
     "os"
 
-    "github.com/sector-f/hexcircuit/circuitboard"
+    "github.com/sector-f/hexcircuit/pcb"
 )
 
 func main() {
-    options := circuitboard.DefaultOptions()
+    options := pcb.DefaultOptions()
     options.ShowBackgroundGrid = true
     options.Seed = 1234
     options.SeedSet = true
 
-    svg, _, _, err := circuitboard.Generate(options)
+    svg, _, _, err := pcb.Generate(options)
     if err != nil {
         panic(err)
     }
