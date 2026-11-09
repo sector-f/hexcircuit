@@ -10,7 +10,7 @@ import (
 const (
 	defaultWidth                  = 10.0
 	defaultHeight                 = 8.0
-	defaultBottomPowerSourceCount = 13
+	defaultBottomPowerSourceCount = 10
 	powerCoreRadiusScale          = 0.36
 )
 
@@ -40,7 +40,7 @@ const (
 // Options contains the settings used to generate a PCB-inspired illustration.
 // All dimensions are expressed in inches. ComponentCount excludes power-source
 // row contacts; Generate reports only source contacts that are actually rendered.
-// In separated mode, inactive positions between active contacts are omitted.
+// In separated mode, all configured physical contacts are rendered.
 type Options struct {
 	// Width and Height are the physical dimensions of the SVG canvas.
 	Width  float64
@@ -94,15 +94,14 @@ type Options struct {
 	// GridStrokeWidth is the outline width of background hexagons, in inches.
 	GridStrokeWidth float64
 
-	// TopPowerSourceCount and BottomPowerSourceCount are the numbers of potential
+	// TopPowerSourceCount and BottomPowerSourceCount are the numbers of physical
 	// contact positions in the top and bottom power-source rows. ClusterCount
 	// positions are selected to receive an accent-colored core and a power route.
-	// In separated mode, inactive positions between active contacts are not drawn;
-	// other unused contacts remain visible in BaseColor.
+	// In separated mode, neighboring contacts are two lattice cells apart.
 	TopPowerSourceCount    int
 	BottomPowerSourceCount int
 	// PowerSourceSpacing selects whether active contacts may be adjacent or must
-	// have at least one empty grid position between them within each row.
+	// are placed with one empty grid position between neighboring contacts in each row.
 	PowerSourceSpacing PowerSourceSpacing
 	// PowerSourceStyle controls the base-layer style of every contact in both rows.
 	PowerSourceStyle PowerSourceStyle
@@ -149,7 +148,7 @@ func DefaultOptions() Options {
 		OmitPartialGridHexagons:              false,
 		GridRadius:                           0.26,
 		GridStrokeWidth:                      0.0035,
-		TopPowerSourceCount:                  13,
+		TopPowerSourceCount:                  10,
 		BottomPowerSourceCount:               defaultBottomPowerSourceCount,
 		ConnectorCount:                       defaultBottomPowerSourceCount,
 		PowerSourceSpacing:                   PowerSourceSpacingSeparated,
@@ -259,18 +258,7 @@ func normalizeOptions(o Options) (Options, error) {
 	if _, _, err := powerSourcePositions(o); err != nil {
 		return o, err
 	}
-	if o.PowerSourceSpacing == PowerSourceSpacingSeparated {
-		topCapacity := maximumSeparatedSources(o.TopPowerSourceCount)
-		bottomCapacity := maximumSeparatedSources(o.BottomPowerSourceCount)
-		if topCapacity+bottomCapacity < o.ClusterCount {
-			return o, fmt.Errorf("separated power-source spacing can accommodate at most %d active sources; increase the top/bottom source counts or use adjacent spacing", topCapacity+bottomCapacity)
-		}
-	}
 	return o, nil
-}
-
-func maximumSeparatedSources(contactCount int) int {
-	return (contactCount + 1) / 2
 }
 
 func validScale(value float64) bool {
