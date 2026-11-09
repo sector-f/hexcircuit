@@ -15,32 +15,32 @@ const (
 )
 
 // PowerSourceSpacing controls whether active power contacts must have at least
-// one inactive contact between them on the same source row.
+// one empty grid position between them on the same source row.
 type PowerSourceSpacing string
 
 const (
 	// PowerSourceSpacingAdjacent allows active power contacts in neighboring cells.
 	PowerSourceSpacingAdjacent PowerSourceSpacing = "adjacent"
-	// PowerSourceSpacingSeparated leaves at least one inactive contact between
-	// active power contacts on the same row whenever the configured row count allows it.
+	// PowerSourceSpacingSeparated leaves at least one empty grid position between
+	// active contacts; inactive positions inside that span are not rendered.
 	PowerSourceSpacingSeparated PowerSourceSpacing = "separated"
 )
 
-// PowerSourceStyle controls the base-layer hexagon style used for every contact
-// in the top and bottom power-source rows, active or unused.
+// PowerSourceStyle controls the base-layer hexagon style used for every rendered
+// contact in the top and bottom power-source rows, active or unused.
 type PowerSourceStyle string
 
 const (
-	// PowerSourceStyleSingle draws one base-layer hexagon per active power contact.
+	// PowerSourceStyleSingle draws one base-layer hexagon per rendered power contact.
 	PowerSourceStyleSingle PowerSourceStyle = "single"
-	// PowerSourceStyleDouble draws two concentric base-layer hexagons per active power contact.
+	// PowerSourceStyleDouble draws two concentric base-layer hexagons per rendered power contact.
 	PowerSourceStyleDouble PowerSourceStyle = "double"
 )
 
 // Options contains the settings used to generate a PCB-inspired illustration.
 // All dimensions are expressed in inches. ComponentCount excludes power-source
-// row contacts; the component count returned by Generate includes every configured
-// top- and bottom-row contact, whether or not it is actively connected.
+// row contacts; Generate reports only source contacts that are actually rendered.
+// In separated mode, inactive positions between active contacts are omitted.
 type Options struct {
 	// Width and Height are the physical dimensions of the SVG canvas.
 	Width  float64
@@ -55,7 +55,7 @@ type Options struct {
 	// Background is the canvas fill; "none" or "transparent" leaves it transparent.
 	Background string
 
-	// ComponentCount is the number of components placed in clusters, excluding power contacts.
+	// ComponentCount is the number of components placed in clusters, excluding power-source contacts.
 	ComponentCount int
 	// ClusterCount is the number of independent component clusters.
 	ClusterCount int
@@ -94,14 +94,15 @@ type Options struct {
 	// GridStrokeWidth is the outline width of background hexagons, in inches.
 	GridStrokeWidth float64
 
-	// TopPowerSourceCount and BottomPowerSourceCount are the numbers of physical
-	// contact components rendered in the top and bottom power-source rows. Every
-	// configured contact is drawn in BaseColor; ClusterCount contacts are selected
-	// to receive an accent-colored power core and a route to a component cluster.
+	// TopPowerSourceCount and BottomPowerSourceCount are the numbers of potential
+	// contact positions in the top and bottom power-source rows. ClusterCount
+	// positions are selected to receive an accent-colored core and a power route.
+	// In separated mode, inactive positions between active contacts are not drawn;
+	// other unused contacts remain visible in BaseColor.
 	TopPowerSourceCount    int
 	BottomPowerSourceCount int
 	// PowerSourceSpacing selects whether active contacts may be adjacent or must
-	// have at least one unused contact between them within each row.
+	// have at least one empty grid position between them within each row.
 	PowerSourceSpacing PowerSourceSpacing
 	// PowerSourceStyle controls the base-layer style of every contact in both rows.
 	PowerSourceStyle PowerSourceStyle

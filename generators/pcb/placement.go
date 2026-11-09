@@ -303,6 +303,42 @@ func candidatesWithinPowerSourceSpan(
 	return filtered
 }
 
+// visiblePowerSourceContacts returns the source-row contacts that should be
+// drawn as base-layer components. In separated mode, inactive positions
+// strictly between the outermost active contacts are intentional spacing
+// cells, not physical contacts, and are therefore left empty. Unused contacts
+// outside the active span remain visible.
+func visiblePowerSourceContacts(
+	row []hexgrid.GridPosition,
+	active map[hexgrid.GridPosition]bool,
+	spacing PowerSourceSpacing,
+) []hexgrid.GridPosition {
+	if spacing != PowerSourceSpacingSeparated || len(row) == 0 {
+		return append([]hexgrid.GridPosition(nil), row...)
+	}
+
+	firstActive, lastActive := -1, -1
+	for i, position := range row {
+		if active[position] {
+			if firstActive < 0 {
+				firstActive = i
+			}
+			lastActive = i
+		}
+	}
+	if firstActive < 0 || firstActive == lastActive {
+		return append([]hexgrid.GridPosition(nil), row...)
+	}
+
+	visible := make([]hexgrid.GridPosition, 0, len(row))
+	for i, position := range row {
+		if active[position] || i < firstActive || i > lastActive {
+			visible = append(visible, position)
+		}
+	}
+	return visible
+}
+
 func choosePowerSourceAssignments(
 	topSources, bottomSources []hexgrid.GridPosition,
 	clusterCount int,

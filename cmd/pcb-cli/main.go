@@ -47,7 +47,7 @@ func parseOptions(arguments []string, stderr io.Writer) (CLIOptions, error) {
 	flags.StringVar(&opts.Generator.AccentColor, "accent-color", opts.Generator.AccentColor, "Color exclusively for power feeds and connected power-entry cores.")
 	flags.StringVar(&opts.Generator.Background, "background", opts.Generator.Background, "Canvas background fill; use 'none' or 'transparent' for no fill.")
 
-	flags.IntVar(&opts.Generator.ComponentCount, "component-count", opts.Generator.ComponentCount, "Number of ordinary components placed in clusters, excluding active power-source contacts.")
+	flags.IntVar(&opts.Generator.ComponentCount, "component-count", opts.Generator.ComponentCount, "Number of ordinary components placed in clusters, excluding power-source contacts.")
 	flags.IntVar(&opts.Generator.ClusterCount, "cluster-count", opts.Generator.ClusterCount, "Number of major component clusters and active power feeds.")
 	flags.IntVar(&opts.Generator.MinComponentsPerCluster, "min-components-per-cluster", opts.Generator.MinComponentsPerCluster, "Minimum number of ordinary components in each cluster.")
 	flags.IntVar(&opts.Generator.Connections, "connections", opts.Generator.Connections, "Target number of routed trace bundles.")
@@ -72,9 +72,9 @@ func parseOptions(arguments []string, stderr io.Writer) (CLIOptions, error) {
 	flags.IntVar(&opts.Generator.BottomPowerSourceCount, "bottom-power-source-count", opts.Generator.BottomPowerSourceCount, "Number of potential power-source positions along the bottom edge.")
 	flags.IntVar(&opts.Generator.ConnectorCount, "connector-count", opts.Generator.ConnectorCount, "Deprecated alias for --bottom-power-source-count.")
 	spacing := string(opts.Generator.PowerSourceSpacing)
-	flags.StringVar(&spacing, "power-source-spacing", spacing, "Spacing between active contacts on each row: 'adjacent' or 'separated'.")
+	flags.StringVar(&spacing, "power-source-spacing", spacing, "Spacing between active contacts: 'separated' leaves an empty position between them; 'adjacent' permits neighbors.")
 	style := string(opts.Generator.PowerSourceStyle)
-	flags.StringVar(&style, "power-source-style", style, "Base-layer style for active power contacts: 'single' or 'double'.")
+	flags.StringVar(&style, "power-source-style", style, "Base-layer style for rendered power contacts: 'single' or 'double'.")
 	flags.BoolVar(&opts.Generator.ConstrainComponentsToPowerSourceSpan, "constrain-components-to-power-source-span", opts.Generator.ConstrainComponentsToPowerSourceSpan, "Keep ordinary components horizontally between the leftmost and rightmost active power sources.")
 	flags.Float64Var(&opts.Generator.ConnectorInset, "connector-inset", opts.Generator.ConnectorInset, "Requested gap between each enabled power-source row and its nearest canvas edge, in inches.")
 

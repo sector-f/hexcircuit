@@ -108,13 +108,13 @@ Change the signal and power colors:
 
 The generator first chooses active contacts from the available top and bottom rows, then places compact component clusters and routes one power feed to each cluster. The active source contacts are matched to cluster hubs from left to right, while the selected active contacts and their top/bottom origins vary with the random seed. Power routes are routed without crossing one another.
 
-Every configured power-source contact is rendered in the base color, whether or not it is selected to power a cluster. Only selected contacts receive the accent-colored power core and a power feed. The source-spacing option controls how many unselected contacts must separate active feeds; those contacts remain visible without accent overlays.
+Selected power-source contacts receive an accent-colored core and a power feed. In `separated` mode, inactive positions between active contacts on the same row are left empty so the gap is visible; unused contacts outside the active span remain rendered in the base color. In `adjacent` mode, all configured source positions are rendered.
 
-`--component-count` controls the number of ordinary components distributed among clusters. It excludes all configured power-source row contacts. `--cluster-count` determines the number of clusters and therefore the number of active power feeds. `--min-components-per-cluster` sets the minimum number of ordinary components in every cluster; the default of `1` permits singleton clusters.
+`--component-count` controls the number of ordinary components distributed among clusters. It excludes power-source row contacts. `--cluster-count` determines the number of clusters and therefore the number of active power feeds. `--min-components-per-cluster` sets the minimum number of ordinary components in every cluster; the default of `1` permits singleton clusters.
 
 When `--constrain-components-to-power-source-span` is enabled, every ordinary component must lie horizontally between the leftmost and rightmost active power-source contacts. The option is disabled by default. Narrow source spans may leave insufficient room for the requested component count, in which case generation returns an error rather than placing components outside the requested bounds.
 
-Power-source count flags describe the number of visible contact components on each edge, not the number that will be active. Every configured contact is drawn, and exactly one contact per cluster is selected as active. Active contacts receive an accent-colored power core and feed; unused contacts remain base-color-only. In `separated` mode, at least one unused contact position is left between active contacts on the same row. In `adjacent` mode, active contacts may occupy neighboring positions.
+Power-source count flags describe the number of potential contact positions on each edge, not the number that will be active. Exactly one position per cluster is selected as active. In `separated` mode, at least one inactive position is left between active contacts on the same row, and those intermediate positions are not rendered as components. Other unused contacts remain visible in the base color. In `adjacent` mode, active contacts may occupy neighboring positions and all configured positions are rendered.
 
 The base color is used for ordinary components, all source-contact outlines (including unused contacts), signal traces, and the optional background grid. The accent color is reserved exclusively for power feeds and their connected power-entry cores. The background hexagonal field is disabled by default; enable it with `--show-background-grid`.
 
@@ -186,7 +186,7 @@ The requested connection count is a target; the generator's routing constraints 
 | --- | ---: | --- |
 | `--top-power-source-count` | `13` | Number of visible contact components along the top edge. |
 | `--bottom-power-source-count` | `13` | Number of visible contact components along the bottom edge. |
-| `--power-source-spacing` | `separated` | `separated` leaves at least one unused position between active contacts on each row; `adjacent` permits neighboring active contacts. |
+| `--power-source-spacing` | `separated` | `separated` leaves at least one empty position between active contacts and omits those positions from rendering; `adjacent` permits neighboring active contacts and renders all configured positions. |
 | `--power-source-style` | `single` | Base-layer style for all contacts: `single` or concentric `double` hexagons. |
 | `--connector-inset` | `0.25` | Requested gap between each enabled source row and its nearest canvas edge. |
 | `--connector-count` | `13` | Deprecated alias for `--bottom-power-source-count`. |
