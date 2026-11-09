@@ -47,11 +47,11 @@ func powerSourcePositions(o Options) (top, bottom []hexgrid.GridPosition, err er
 	for _, cell := range cells {
 		rows[cell.R] = append(rows[cell.R], cell)
 	}
-	top, err = selectPowerSourceRow(rows, o.TopPowerSourceCount, true)
+	top, err = selectPowerSourceRow(rows, o.TopPowerSourceCount, true, o.PowerSourceSpacing)
 	if err != nil {
 		return nil, nil, err
 	}
-	bottom, err = selectPowerSourceRow(rows, o.BottomPowerSourceCount, false)
+	bottom, err = selectPowerSourceRow(rows, o.BottomPowerSourceCount, false, o.PowerSourceSpacing)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -61,17 +61,18 @@ func powerSourcePositions(o Options) (top, bottom []hexgrid.GridPosition, err er
 	return top, bottom, nil
 }
 
-func selectPowerSourceRow(rows map[int][]hexgrid.Cell, count int, top bool) ([]hexgrid.GridPosition, error) {
-	if count == 0 {
-		return nil, nil
-	}
+func selectPowerSourceRow(rows map[int][]hexgrid.Cell, count int, top bool, spacing PowerSourceSpacing) ([]hexgrid.GridPosition, error) {
+	if count == 0 { return nil, nil }
+	step := 1
+	if spacing == PowerSourceSpacingSeparated { step = 2 }
+	requiredSpan := 1 + (count-1)*step
 	var best []hexgrid.Cell
 	bestY := math.Inf(1)
 	if !top {
 		bestY = math.Inf(-1)
 	}
 	for _, row := range rows {
-		if len(row) < count {
+		if len(row) < requiredSpan {
 			continue
 		}
 		y := row[0].Center.Y
@@ -84,14 +85,15 @@ func selectPowerSourceRow(rows map[int][]hexgrid.Cell, count int, top bool) ([]h
 	if top {
 		rowName = "top"
 	}
-	if len(best) < count {
-		return nil, fmt.Errorf("%s power-source row does not fit: need %d contacts, but the available grid row has %d", rowName, count, len(best))
+	if len(best) < requiredSpan {
+		return nil, fmt.Errorf("%s power-source row does not fit: need %d contacts spanning %d grid cells at %q spacing, but the available grid row has %d cells", rowName, count, requiredSpan, spacing, len(best))
 	}
 	sort.Slice(best, func(i, j int) bool { return best[i].Center.X < best[j].Center.X })
-	start := (len(best) - count) / 2
+	start := (len(best) - requiredSpan) / 2
 	positions := make([]hexgrid.GridPosition, count)
 	for i := range positions {
-		positions[i] = hexgrid.GridPosition{Q: best[start+i].Q, R: best[start+i].R}
+		cell := best[start+i*step]
+		positions[i] = hexgrid.GridPosition{Q: cell.Q, R: cell.R}
 	}
 	return positions, nil
 }
@@ -151,7 +153,7 @@ func placeClusters(
 	// Retry different source, center, and placement combinations when a set of
 	// non-crossing feeds or compact clusters cannot be constructed.
 	for attempt := 0; attempt < 192; attempt++ {
-		sources, err := choosePowerSourceAssignments(topSources, bottomSources, o.ClusterCount, o.PowerSourceSpacing, rng)
+		sources, err := choosePowerSourceAssignments(topSources, bottomSources, o.ClusterCount, rng)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -303,54 +305,13 @@ func candidatesWithinPowerSourceSpan(
 	return filtered
 }
 
-// visiblePowerSourceContacts returns the source-row contacts that should be
-// drawn as base-layer components. In separated mode, inactive positions
-// strictly between the outermost active contacts are intentional spacing
-// cells, not physical contacts, and are therefore left empty. Unused contacts
-// outside the active span remain visible.
-func visiblePowerSourceContacts(
-	row []hexgrid.GridPosition,
-	active map[hexgrid.GridPosition]bool,
-	spacing PowerSourceSpacing,
-) []hexgrid.GridPosition {
-	if spacing != PowerSourceSpacingSeparated || len(row) == 0 {
-		return append([]hexgrid.GridPosition(nil), row...)
-	}
-
-	firstActive, lastActive := -1, -1
-	for i, position := range row {
-		if active[position] {
-			if firstActive < 0 {
-				firstActive = i
-			}
-			lastActive = i
-		}
-	}
-	if firstActive < 0 || firstActive == lastActive {
-		return append([]hexgrid.GridPosition(nil), row...)
-	}
-
-	visible := make([]hexgrid.GridPosition, 0, len(row))
-	for i, position := range row {
-		if active[position] || i < firstActive || i > lastActive {
-			visible = append(visible, position)
-		}
-	}
-	return visible
-}
-
 func choosePowerSourceAssignments(
 	topSources, bottomSources []hexgrid.GridPosition,
 	clusterCount int,
-	spacing PowerSourceSpacing,
 	rng *rand.Rand,
 ) ([]powerSource, error) {
 	topCapacity := len(topSources)
 	bottomCapacity := len(bottomSources)
-	if spacing == PowerSourceSpacingSeparated {
-		topCapacity = maximumSeparatedSources(topCapacity)
-		bottomCapacity = maximumSeparatedSources(bottomCapacity)
-	}
 	minimumTop := max(0, clusterCount-bottomCapacity)
 	maximumTop := min(clusterCount, topCapacity)
 	// Prefer to use both edges when there are enough clusters and both rows exist.
@@ -359,7 +320,7 @@ func choosePowerSourceAssignments(
 		maximumTop = min(maximumTop, clusterCount-1)
 	}
 	if minimumTop > maximumTop {
-		return nil, fmt.Errorf("cannot assign %d clusters to the available top and bottom power sources using %q spacing", clusterCount, spacing)
+		return nil, fmt.Errorf("cannot assign %d clusters to the available top and bottom power sources", clusterCount)
 	}
 	topCount := minimumTop
 	if maximumTop > minimumTop {
@@ -367,10 +328,10 @@ func choosePowerSourceAssignments(
 	}
 	bottomCount := clusterCount - topCount
 
-	topIndices := choosePowerSourceIndices(len(topSources), topCount, spacing, rng)
-	bottomIndices := choosePowerSourceIndices(len(bottomSources), bottomCount, spacing, rng)
+	topIndices := choosePowerSourceIndices(len(topSources), topCount, PowerSourceSpacingAdjacent, rng)
+	bottomIndices := choosePowerSourceIndices(len(bottomSources), bottomCount, PowerSourceSpacingAdjacent, rng)
 	if len(topIndices) != topCount || len(bottomIndices) != bottomCount {
-		return nil, fmt.Errorf("could not choose %d top and %d bottom power contacts with %q spacing", topCount, bottomCount, spacing)
+		return nil, fmt.Errorf("could not choose %d top and %d bottom power contacts", topCount, bottomCount)
 	}
 
 	selected := make([]powerSource, 0, clusterCount)

@@ -139,17 +139,15 @@ func TestNormalizeOptionsRejectsTooFewPowerSources(t *testing.T) {
 	}
 }
 
-func TestNormalizeOptionsRejectsInsufficientSeparatedCapacity(t *testing.T) {
+func TestNormalizeOptionsAllowsSeparatedPhysicalContactsToAllBeActive(t *testing.T) {
 	o := DefaultOptions()
-	o.TopPowerSourceCount = 2
-	o.BottomPowerSourceCount = 2
-	o.ClusterCount = 4
-	if _, err := normalizeOptions(o); err == nil {
-		t.Fatal("expected an error when separated spacing cannot accommodate all clusters")
+	o.TopPowerSourceCount, o.BottomPowerSourceCount, o.ClusterCount = 2, 2, 4
+	if _, err := normalizeOptions(o); err != nil {
+		t.Fatalf("four separated physical contacts should support four active sources: %v", err)
 	}
 	o.PowerSourceSpacing = PowerSourceSpacingAdjacent
 	if _, err := normalizeOptions(o); err != nil {
-		t.Fatalf("adjacent spacing should accommodate four clusters in six contacts: %v", err)
+		t.Fatalf("adjacent spacing should also accommodate four contacts: %v", err)
 	}
 }
 
@@ -293,7 +291,7 @@ func TestPowerSourceSelectionVariesAcrossSeeds(t *testing.T) {
 	top, bottom := makePositions(13, 0), makePositions(13, 10)
 	seen := make(map[string]bool)
 	for seed := int64(0); seed < 16; seed++ {
-		sources, err := choosePowerSourceAssignments(top, bottom, 6, PowerSourceSpacingSeparated, rand.New(rand.NewSource(seed)))
+		sources, err := choosePowerSourceAssignments(top, bottom, 6, rand.New(rand.NewSource(seed)))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -306,120 +304,63 @@ func TestPowerSourceSelectionVariesAcrossSeeds(t *testing.T) {
 }
 
 func TestSourceStyleControlsBaseLayerComponents(t *testing.T) {
-	for _, test := range []struct {
-		style PowerSourceStyle
-		want  hexgrid.ComponentStyle
-	}{
+	for _, test := range []struct { style PowerSourceStyle; want hexgrid.ComponentStyle }{
 		{PowerSourceStyleSingle, hexgrid.ComponentStyleSingle},
 		{PowerSourceStyleDouble, hexgrid.ComponentStyleDouble},
 	} {
 		o := DefaultOptions()
 		o.PowerSourceStyle = test.style
 		top, bottom, err := powerSourcePositions(o)
-		if err != nil {
-			t.Fatal(err)
-		}
+		if err != nil { t.Fatal(err) }
 		plan, err := buildBoard(o, rand.New(rand.NewSource(41)), top, bottom)
-		if err != nil {
-			t.Fatal(err)
-		}
-		active := make(map[hexgrid.GridPosition]bool, len(plan.Clusters))
-		for _, cluster := range plan.Clusters {
-			active[cluster.PowerSource] = true
-		}
-		wantSources := append(
-			visiblePowerSourceContacts(top, active, o.PowerSourceSpacing),
-			visiblePowerSourceContacts(bottom, active, o.PowerSourceSpacing)...,
-		)
-		if got, want := len(plan.Components)-o.ComponentCount, len(wantSources); got != want {
-			t.Fatalf("got %d rendered source components, want %d visible contacts", got, want)
-		}
-		wantPositions := make(map[hexgrid.GridPosition]bool, len(wantSources))
-		for _, position := range wantSources {
-			wantPositions[position] = true
+		if err != nil { t.Fatal(err) }
+		if got, want := len(plan.Components)-o.ComponentCount, len(top)+len(bottom); got != want {
+			t.Fatalf("got %d rendered source components, want all %d configured contacts", got, want)
 		}
 		for _, component := range plan.Components[o.ComponentCount:] {
-			if !wantPositions[component.Position] {
-				t.Errorf("unexpected source component at %v", component.Position)
-			}
-			if component.Style != test.want {
-				t.Fatalf("source component style = %v, want %v", component.Style, test.want)
-			}
+			if component.Style != test.want { t.Fatalf("source component style = %v, want %v", component.Style, test.want) }
 		}
 	}
 }
 
-func TestPowerSourceContactsLeaveVisibleSeparatedGaps(t *testing.T) {
-	row := makePositions(9, 0)
-	active := map[hexgrid.GridPosition]bool{row[1]: true, row[4]: true, row[7]: true}
-	got := visiblePowerSourceContacts(row, active, PowerSourceSpacingSeparated)
-	want := []hexgrid.GridPosition{row[0], row[1], row[4], row[7], row[8]}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("visible source contacts = %v, want %v", got, want)
-	}
-
-	got = visiblePowerSourceContacts(row, active, PowerSourceSpacingAdjacent)
-	if !reflect.DeepEqual(got, row) {
-		t.Fatalf("adjacent mode hid contacts: got %v, want %v", got, row)
+func TestPowerSourceRowsApplyPhysicalSpacing(t *testing.T) {
+	for _, test := range []struct { spacing PowerSourceSpacing; step int }{
+		{PowerSourceSpacingAdjacent, 1}, {PowerSourceSpacingSeparated, 2},
+	} {
+		o := DefaultOptions()
+		o.TopPowerSourceCount, o.BottomPowerSourceCount = 4, 0
+		o.PowerSourceSpacing = test.spacing
+		top, _, err := powerSourcePositions(o)
+		if err != nil { t.Fatal(err) }
+		if len(top) != o.TopPowerSourceCount { t.Fatalf("got %d contacts, want %d", len(top), o.TopPowerSourceCount) }
+		for i := 1; i < len(top); i++ {
+			if got := top[i].Q-top[i-1].Q; got != test.step { t.Fatalf("%q spacing Q step = %d, want %d", test.spacing, got, test.step) }
+		}
 	}
 }
 
-func TestAllPowerSourceContactsOutsideSeparatedGapsAreRendered(t *testing.T) {
+func TestEveryConfiguredPowerSourceContactIsRendered(t *testing.T) {
 	o := DefaultOptions()
-	o.TopPowerSourceCount = 11
-	o.BottomPowerSourceCount = 9
-	o.Seed = 818
-	o.SeedSet = true
+	o.TopPowerSourceCount, o.BottomPowerSourceCount = 10, 9
+	o.Seed, o.SeedSet = 818, true
 	top, bottom, err := powerSourcePositions(o)
-	if err != nil {
-		t.Fatal(err)
-	}
+	if err != nil { t.Fatal(err) }
 	plan, err := buildBoard(o, rand.New(rand.NewSource(o.Seed)), top, bottom)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	active := make(map[hexgrid.GridPosition]bool, o.ClusterCount)
-	for _, cluster := range plan.Clusters {
-		active[cluster.PowerSource] = true
-	}
-	powerCores := make(map[hexgrid.GridPosition]bool, len(plan.PowerCores))
-	for _, component := range plan.PowerCores {
-		powerCores[component.Position] = true
-	}
+	if err != nil { t.Fatal(err) }
 	drawn := make(map[hexgrid.GridPosition]hexgrid.GridComponent, len(plan.Components))
-	for _, component := range plan.Components {
-		drawn[component.Position] = component
+	for _, component := range plan.Components { drawn[component.Position] = component }
+	active := make(map[hexgrid.GridPosition]bool, len(plan.Clusters))
+	for _, cluster := range plan.Clusters { active[cluster.PowerSource] = true }
+	cores := make(map[hexgrid.GridPosition]bool, len(plan.PowerCores))
+	for _, component := range plan.PowerCores { cores[component.Position] = true }
+	all := append(append([]hexgrid.GridPosition(nil), top...), bottom...)
+	for _, source := range all {
+		component, ok := drawn[source]
+		if !ok { t.Errorf("configured physical contact %v was not rendered", source); continue }
+		if component.Style != powerSourceComponentStyle(o.PowerSourceStyle) { t.Errorf("wrong style at %v", source) }
+		if active[source] != cores[source] { t.Errorf("source %v active=%v, power core=%v", source, active[source], cores[source]) }
 	}
-
-	wantTop := visiblePowerSourceContacts(top, active, o.PowerSourceSpacing)
-	wantBottom := visiblePowerSourceContacts(bottom, active, o.PowerSourceSpacing)
-	expectedVisible := make(map[hexgrid.GridPosition]bool, len(wantTop)+len(wantBottom))
-	for _, source := range append(wantTop, wantBottom...) {
-		expectedVisible[source] = true
-	}
-	allSources := append(append([]hexgrid.GridPosition(nil), top...), bottom...)
-	for _, source := range allSources {
-		component, exists := drawn[source]
-		if exists != expectedVisible[source] {
-			t.Errorf("source %v rendered=%v, want %v", source, exists, expectedVisible[source])
-		}
-		if exists && component.Style != powerSourceComponentStyle(o.PowerSourceStyle) {
-			t.Errorf("power source %v has style %v, want %v", source, component.Style, powerSourceComponentStyle(o.PowerSourceStyle))
-		}
-		if active[source] && !exists {
-			t.Errorf("active power source %v was not rendered", source)
-		}
-		if active[source] != powerCores[source] {
-			t.Errorf("source %v active=%v but accent power core present=%v", source, active[source], powerCores[source])
-		}
-	}
-	if got, want := len(plan.Components), o.ComponentCount+len(expectedVisible); got != want {
-		t.Fatalf("rendered base component count = %d, want %d ordinary components + %d visible power contacts = %d", got, o.ComponentCount, len(expectedVisible), want)
-	}
-	if len(active) != o.ClusterCount {
-		t.Fatalf("got %d active sources, want one for each of %d clusters", len(active), o.ClusterCount)
-	}
+	if got, want := len(plan.Components), o.ComponentCount+len(all); got != want { t.Fatalf("rendered %d components, want %d", got, want) }
 }
 
 func TestConstrainComponentsToActivePowerSourceSpan(t *testing.T) {
@@ -623,8 +564,8 @@ func TestRoutingConfigurationMatrix(t *testing.T) {
 		{name: "dense clusters", edit: func(o *Options) {
 			o.ComponentCount = 58
 			o.ClusterCount = 8
-			o.TopPowerSourceCount = 13
-			o.BottomPowerSourceCount = 13
+			o.TopPowerSourceCount = 10
+			o.BottomPowerSourceCount = 10
 		}},
 		{name: "larger minimum", edit: func(o *Options) { o.ComponentCount = 42; o.MinComponentsPerCluster = 3 }},
 		{name: "single cluster", edit: func(o *Options) { o.ClusterCount = 1; o.ComponentCount = 18 }},

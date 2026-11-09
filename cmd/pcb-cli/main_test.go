@@ -51,11 +51,11 @@ func TestParseOptionsPreservesBottomConnectorCompatibilityAlias(t *testing.T) {
 }
 
 func TestParseOptionsAllowsExplicitZeroPowerSourceRow(t *testing.T) {
-	opts, err := parseOptions([]string{"--top-power-source-count=0", "--bottom-power-source-count=13"}, io.Discard)
+	opts, err := parseOptions([]string{"--top-power-source-count=0", "--bottom-power-source-count=10"}, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if opts.Generator.TopPowerSourceCount != 0 || opts.Generator.BottomPowerSourceCount != 13 {
-		t.Fatalf("source counts = %d top, %d bottom, want 0 and 13", opts.Generator.TopPowerSourceCount, opts.Generator.BottomPowerSourceCount)
+	if opts.Generator.TopPowerSourceCount != 0 || opts.Generator.BottomPowerSourceCount != 10 {
+		t.Fatalf("source counts = %d top, %d bottom, want 0 and 10", opts.Generator.TopPowerSourceCount, opts.Generator.BottomPowerSourceCount)
 	}
 }

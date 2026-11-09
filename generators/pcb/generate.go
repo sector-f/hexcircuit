@@ -37,9 +37,8 @@ type boardPlan struct {
 
 // Generate constructs and renders a PCB-inspired illustration.
 // It returns the SVG, the number of rendered base-layer components (cluster
-// components plus visible top- and bottom-row source contacts), the number of
-// rendered trace bundles (signal plus power), and any generation error. In
-// separated mode, inactive positions between active contacts are left empty.
+// components plus every configured top- and bottom-row source contact), the
+// number of rendered trace bundles (signal plus power), and any generation error.
 func Generate(options Options) (string, int, int, error) {
 	o, err := normalizeOptions(options)
 	if err != nil {
@@ -88,27 +87,16 @@ func buildBoard(
 		})
 	}
 
-	// All configured positions remain reserved, but separated mode leaves the
-	// inactive positions between active contacts empty so the spacing is
-	// visible. Unused contacts outside the active span are still rendered.
-	activeSources := make(map[hexgrid.GridPosition]bool, len(clusters))
-	for _, cluster := range clusters {
-		activeSources[cluster.PowerSource] = true
-	}
-	visibleTopSources := visiblePowerSourceContacts(topSources, activeSources, o.PowerSourceSpacing)
-	visibleBottomSources := visiblePowerSourceContacts(bottomSources, activeSources, o.PowerSourceSpacing)
+	// Every configured physical contact is rendered. In separated mode, the
+	// unused lattice cell between neighboring contacts is not a contact.
 	sourceStyle := powerSourceComponentStyle(o.PowerSourceStyle)
 	for _, source := range topSources {
 		allPositions[source] = true
+		plan.Components = append(plan.Components, hexgrid.GridComponent{Position: source, Style: sourceStyle})
 	}
 	for _, source := range bottomSources {
 		allPositions[source] = true
-	}
-	for _, source := range append(visibleTopSources, visibleBottomSources...) {
-		plan.Components = append(plan.Components, hexgrid.GridComponent{
-			Position: source,
-			Style:    sourceStyle,
-		})
+		plan.Components = append(plan.Components, hexgrid.GridComponent{Position: source, Style: sourceStyle})
 	}
 
 	reserved := make(map[hexgrid.GridPosition]bool)
