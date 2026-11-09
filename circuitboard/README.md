@@ -1,5 +1,7 @@
 # circuitboard
 
+![Example circuitboard SVG](example.svg)
+
 `circuitboard` generates randomized hexagonal PCB-inspired artwork using the shared
 `hexgrid` geometry and SVG renderer. Its composition algorithm is separate from the
 `circuit` package: it places several spatially distributed component clusters, builds
