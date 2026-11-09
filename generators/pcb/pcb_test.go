@@ -564,8 +564,8 @@ func TestRoutingConfigurationMatrix(t *testing.T) {
 		{name: "dense clusters", edit: func(o *Options) {
 			o.ComponentCount = 58
 			o.ClusterCount = 8
-			o.TopPowerSourceCount = 13
-			o.BottomPowerSourceCount = 13
+			o.TopPowerSourceCount = 10
+			o.BottomPowerSourceCount = 10
 		}},
 		{name: "larger minimum", edit: func(o *Options) { o.ComponentCount = 42; o.MinComponentsPerCluster = 3 }},
 		{name: "single cluster", edit: func(o *Options) { o.ClusterCount = 1; o.ComponentCount = 18 }},
