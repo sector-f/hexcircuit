@@ -2,6 +2,7 @@ package pcb
 
 import (
 	"container/heap"
+	"math"
 	"math/rand"
 
 	"github.com/sector-f/hexgrid"
@@ -36,13 +37,8 @@ func (q *routePriorityQueue) Pop() any {
 }
 
 func routingCells(o Options) map[hexgrid.GridPosition]bool {
-	cells := hexgrid.GridCells(
-		o.Width,
-		o.Height,
-		o.Pitch,
-		"pointy",
-		o.ComponentRadius+o.ComponentStrokeWidth/2,
-	)
+	margin := math.Max(o.ComponentRadius+o.ComponentStrokeWidth/2, o.ConnectorInset)
+	cells := hexgrid.GridCells(o.Width, o.Height, o.Pitch, "pointy", margin)
 	allowed := make(map[hexgrid.GridPosition]bool, len(cells))
 	for _, cell := range cells {
 		allowed[hexgrid.GridPosition{Q: cell.Q, R: cell.R}] = true
@@ -50,20 +46,20 @@ func routingCells(o Options) map[hexgrid.GridPosition]bool {
 	return allowed
 }
 
-// findRoute performs A* on the axial lattice. Power feeds are constrained to leave
-// the bottom connector through one of the two north-facing hex directions.
+// findRoute performs A* on the axial lattice. A route reserves every lattice
+// vertex it visits, so subsequent power routes cannot share a vertex or cross
+// an existing route. The sourceSide argument restricts the first step so a top
+// source exits downward and a bottom source exits upward.
 func findRoute(
 	start, goal hexgrid.GridPosition,
 	allowed, blocked, reserved map[hexgrid.GridPosition]bool,
-	leaveNorth, allowReserved bool,
+	sourceSide powerSide,
 	rng *rand.Rand,
 ) ([]hexgrid.GridPosition, bool) {
 	if start == goal || !allowed[start] || !allowed[goal] {
 		return nil, false
 	}
-	if blocked[start] == false || blocked[goal] == false {
-		// Endpoints must be actual component cells. A missing endpoint is almost
-		// always a placement/routing integration bug, so reject it explicitly.
+	if !blocked[start] || !blocked[goal] {
 		return nil, false
 	}
 
@@ -87,40 +83,21 @@ func findRoute(
 		directions := append([]hexgrid.GridPosition(nil), axialDirections[:]...)
 		rng.Shuffle(len(directions), func(i, j int) { directions[i], directions[j] = directions[j], directions[i] })
 		for _, direction := range directions {
-			if leaveNorth && current == start && !(direction.R == -1 && (direction.Q == 0 || direction.Q == 1)) {
+			if current == start && !allowedPowerDeparture(direction, sourceSide) {
 				continue
 			}
 			neighbor := addPosition(current, direction)
-			if leaveNorth && neighbor == goal {
-				// A power feed must enter the cluster hub from one of its two
-				// south-facing neighbors, preserving a clear point of entry.
-				fromSouthwest := addPosition(goal, hexgrid.GridPosition{Q: 0, R: 1})
-				fromSoutheast := addPosition(goal, hexgrid.GridPosition{Q: -1, R: 1})
-				if current != fromSouthwest && current != fromSoutheast {
-					continue
-				}
-			}
 			if !allowed[neighbor] || closed[neighbor] {
 				continue
 			}
 			if neighbor != goal && blocked[neighbor] {
 				continue
 			}
-			if neighbor != goal && neighbor != start && reserved[neighbor] && !allowReserved {
+			if neighbor != goal && neighbor != start && reserved[neighbor] {
 				continue
 			}
 
 			stepCost := 1.0 + rng.Float64()*0.035
-			if reserved[neighbor] {
-				stepCost += 2.5
-			}
-			// A small clearance penalty nudges routes away from existing traces without
-			// making a short detour preferable to an unnecessarily long path.
-			for _, nearby := range axialDirections {
-				if reserved[addPosition(neighbor, nearby)] {
-					stepCost += 0.08
-				}
-			}
 			candidateScore := gScore[current] + stepCost
 			previous, exists := gScore[neighbor]
 			if exists && candidateScore >= previous {
@@ -133,6 +110,19 @@ func findRoute(
 		}
 	}
 	return nil, false
+}
+
+func allowedPowerDeparture(direction hexgrid.GridPosition, side powerSide) bool {
+	switch side {
+	case powerSideTop:
+		// Pointy-top axial coordinates: these are the two southward directions.
+		return direction.R == 1 && (direction.Q == 0 || direction.Q == -1)
+	case powerSideBottom:
+		// These are the two northward directions.
+		return direction.R == -1 && (direction.Q == 0 || direction.Q == 1)
+	default:
+		return true
+	}
 }
 
 func reconstructPath(start, goal hexgrid.GridPosition, cameFrom map[hexgrid.GridPosition]hexgrid.GridPosition) []hexgrid.GridPosition {
@@ -205,7 +195,7 @@ func addExtraSignalConnections(
 		if len(traces) >= o.Connections {
 			break
 		}
-		path, ok := findRoute(candidate.a, candidate.b, allowed, blocked, reserved, false, false, rng)
+		path, ok := findRoute(candidate.a, candidate.b, allowed, blocked, reserved, powerSideAny, rng)
 		if !ok || len(path) < 2 {
 			continue
 		}

@@ -18,32 +18,78 @@ var axialDirections = [...]hexgrid.GridPosition{
 	{Q: 1, R: -1},
 }
 
-func connectorPositions(o Options) ([]hexgrid.GridPosition, error) {
+type powerSide uint8
+
+const (
+	powerSideAny powerSide = iota
+	powerSideTop
+	powerSideBottom
+)
+
+type powerSource struct {
+	Position hexgrid.GridPosition
+	Side     powerSide
+}
+
+// powerSourcePositions returns centered top and bottom rows of potential power
+// contacts. A zero count disables that row.
+func powerSourcePositions(o Options) (top, bottom []hexgrid.GridPosition, err error) {
+	if o.TopPowerSourceCount == 0 && o.BottomPowerSourceCount == 0 {
+		return nil, nil, fmt.Errorf("at least one top or bottom power-source contact is required")
+	}
 	margin := math.Max(o.ComponentRadius+o.ComponentStrokeWidth/2, o.ConnectorInset)
 	cells := hexgrid.GridCells(o.Width, o.Height, o.Pitch, "pointy", margin)
+	if len(cells) == 0 {
+		return nil, nil, fmt.Errorf("canvas does not contain any power-source grid positions")
+	}
+
 	rows := make(map[int][]hexgrid.Cell)
 	for _, cell := range cells {
 		rows[cell.R] = append(rows[cell.R], cell)
 	}
+	top, err = selectPowerSourceRow(rows, o.TopPowerSourceCount, true)
+	if err != nil {
+		return nil, nil, err
+	}
+	bottom, err = selectPowerSourceRow(rows, o.BottomPowerSourceCount, false)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(top) > 0 && len(bottom) > 0 && top[0].R == bottom[0].R {
+		return nil, nil, fmt.Errorf("canvas is too short to fit distinct top and bottom power-source rows")
+	}
+	return top, bottom, nil
+}
 
+func selectPowerSourceRow(rows map[int][]hexgrid.Cell, count int, top bool) ([]hexgrid.GridPosition, error) {
+	if count == 0 {
+		return nil, nil
+	}
 	var best []hexgrid.Cell
-	bestY := math.Inf(-1)
+	bestY := math.Inf(1)
+	if !top {
+		bestY = math.Inf(-1)
+	}
 	for _, row := range rows {
-		if len(row) < o.ConnectorCount {
+		if len(row) < count {
 			continue
 		}
 		y := row[0].Center.Y
-		if y > bestY {
+		if (top && y < bestY) || (!top && y > bestY) {
 			bestY = y
 			best = row
 		}
 	}
-	if len(best) < o.ConnectorCount {
-		return nil, fmt.Errorf("bottom connector row does not fit: need %d contacts, but the available grid row has %d", o.ConnectorCount, len(best))
+	rowName := "bottom"
+	if top {
+		rowName = "top"
+	}
+	if len(best) < count {
+		return nil, fmt.Errorf("%s power-source row does not fit: need %d contacts, but the available grid row has %d", rowName, count, len(best))
 	}
 	sort.Slice(best, func(i, j int) bool { return best[i].Center.X < best[j].Center.X })
-	start := (len(best) - o.ConnectorCount) / 2
-	positions := make([]hexgrid.GridPosition, o.ConnectorCount)
+	start := (len(best) - count) / 2
+	positions := make([]hexgrid.GridPosition, count)
 	for i := range positions {
 		positions[i] = hexgrid.GridPosition{Q: best[start+i].Q, R: best[start+i].R}
 	}
@@ -53,8 +99,8 @@ func connectorPositions(o Options) ([]hexgrid.GridPosition, error) {
 func placeClusters(
 	o Options,
 	rng *rand.Rand,
-	connectors []hexgrid.GridPosition,
-) ([]placedComponent, []clusterPlan, map[int]hexgrid.GridPosition, map[int][]hexgrid.GridPosition, error) {
+	topSources, bottomSources []hexgrid.GridPosition,
+) ([]placedComponent, []clusterPlan, error) {
 	allCells := hexgrid.GridCells(
 		o.Width,
 		o.Height,
@@ -62,21 +108,35 @@ func placeClusters(
 		"pointy",
 		o.ComponentRadius+o.ComponentStrokeWidth/2,
 	)
-	connectorY := hexgrid.GridPositionToPoint(connectors[0], o.Width, o.Height, o.Pitch, "pointy").Y
-	maxComponentY := connectorY - 1.6*o.Pitch
+	var topY, bottomY float64
+	if len(topSources) > 0 {
+		topY = hexgrid.GridPositionToPoint(topSources[0], o.Width, o.Height, o.Pitch, "pointy").Y
+	}
+	if len(bottomSources) > 0 {
+		bottomY = hexgrid.GridPositionToPoint(bottomSources[0], o.Width, o.Height, o.Pitch, "pointy").Y
+	}
 
 	eligible := make(map[hexgrid.GridPosition]bool, len(allCells))
 	candidates := make([]hexgrid.GridPosition, 0, len(allCells))
 	for _, cell := range allCells {
-		if cell.Center.Y > maxComponentY {
+		if len(topSources) > 0 && cell.Center.Y < topY+1.6*o.Pitch {
+			continue
+		}
+		if len(bottomSources) > 0 && cell.Center.Y > bottomY-1.6*o.Pitch {
 			continue
 		}
 		position := hexgrid.GridPosition{Q: cell.Q, R: cell.R}
 		eligible[position] = true
 		candidates = append(candidates, position)
 	}
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].Q != candidates[j].Q {
+			return candidates[i].Q < candidates[j].Q
+		}
+		return candidates[i].R < candidates[j].R
+	})
 	if len(candidates) < o.ComponentCount {
-		return nil, nil, nil, nil, fmt.Errorf("not enough component cells above the power corridor: need %d, have %d", o.ComponentCount, len(candidates))
+		return nil, nil, fmt.Errorf("not enough component cells between the top and bottom power corridors: need %d, have %d", o.ComponentCount, len(candidates))
 	}
 
 	sizes := allocateClusterSizes(o.ComponentCount, o.ClusterCount, o.MinComponentsPerCluster, rng)
@@ -87,53 +147,77 @@ func placeClusters(
 	sort.SliceStable(order, func(i, j int) bool { return sizes[order[i]] > sizes[order[j]] })
 	allowedRoutes := routingCells(o)
 
-	// Select centers, plan power feeds, then grow components around the reserved
-	// corridors. This ordering guarantees that cluster population cannot occupy
-	// the only usable route between a bottom contact and its destination hub.
-	for attempt := 0; attempt < 128; attempt++ {
+	// Retry different center/source combinations when a set of non-crossing feeds
+	// cannot be routed. A successful set reserves every cell used by every feed.
+	for attempt := 0; attempt < 192; attempt++ {
 		centers := selectClusterCenters(candidates, o.ClusterCount, rng)
 		if len(centers) != o.ClusterCount {
 			continue
 		}
-
 		centerClusters := make([]clusterPlan, len(centers))
 		for i, center := range centers {
 			centerClusters[i] = clusterPlan{ID: i, Hub: center}
 		}
 		sortClustersByX(centerClusters, o)
-		sourceIndices := choosePowerSourceIndices(len(connectors), len(centers), rng)
-		if len(sourceIndices) != len(centers) {
-			continue
+
+		sources, err := choosePowerSourceAssignments(topSources, bottomSources, o.ClusterCount, o.PowerSourceSpacing, rng)
+		if err != nil {
+			return nil, nil, err
+		}
+		// Match the selected contacts to clusters from left to right. The choice
+		// of source row remains randomized, but preserving horizontal order avoids
+		// creating a crossing topology before pathfinding even begins.
+		sort.Slice(sources, func(i, j int) bool {
+			a := hexgrid.GridPositionToPoint(sources[i].Position, o.Width, o.Height, o.Pitch, "pointy")
+			b := hexgrid.GridPositionToPoint(sources[j].Position, o.Width, o.Height, o.Pitch, "pointy")
+			if a.X != b.X {
+				return a.X < b.X
+			}
+			return sources[i].Side < sources[j].Side
+		})
+		for i := range centerClusters {
+			centerClusters[i].PowerSource = sources[i].Position
+			centerClusters[i].PowerSide = sources[i].Side
 		}
 
-		blockedForPower := make(map[hexgrid.GridPosition]bool, len(connectors)+len(centers))
-		for _, connector := range connectors {
-			blockedForPower[connector] = true
+		blockedForPower := make(map[hexgrid.GridPosition]bool, len(topSources)+len(bottomSources)+len(centers))
+		for _, source := range topSources {
+			blockedForPower[source] = true
 		}
-		for _, center := range centers {
-			blockedForPower[center] = true
+		for _, source := range bottomSources {
+			blockedForPower[source] = true
 		}
-		powerSources := make(map[int]hexgrid.GridPosition, len(centers))
-		powerPaths := make(map[int][]hexgrid.GridPosition, len(centers))
+		for _, cluster := range centerClusters {
+			blockedForPower[cluster.Hub] = true
+		}
+
+		// Route the longest feeds first. On an axial hex lattice, two grid-axis
+		// segments can intersect only at a lattice vertex; reserving every path
+		// vertex therefore prevents power-feed crossings as well as shared segments.
+		routeOrder := make([]int, len(centerClusters))
+		for i := range routeOrder {
+			routeOrder[i] = i
+		}
+		sort.SliceStable(routeOrder, func(i, j int) bool {
+			a := centerClusters[routeOrder[i]]
+			b := centerClusters[routeOrder[j]]
+			return hexDistance(a.PowerSource, a.Hub) > hexDistance(b.PowerSource, b.Hub)
+		})
 		powerCorridors := make(map[hexgrid.GridPosition]bool)
-		failed := false
-		for i, cluster := range centerClusters {
-			source := connectors[sourceIndices[i]]
-			path, ok := findRoute(source, cluster.Hub, allowedRoutes, blockedForPower, powerCorridors, true, false, rng)
-			if !ok {
-				path, ok = findRoute(source, cluster.Hub, allowedRoutes, blockedForPower, powerCorridors, true, true, rng)
-			}
+		routed := true
+		for _, clusterID := range routeOrder {
+			cluster := &centerClusters[clusterID]
+			path, ok := findRoute(cluster.PowerSource, cluster.Hub, allowedRoutes, blockedForPower, powerCorridors, cluster.PowerSide, rng)
 			if !ok || len(path) < 2 {
-				failed = true
+				routed = false
 				break
 			}
-			powerSources[cluster.ID] = source
-			powerPaths[cluster.ID] = path
-			for _, position := range path[1 : len(path)-1] {
+			cluster.PowerPath = path
+			for _, position := range path {
 				powerCorridors[position] = true
 			}
 		}
-		if failed {
+		if !routed {
 			continue
 		}
 
@@ -145,9 +229,9 @@ func placeClusters(
 		occupied := make(map[hexgrid.GridPosition]int, o.ComponentCount)
 		clusters := make([]clusterPlan, o.ClusterCount)
 		placements := make([]placedComponent, 0, o.ComponentCount)
-		failed = false
+		failed := false
 		for _, clusterID := range order {
-			center := centers[clusterID]
+			center := centerClusters[clusterID].Hub
 			if _, exists := occupied[center]; exists || adjacentToOtherCluster(center, occupied, clusterID) {
 				failed = true
 				break
@@ -157,6 +241,9 @@ func placeClusters(
 				failed = true
 				break
 			}
+			cluster.PowerSource = centerClusters[clusterID].PowerSource
+			cluster.PowerSide = centerClusters[clusterID].PowerSide
+			cluster.PowerPath = append([]hexgrid.GridPosition(nil), centerClusters[clusterID].PowerPath...)
 			clusters[clusterID] = cluster
 			placements = append(placements, cluster.Components...)
 			for _, component := range cluster.Components {
@@ -164,10 +251,54 @@ func placeClusters(
 			}
 		}
 		if !failed && len(placements) == o.ComponentCount {
-			return placements, clusters, powerSources, powerPaths, nil
+			return placements, clusters, nil
 		}
 	}
-	return nil, nil, nil, nil, fmt.Errorf("could not place %d components in %d separated clusters with clear power corridors; reduce component density or cluster size", o.ComponentCount, o.ClusterCount)
+	return nil, nil, fmt.Errorf("could not place %d components in %d separated clusters with non-crossing power feeds; reduce component density or cluster size, or increase the canvas dimensions", o.ComponentCount, o.ClusterCount)
+}
+
+func choosePowerSourceAssignments(
+	topSources, bottomSources []hexgrid.GridPosition,
+	clusterCount int,
+	spacing PowerSourceSpacing,
+	rng *rand.Rand,
+) ([]powerSource, error) {
+	topCapacity := len(topSources)
+	bottomCapacity := len(bottomSources)
+	if spacing == PowerSourceSpacingSeparated {
+		topCapacity = maximumSeparatedSources(topCapacity)
+		bottomCapacity = maximumSeparatedSources(bottomCapacity)
+	}
+	minimumTop := max(0, clusterCount-bottomCapacity)
+	maximumTop := min(clusterCount, topCapacity)
+	// Prefer to use both edges when there are enough clusters and both rows exist.
+	if clusterCount > 1 && len(topSources) > 0 && len(bottomSources) > 0 {
+		minimumTop = max(minimumTop, 1)
+		maximumTop = min(maximumTop, clusterCount-1)
+	}
+	if minimumTop > maximumTop {
+		return nil, fmt.Errorf("cannot assign %d clusters to the available top and bottom power sources using %q spacing", clusterCount, spacing)
+	}
+	topCount := minimumTop
+	if maximumTop > minimumTop {
+		topCount += rng.Intn(maximumTop - minimumTop + 1)
+	}
+	bottomCount := clusterCount - topCount
+
+	topIndices := choosePowerSourceIndices(len(topSources), topCount, spacing, rng)
+	bottomIndices := choosePowerSourceIndices(len(bottomSources), bottomCount, spacing, rng)
+	if len(topIndices) != topCount || len(bottomIndices) != bottomCount {
+		return nil, fmt.Errorf("could not choose %d top and %d bottom power contacts with %q spacing", topCount, bottomCount, spacing)
+	}
+
+	selected := make([]powerSource, 0, clusterCount)
+	for _, index := range topIndices {
+		selected = append(selected, powerSource{Position: topSources[index], Side: powerSideTop})
+	}
+	for _, index := range bottomIndices {
+		selected = append(selected, powerSource{Position: bottomSources[index], Side: powerSideBottom})
+	}
+	return selected, nil
 }
 
 func allocateClusterSizes(componentCount, clusterCount, minimum int, rng *rand.Rand) []int {
@@ -238,7 +369,7 @@ func growCluster(
 	})
 	local := map[hexgrid.GridPosition]bool{hub: true}
 	// A square-root bound keeps ordinary clusters compact while allowing room
-	// for the one-cell separation between clusters and the reserved power feed.
+	// for the one-cell separation between clusters and reserved power feeds.
 	maxRadius := int(math.Ceil(math.Sqrt(float64(target))))
 	if maxRadius < 2 {
 		maxRadius = 2
@@ -264,8 +395,6 @@ func growCluster(
 		for position := range frontierSet {
 			frontier = append(frontier, position)
 		}
-		// Sort before shuffling so a fixed seed produces the same placement across
-		// runs. Go deliberately randomizes map iteration order.
 		sort.Slice(frontier, func(i, j int) bool {
 			if frontier[i].Q != frontier[j].Q {
 				return frontier[i].Q < frontier[j].Q
@@ -288,12 +417,10 @@ func growCluster(
 			return clusterPlan{}, fmt.Errorf("cluster %d selected a cell without a local parent", clusterID+1)
 		}
 		parent := parents[rng.Intn(len(parents))]
-		style := randomComponentStyle(rng)
-		radiusScale := 0.72 + rng.Float64()*0.22
 		cluster.Components = append(cluster.Components, placedComponent{
 			Position:    candidate,
-			Style:       style,
-			RadiusScale: radiusScale,
+			Style:       randomComponentStyle(rng),
+			RadiusScale: 0.72 + rng.Float64()*0.22,
 			Parent:      &parent,
 			ClusterID:   clusterID,
 		})
@@ -324,15 +451,26 @@ func randomComponentStyle(rng *rand.Rand) hexgrid.ComponentStyle {
 	}
 }
 
-// choosePowerSourceIndices returns sorted, distinct contact indices. When possible,
-// it enforces at least one unused contact between selected power sources.
-func choosePowerSourceIndices(connectorCount, sourceCount int, rng *rand.Rand) []int {
-	if sourceCount <= 0 || connectorCount < sourceCount {
+func powerSourceComponentStyle(style PowerSourceStyle) hexgrid.ComponentStyle {
+	if style == PowerSourceStyleDouble {
+		return hexgrid.ComponentStyleDouble
+	}
+	return hexgrid.ComponentStyleSingle
+}
+
+// choosePowerSourceIndices selects sorted, distinct contacts. Separated mode
+// leaves at least one unused contact between selected positions; adjacent mode
+// permits consecutive contacts.
+func choosePowerSourceIndices(contactCount, sourceCount int, spacing PowerSourceSpacing, rng *rand.Rand) []int {
+	if sourceCount < 0 || sourceCount == 0 || contactCount < sourceCount {
+		if sourceCount == 0 {
+			return []int{}
+		}
 		return nil
 	}
-	minimumGap := 2
-	if sourceCount > (connectorCount+1)/2 {
-		minimumGap = 1
+	minimumGap := 1
+	if spacing == PowerSourceSpacingSeparated {
+		minimumGap = 2
 	}
 	chosen := make([]int, 0, sourceCount)
 	var search func(start, remaining int) bool
@@ -340,7 +478,7 @@ func choosePowerSourceIndices(connectorCount, sourceCount int, rng *rand.Rand) [
 		if remaining == 0 {
 			return true
 		}
-		lastPossible := connectorCount - 1 - (remaining-1)*minimumGap
+		lastPossible := contactCount - 1 - (remaining-1)*minimumGap
 		if start > lastPossible {
 			return false
 		}

@@ -30,9 +30,9 @@ func TestAllocateClusterSizesRespectsMinimum(t *testing.T) {
 	}
 }
 
-func TestChoosePowerSourcesLeavesGapsWhenPossible(t *testing.T) {
+func TestChoosePowerSourceIndicesSeparated(t *testing.T) {
 	rng := rand.New(rand.NewSource(123))
-	indices := choosePowerSourceIndices(13, 6, rng)
+	indices := choosePowerSourceIndices(13, 6, PowerSourceSpacingSeparated, rng)
 	if len(indices) != 6 {
 		t.Fatalf("got %d sources, want 6", len(indices))
 	}
@@ -41,26 +41,13 @@ func TestChoosePowerSourcesLeavesGapsWhenPossible(t *testing.T) {
 			t.Fatalf("sources %d and %d are adjacent; want at least one unused contact between them", indices[i-1], indices[i])
 		}
 	}
-	for i, index := range indices {
-		if index < 0 || index >= 13 {
-			t.Fatalf("source index %d is outside connector row", index)
-		}
-		if i > 0 && indices[i-1] == index {
-			t.Fatalf("duplicate source index %d", index)
-		}
-	}
 }
 
-func TestChoosePowerSourcesRelaxesGapWhenNecessary(t *testing.T) {
-	rng := rand.New(rand.NewSource(9))
-	indices := choosePowerSourceIndices(6, 4, rng)
-	if len(indices) != 4 {
-		t.Fatalf("got %d sources, want 4", len(indices))
-	}
-	for i := 1; i < len(indices); i++ {
-		if indices[i] <= indices[i-1] {
-			t.Fatalf("source indices are not strictly increasing: %v", indices)
-		}
+func TestChoosePowerSourceIndicesAdjacentAllowsNeighbors(t *testing.T) {
+	rng := rand.New(rand.NewSource(2))
+	indices := choosePowerSourceIndices(6, 6, PowerSourceSpacingAdjacent, rng)
+	if !reflect.DeepEqual(indices, []int{0, 1, 2, 3, 4, 5}) {
+		t.Fatalf("adjacent mode selected %v, want all six consecutive contacts", indices)
 	}
 }
 
@@ -108,22 +95,73 @@ func TestNormalizeOptionsRejectsImpossibleMinimum(t *testing.T) {
 	}
 }
 
-func TestDefaultOptionsAllowSingletonClusters(t *testing.T) {
-	if got := DefaultOptions().MinComponentsPerCluster; got != 1 {
-		t.Fatalf("default minimum components per cluster = %d, want 1", got)
+func TestDefaultOptionsUseSingleSeparatedPowerContacts(t *testing.T) {
+	o := DefaultOptions()
+	if o.MinComponentsPerCluster != 1 {
+		t.Fatalf("default minimum components per cluster = %d, want 1", o.MinComponentsPerCluster)
+	}
+	if o.PowerSourceSpacing != PowerSourceSpacingSeparated {
+		t.Fatalf("default power-source spacing = %q, want separated", o.PowerSourceSpacing)
+	}
+	if o.PowerSourceStyle != PowerSourceStyleSingle {
+		t.Fatalf("default power-source style = %q, want single", o.PowerSourceStyle)
 	}
 }
 
-func TestPowerFeedsOriginateAtBottomConnectors(t *testing.T) {
+func TestLegacyConnectorCountMapsToBottomRow(t *testing.T) {
+	o := DefaultOptions()
+	o.ConnectorCount = 9
+	normalized, err := normalizeOptions(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if normalized.BottomPowerSourceCount != 9 {
+		t.Fatalf("legacy connector count mapped to bottom count %d, want 9", normalized.BottomPowerSourceCount)
+	}
+	o = DefaultOptions()
+	o.BottomPowerSourceCount = 7
+	normalized, err = normalizeOptions(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if normalized.BottomPowerSourceCount != 7 {
+		t.Fatalf("explicit bottom source count was overridden: got %d, want 7", normalized.BottomPowerSourceCount)
+	}
+}
+
+func TestNormalizeOptionsRejectsTooFewPowerSources(t *testing.T) {
+	o := DefaultOptions()
+	o.TopPowerSourceCount = 2
+	o.BottomPowerSourceCount = 3
+	if _, err := normalizeOptions(o); err == nil {
+		t.Fatal("expected an error when total power-source contacts are fewer than clusters")
+	}
+}
+
+func TestNormalizeOptionsRejectsInsufficientSeparatedCapacity(t *testing.T) {
+	o := DefaultOptions()
+	o.TopPowerSourceCount = 2
+	o.BottomPowerSourceCount = 2
+	o.ClusterCount = 4
+	if _, err := normalizeOptions(o); err == nil {
+		t.Fatal("expected an error when separated spacing cannot accommodate all clusters")
+	}
+	o.PowerSourceSpacing = PowerSourceSpacingAdjacent
+	if _, err := normalizeOptions(o); err != nil {
+		t.Fatalf("adjacent spacing should accommodate four clusters in six contacts: %v", err)
+	}
+}
+
+func TestPowerFeedsUseTopAndBottomRowsWithoutCrossing(t *testing.T) {
 	o := DefaultOptions()
 	o.Seed = 73
 	o.SeedSet = true
 	rng := rand.New(rand.NewSource(o.Seed))
-	connectors, err := connectorPositions(o)
+	topSources, bottomSources, err := powerSourcePositions(o)
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := buildBoard(o, rng, connectors)
+	plan, err := buildBoard(o, rng, topSources, bottomSources)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,47 +171,87 @@ func TestPowerFeedsOriginateAtBottomConnectors(t *testing.T) {
 	if len(plan.PowerCores) != o.ClusterCount*2 {
 		t.Fatalf("got %d power cores, want %d", len(plan.PowerCores), o.ClusterCount*2)
 	}
+	if len(plan.PowerRoutes) != o.ClusterCount {
+		t.Fatalf("got %d full power paths, want %d", len(plan.PowerRoutes), o.ClusterCount)
+	}
 
-	connectorSet := make(map[hexgrid.GridPosition]bool, len(connectors))
-	for _, connector := range connectors {
-		connectorSet[connector] = true
+	topSet := make(map[hexgrid.GridPosition]bool, len(topSources))
+	bottomSet := make(map[hexgrid.GridPosition]bool, len(bottomSources))
+	for _, source := range topSources {
+		topSet[source] = true
+	}
+	for _, source := range bottomSources {
+		bottomSet[source] = true
 	}
 	usedSources := make(map[hexgrid.GridPosition]bool, len(plan.PowerTraces))
 	usedHubs := make(map[hexgrid.GridPosition]bool, len(plan.PowerTraces))
-	for i, trace := range plan.PowerTraces {
-		if !connectorSet[trace.Start] {
-			t.Errorf("power feed %d starts at %v, which is not a bottom connector", i, trace.Start)
+	usedPathCells := make(map[hexgrid.GridPosition]int)
+	usedTop, usedBottom := 0, 0
+
+	previousSourceX := -1.0
+	for i, cluster := range plan.Clusters {
+		sourcePoint := hexgrid.GridPositionToPoint(cluster.PowerSource, o.Width, o.Height, o.Pitch, "pointy")
+		if i > 0 && sourcePoint.X < previousSourceX {
+			t.Errorf("power sources are not assigned left-to-right with cluster hubs")
 		}
-		if usedSources[trace.Start] {
-			t.Errorf("multiple clusters use the same connector %v", trace.Start)
+		previousSourceX = sourcePoint.X
+		source := cluster.PowerSource
+		if usedSources[source] {
+			t.Errorf("multiple clusters use the same source %v", source)
 		}
-		usedSources[trace.Start] = true
-		if len(trace.Path) == 0 {
-			t.Errorf("power feed %d has no route", i)
+		usedSources[source] = true
+		if topSet[source] {
+			usedTop++
+			if cluster.PowerSide != powerSideTop {
+				t.Errorf("cluster %d records top source %v with side %v", i, source, cluster.PowerSide)
+			}
+		} else if bottomSet[source] {
+			usedBottom++
+			if cluster.PowerSide != powerSideBottom {
+				t.Errorf("cluster %d records bottom source %v with side %v", i, source, cluster.PowerSide)
+			}
+		} else {
+			t.Errorf("cluster %d uses source %v outside the top/bottom rows", i, source)
+		}
+		if usedHubs[cluster.Hub] {
+			t.Errorf("multiple power feeds terminate at hub %v", cluster.Hub)
+		}
+		usedHubs[cluster.Hub] = true
+
+		path := plan.PowerRoutes[i]
+		if len(path) < 2 {
+			t.Errorf("power feed %d has an incomplete route", i)
 			continue
 		}
-		hub := plan.PowerCores[i*2+1].Position
-		if trace.Path[len(trace.Path)-1] != hub {
-			t.Errorf("power feed %d ends at %v, want cluster hub %v", i, trace.Path[len(trace.Path)-1], hub)
+		if path[0] != source {
+			t.Errorf("power feed %d starts at %v, want source %v", i, path[0], source)
 		}
-		if usedHubs[hub] {
-			t.Errorf("multiple power feeds terminate at hub %v", hub)
+		if path[len(path)-1] != cluster.Hub {
+			t.Errorf("power feed %d ends at %v, want hub %v", i, path[len(path)-1], cluster.Hub)
 		}
-		usedHubs[hub] = true
-
-		first := trace.Path[0]
-		dq, dr := first.Q-trace.Start.Q, first.R-trace.Start.R
-		if !(dr < 0 && (dq == 0 || dq+dr == 0)) {
-			t.Errorf("power feed %d does not leave its connector northward: %v -> %v", i, trace.Start, first)
+		first := path[1]
+		direction := hexgrid.GridPosition{Q: first.Q - source.Q, R: first.R - source.R}
+		if !allowedPowerDeparture(direction, cluster.PowerSide) {
+			t.Errorf("power feed %d leaves source %v in invalid direction %v for side %v", i, source, direction, cluster.PowerSide)
 		}
-		previous := trace.Start
-		for _, waypoint := range trace.Path {
-			dq, dr := waypoint.Q-previous.Q, waypoint.R-previous.R
-			if !(dq == 0 || dr == 0 || dq+dr == 0) {
-				t.Errorf("power feed %d has a non-axis-aligned segment: %v -> %v", i, previous, waypoint)
+		local := make(map[hexgrid.GridPosition]bool)
+		for _, position := range path {
+			if local[position] {
+				t.Errorf("power feed %d revisits lattice position %v", i, position)
 			}
-			previous = waypoint
+			local[position] = true
+			if previousRoute, exists := usedPathCells[position]; exists {
+				t.Errorf("power feeds %d and %d share lattice position %v; feeds must never cross", previousRoute, i, position)
+			}
+			usedPathCells[position] = i
 		}
+		trace := plan.PowerTraces[i]
+		if trace.Start != source || len(trace.Path) == 0 || trace.Path[len(trace.Path)-1] != cluster.Hub {
+			t.Errorf("rendered power trace %d does not match its source and hub", i)
+		}
+	}
+	if usedTop == 0 || usedBottom == 0 {
+		t.Fatalf("expected active feeds from both rows, got %d top and %d bottom", usedTop, usedBottom)
 	}
 }
 
@@ -196,17 +274,51 @@ func TestGenerateIsDeterministicForExplicitSeed(t *testing.T) {
 	if firstComponents != secondComponents || firstTraces != secondTraces {
 		t.Fatalf("generation counts changed for an explicit seed: (%d, %d) vs (%d, %d)", firstComponents, firstTraces, secondComponents, secondTraces)
 	}
+	wantComponents := o.ComponentCount + o.TopPowerSourceCount + o.BottomPowerSourceCount
+	if firstComponents != wantComponents {
+		t.Fatalf("component count = %d, want %d", firstComponents, wantComponents)
+	}
 }
 
 func TestPowerSourceSelectionVariesAcrossSeeds(t *testing.T) {
+	top, bottom := makePositions(13, 0), makePositions(13, 10)
 	seen := make(map[string]bool)
 	for seed := int64(0); seed < 16; seed++ {
-		indices := choosePowerSourceIndices(13, 6, rand.New(rand.NewSource(seed)))
-		key := fmt.Sprint(indices)
+		sources, err := choosePowerSourceAssignments(top, bottom, 6, PowerSourceSpacingSeparated, rand.New(rand.NewSource(seed)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		key := fmt.Sprint(sources)
 		seen[key] = true
 	}
 	if len(seen) < 4 {
-		t.Fatalf("power source positions did not vary enough across seeds: got %d distinct patterns", len(seen))
+		t.Fatalf("power source assignments did not vary enough across seeds: got %d distinct patterns", len(seen))
+	}
+}
+
+func TestSourceStyleControlsBaseLayerComponents(t *testing.T) {
+	for _, test := range []struct {
+		style PowerSourceStyle
+		want  hexgrid.ComponentStyle
+	}{
+		{PowerSourceStyleSingle, hexgrid.ComponentStyleSingle},
+		{PowerSourceStyleDouble, hexgrid.ComponentStyleDouble},
+	} {
+		o := DefaultOptions()
+		o.PowerSourceStyle = test.style
+		top, bottom, err := powerSourcePositions(o)
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan, err := buildBoard(o, rand.New(rand.NewSource(41)), top, bottom)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, component := range plan.Components[o.ComponentCount:] {
+			if component.Style != test.want {
+				t.Fatalf("source component style = %v, want %v", component.Style, test.want)
+			}
+		}
 	}
 }
 
@@ -246,11 +358,11 @@ func TestClusterPlacementProducesConnectedTrees(t *testing.T) {
 	o := DefaultOptions()
 	o.Seed = 27
 	o.SeedSet = true
-	connectors, err := connectorPositions(o)
+	top, bottom, err := powerSourcePositions(o)
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := buildBoard(o, rand.New(rand.NewSource(o.Seed)), connectors)
+	plan, err := buildBoard(o, rand.New(rand.NewSource(o.Seed)), top, bottom)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,21 +404,158 @@ func TestClusterPlacementProducesConnectedTrees(t *testing.T) {
 
 func TestBuildBoardIsDeterministicForExplicitSeed(t *testing.T) {
 	o := DefaultOptions()
-	o.Seed = 118
-	o.SeedSet = true
-	connectors, err := connectorPositions(o)
+	top, bottom, err := powerSourcePositions(o)
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, err := buildBoard(o, rand.New(rand.NewSource(o.Seed)), connectors)
+	first, err := buildBoard(o, rand.New(rand.NewSource(118)), top, bottom)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := buildBoard(o, rand.New(rand.NewSource(o.Seed)), connectors)
+	second, err := buildBoard(o, rand.New(rand.NewSource(118)), top, bottom)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(first, second) {
 		t.Fatal("board topology differs between generations with the same seed")
 	}
+}
+
+func TestNonCrossingFeedsAcrossManySeeds(t *testing.T) {
+	for seed := int64(0); seed < 150; seed++ {
+		o := DefaultOptions()
+		top, bottom, err := powerSourcePositions(o)
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan, err := buildBoard(o, rand.New(rand.NewSource(seed)), top, bottom)
+		if err != nil {
+			t.Fatalf("seed %d: %v", seed, err)
+		}
+		seen := make(map[hexgrid.GridPosition]int)
+		for routeIndex, route := range plan.PowerRoutes {
+			for _, position := range route {
+				if other, exists := seen[position]; exists {
+					t.Fatalf("seed %d: power feeds %d and %d intersect at %v", seed, other, routeIndex, position)
+				}
+				seen[position] = routeIndex
+			}
+		}
+	}
+}
+
+func TestPowerRowsCanBeConfiguredIndependently(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		top    int
+		bottom int
+	}{
+		{name: "top only", top: 13, bottom: 0},
+		{name: "bottom only", top: 0, bottom: 13},
+		{name: "both rows", top: 9, bottom: 11},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			o := DefaultOptions()
+			o.TopPowerSourceCount = test.top
+			o.BottomPowerSourceCount = test.bottom
+			top, bottom, err := powerSourcePositions(o)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(top) != test.top || len(bottom) != test.bottom {
+				t.Fatalf("got %d top and %d bottom positions, want %d and %d", len(top), len(bottom), test.top, test.bottom)
+			}
+			plan, err := buildBoard(o, rand.New(rand.NewSource(29)), top, bottom)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(plan.PowerTraces) != o.ClusterCount {
+				t.Fatalf("got %d feeds, want %d", len(plan.PowerTraces), o.ClusterCount)
+			}
+		})
+	}
+}
+
+func TestRoutingConfigurationMatrix(t *testing.T) {
+	cases := []struct {
+		name string
+		edit func(*Options)
+	}{
+		{name: "default"},
+		{name: "adjacent sources", edit: func(o *Options) { o.PowerSourceSpacing = PowerSourceSpacingAdjacent }},
+		{name: "double contacts", edit: func(o *Options) { o.PowerSourceStyle = PowerSourceStyleDouble }},
+		{name: "dense clusters", edit: func(o *Options) {
+			o.ComponentCount = 58
+			o.ClusterCount = 8
+			o.TopPowerSourceCount = 13
+			o.BottomPowerSourceCount = 13
+		}},
+		{name: "larger minimum", edit: func(o *Options) { o.ComponentCount = 42; o.MinComponentsPerCluster = 3 }},
+		{name: "single cluster", edit: func(o *Options) { o.ClusterCount = 1; o.ComponentCount = 18 }},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			for seed := int64(0); seed < 15; seed++ {
+				o := DefaultOptions()
+				if test.edit != nil {
+					test.edit(&o)
+				}
+				top, bottom, err := powerSourcePositions(o)
+				if err != nil {
+					t.Fatal(err)
+				}
+				plan, err := buildBoard(o, rand.New(rand.NewSource(seed)), top, bottom)
+				if err != nil {
+					t.Fatalf("seed %d: %v", seed, err)
+				}
+				seen := make(map[hexgrid.GridPosition]int)
+				for routeIndex, route := range plan.PowerRoutes {
+					for _, position := range route {
+						if other, exists := seen[position]; exists {
+							t.Fatalf("seed %d: routes %d and %d share %v", seed, other, routeIndex, position)
+						}
+						seen[position] = routeIndex
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestTopAndBottomSourcesCanFeedClustersAcrossTheBoard(t *testing.T) {
+	o := DefaultOptions()
+	topFeedsDownward, bottomFeedsUpward := false, false
+	for seed := int64(0); seed < 60; seed++ {
+		top, bottom, err := powerSourcePositions(o)
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan, err := buildBoard(o, rand.New(rand.NewSource(seed)), top, bottom)
+		if err != nil {
+			t.Fatalf("seed %d: %v", seed, err)
+		}
+		for _, cluster := range plan.Clusters {
+			hub := hexgrid.GridPositionToPoint(cluster.Hub, o.Width, o.Height, o.Pitch, "pointy")
+			if cluster.PowerSide == powerSideTop && hub.Y > o.Height*0.62 {
+				topFeedsDownward = true
+			}
+			if cluster.PowerSide == powerSideBottom && hub.Y < o.Height*0.38 {
+				bottomFeedsUpward = true
+			}
+		}
+		if topFeedsDownward && bottomFeedsUpward {
+			return
+		}
+	}
+	if !topFeedsDownward || !bottomFeedsUpward {
+		t.Fatalf("expected both cross-board feed directions across seeds; top-to-lower=%v bottom-to-upper=%v", topFeedsDownward, bottomFeedsUpward)
+	}
+}
+
+func makePositions(count, r int) []hexgrid.GridPosition {
+	positions := make([]hexgrid.GridPosition, count)
+	for i := range positions {
+		positions[i] = hexgrid.GridPosition{Q: i, R: r}
+	}
+	return positions
 }

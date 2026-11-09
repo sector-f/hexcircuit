@@ -10,9 +10,12 @@ import (
 )
 
 type clusterPlan struct {
-	ID         int
-	Hub        hexgrid.GridPosition
-	Components []placedComponent
+	ID          int
+	Hub         hexgrid.GridPosition
+	Components  []placedComponent
+	PowerSource hexgrid.GridPosition
+	PowerSide   powerSide
+	PowerPath   []hexgrid.GridPosition
 }
 
 type placedComponent struct {
@@ -28,11 +31,12 @@ type boardPlan struct {
 	SignalTraces []hexgrid.GridTrace
 	PowerCores   []hexgrid.GridComponent
 	PowerTraces  []hexgrid.GridTrace
+	PowerRoutes  [][]hexgrid.GridPosition // Full cell paths, retained for no-crossing tests.
 	Clusters     []clusterPlan
 }
 
 // Generate constructs and renders a PCB-inspired illustration.
-// It returns the SVG, the number of components including the bottom connector row,
+// It returns the SVG, the number of components including both power-source rows,
 // the number of rendered trace bundles (signal plus power), and any generation error.
 func Generate(options Options) (string, int, int, error) {
 	o, err := normalizeOptions(options)
@@ -46,12 +50,11 @@ func Generate(options Options) (string, int, int, error) {
 	}
 	rng := rand.New(rand.NewSource(seed))
 
-	connectors, err := connectorPositions(o)
+	topSources, bottomSources, err := powerSourcePositions(o)
 	if err != nil {
 		return "", 0, 0, err
 	}
-
-	plan, err := buildBoard(o, rng, connectors)
+	plan, err := buildBoard(o, rng, topSources, bottomSources)
 	if err != nil {
 		return "", 0, 0, err
 	}
@@ -59,17 +62,22 @@ func Generate(options Options) (string, int, int, error) {
 	if err != nil {
 		return "", 0, 0, fmt.Errorf("render PCB: %w", err)
 	}
-	return svg, o.ComponentCount + len(connectors), len(plan.SignalTraces) + len(plan.PowerTraces), nil
+	componentCount := o.ComponentCount + len(topSources) + len(bottomSources)
+	return svg, componentCount, len(plan.SignalTraces) + len(plan.PowerTraces), nil
 }
 
-func buildBoard(o Options, rng *rand.Rand, connectors []hexgrid.GridPosition) (boardPlan, error) {
-	placements, clusters, powerSources, powerPaths, err := placeClusters(o, rng, connectors)
+func buildBoard(
+	o Options,
+	rng *rand.Rand,
+	topSources, bottomSources []hexgrid.GridPosition,
+) (boardPlan, error) {
+	placements, clusters, err := placeClusters(o, rng, topSources, bottomSources)
 	if err != nil {
 		return boardPlan{}, err
 	}
 
 	plan := boardPlan{Clusters: clusters}
-	allPositions := make(map[hexgrid.GridPosition]bool, len(placements)+len(connectors))
+	allPositions := make(map[hexgrid.GridPosition]bool, len(placements)+len(topSources)+len(bottomSources))
 	for _, p := range placements {
 		allPositions[p.Position] = true
 		plan.Components = append(plan.Components, hexgrid.GridComponent{
@@ -78,35 +86,45 @@ func buildBoard(o Options, rng *rand.Rand, connectors []hexgrid.GridPosition) (b
 			RadiusScale: p.RadiusScale,
 		})
 	}
-	for _, connector := range connectors {
-		allPositions[connector] = true
+	sourceStyle := powerSourceComponentStyle(o.PowerSourceStyle)
+	for _, source := range topSources {
+		allPositions[source] = true
 		plan.Components = append(plan.Components, hexgrid.GridComponent{
-			Position: connector,
-			Style:    hexgrid.ComponentStyleDouble,
+			Position: source,
+			Style:    sourceStyle,
+		})
+	}
+	for _, source := range bottomSources {
+		allPositions[source] = true
+		plan.Components = append(plan.Components, hexgrid.GridComponent{
+			Position: source,
+			Style:    sourceStyle,
 		})
 	}
 
-	allowed := routingCells(o)
 	reserved := make(map[hexgrid.GridPosition]bool)
 	for _, cluster := range clusters {
-		source := powerSources[cluster.ID]
-		path := powerPaths[cluster.ID]
-		for _, position := range path[1 : len(path)-1] {
-			reserved[position] = true
+		path := cluster.PowerPath
+		if len(path) < 2 {
+			return boardPlan{}, fmt.Errorf("cluster %d has no complete power route", cluster.ID+1)
 		}
+		plan.PowerRoutes = append(plan.PowerRoutes, append([]hexgrid.GridPosition(nil), path...))
 		plan.PowerTraces = append(plan.PowerTraces, hexgrid.GridTrace{
-			Start:        source,
+			Start:        cluster.PowerSource,
 			Path:         compressPath(path),
 			Lines:        randomLines(rng, o.MaxParallel),
 			HideTerminal: true,
 		})
+		for _, position := range path {
+			reserved[position] = true
+		}
 		plan.PowerCores = append(plan.PowerCores,
-			hexgrid.GridComponent{Position: source, Style: hexgrid.ComponentStyleSingle, RadiusScale: powerCoreRadiusScale},
+			hexgrid.GridComponent{Position: cluster.PowerSource, Style: hexgrid.ComponentStyleSingle, RadiusScale: powerCoreRadiusScale},
 			hexgrid.GridComponent{Position: cluster.Hub, Style: hexgrid.ComponentStyleSingle, RadiusScale: powerCoreRadiusScale},
 		)
 	}
-	blocked := allPositions
 
+	blocked := allPositions
 	// Every cluster already has a connected placement tree. Convert its parent
 	// relationships into mandatory local signal traces before adding optional links.
 	for _, cluster := range clusters {
@@ -124,7 +142,7 @@ func buildBoard(o Options, rng *rand.Rand, connectors []hexgrid.GridPosition) (b
 	}
 
 	if o.Connections > 0 {
-		extra, err := addExtraSignalConnections(o, rng, clusters, allowed, blocked, reserved)
+		extra, err := addExtraSignalConnections(o, rng, clusters, routingCells(o), blocked, reserved)
 		if err != nil {
 			return boardPlan{}, err
 		}
