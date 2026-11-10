@@ -152,7 +152,12 @@ func TestNormalizeOptionsRejectsInvalidPowerSourceRanges(t *testing.T) {
 		{"negative minimum", func(o *Options) { o.MinPowerSourcesPerCluster = -1 }},
 		{"maximum below minimum", func(o *Options) { o.MaxPowerSourcesPerCluster = 0 }},
 		{"more than six feeds", func(o *Options) { o.MaxPowerSourcesPerCluster = 7 }},
-		{"insufficient physical contacts", func(o *Options) { o.MinPowerSourcesPerCluster = 2; o.MaxPowerSourcesPerCluster = 2; o.TopPowerSourceCount = 2; o.BottomPowerSourceCount = 2 }},
+		{"insufficient physical contacts", func(o *Options) {
+			o.MinPowerSourcesPerCluster = 2
+			o.MaxPowerSourcesPerCluster = 2
+			o.TopPowerSourceCount = 2
+			o.BottomPowerSourceCount = 2
+		}},
 	} {
 		t.Run(edit.name, func(t *testing.T) {
 			o := DefaultOptions()
@@ -490,7 +495,10 @@ func TestPowerSourceSelectionVariesAcrossSeeds(t *testing.T) {
 }
 
 func TestSourceStyleControlsBaseLayerComponents(t *testing.T) {
-	for _, test := range []struct { style PowerSourceStyle; want hexgrid.ComponentStyle }{
+	for _, test := range []struct {
+		style PowerSourceStyle
+		want  hexgrid.ComponentStyle
+	}{
 		{PowerSourceStyleSingle, hexgrid.ComponentStyleSingle},
 		{PowerSourceStyleDouble, hexgrid.ComponentStyleDouble},
 	} {
@@ -498,31 +506,44 @@ func TestSourceStyleControlsBaseLayerComponents(t *testing.T) {
 		o.PowerSourceStyle = test.style
 		top, bottom, err := powerSourcePositions(o)
 		if err != nil {
-		t.Fatal(err)
-	}
+			t.Fatal(err)
+		}
 		plan, err := buildBoard(o, rand.New(rand.NewSource(41)), top, bottom)
-		if err != nil { t.Fatal(err) }
+		if err != nil {
+			t.Fatal(err)
+		}
 		if got, want := len(plan.Components)-o.ComponentCount, len(top)+len(bottom); got != want {
 			t.Fatalf("got %d rendered source components, want all %d configured contacts", got, want)
 		}
 		for _, component := range plan.Components[o.ComponentCount:] {
-			if component.Style != test.want { t.Fatalf("source component style = %v, want %v", component.Style, test.want) }
+			if component.Style != test.want {
+				t.Fatalf("source component style = %v, want %v", component.Style, test.want)
+			}
 		}
 	}
 }
 
 func TestPowerSourceRowsApplyPhysicalSpacing(t *testing.T) {
-	for _, test := range []struct { spacing PowerSourceSpacing; step int }{
+	for _, test := range []struct {
+		spacing PowerSourceSpacing
+		step    int
+	}{
 		{PowerSourceSpacingAdjacent, 1}, {PowerSourceSpacingSeparated, 2},
 	} {
 		o := DefaultOptions()
 		o.TopPowerSourceCount, o.BottomPowerSourceCount = 4, 0
 		o.PowerSourceSpacing = test.spacing
 		top, _, err := powerSourcePositions(o)
-		if err != nil { t.Fatal(err) }
-		if len(top) != o.TopPowerSourceCount { t.Fatalf("got %d contacts, want %d", len(top), o.TopPowerSourceCount) }
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(top) != o.TopPowerSourceCount {
+			t.Fatalf("got %d contacts, want %d", len(top), o.TopPowerSourceCount)
+		}
 		for i := 1; i < len(top); i++ {
-			if got := top[i].Q-top[i-1].Q; got != test.step { t.Fatalf("%q spacing Q step = %d, want %d", test.spacing, got, test.step) }
+			if got := top[i].Q - top[i-1].Q; got != test.step {
+				t.Fatalf("%q spacing Q step = %d, want %d", test.spacing, got, test.step)
+			}
 		}
 	}
 }
@@ -532,11 +553,17 @@ func TestEveryConfiguredPowerSourceContactIsRendered(t *testing.T) {
 	o.TopPowerSourceCount, o.BottomPowerSourceCount = 10, 9
 	o.Seed, o.SeedSet = 818, true
 	top, bottom, err := powerSourcePositions(o)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	plan, err := buildBoard(o, rand.New(rand.NewSource(o.Seed)), top, bottom)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	drawn := make(map[hexgrid.GridPosition]hexgrid.GridComponent, len(plan.Components))
-	for _, component := range plan.Components { drawn[component.Position] = component }
+	for _, component := range plan.Components {
+		drawn[component.Position] = component
+	}
 	active := make(map[hexgrid.GridPosition]bool, len(plan.PowerTraces))
 	for _, cluster := range plan.Clusters {
 		for _, source := range cluster.PowerSources {
@@ -544,15 +571,26 @@ func TestEveryConfiguredPowerSourceContactIsRendered(t *testing.T) {
 		}
 	}
 	cores := make(map[hexgrid.GridPosition]bool, len(plan.PowerCores))
-	for _, component := range plan.PowerCores { cores[component.Position] = true }
+	for _, component := range plan.PowerCores {
+		cores[component.Position] = true
+	}
 	all := append(append([]hexgrid.GridPosition(nil), top...), bottom...)
 	for _, source := range all {
 		component, ok := drawn[source]
-		if !ok { t.Errorf("configured physical contact %v was not rendered", source); continue }
-		if component.Style != powerSourceComponentStyle(o.PowerSourceStyle) { t.Errorf("wrong style at %v", source) }
-		if active[source] != cores[source] { t.Errorf("source %v active=%v, power core=%v", source, active[source], cores[source]) }
+		if !ok {
+			t.Errorf("configured physical contact %v was not rendered", source)
+			continue
+		}
+		if component.Style != powerSourceComponentStyle(o.PowerSourceStyle) {
+			t.Errorf("wrong style at %v", source)
+		}
+		if active[source] != cores[source] {
+			t.Errorf("source %v active=%v, power core=%v", source, active[source], cores[source])
+		}
 	}
-	if got, want := len(plan.Components), o.ComponentCount+len(all); got != want { t.Fatalf("rendered %d components, want %d", got, want) }
+	if got, want := len(plan.Components), o.ComponentCount+len(all); got != want {
+		t.Fatalf("rendered %d components, want %d", got, want)
+	}
 }
 
 func TestConstrainComponentsToActivePowerSourceSpan(t *testing.T) {
@@ -590,7 +628,6 @@ func TestConstrainComponentsToPowerSourceSpanCanBeDisabled(t *testing.T) {
 		t.Fatal("horizontal power-source span constraint should default to disabled")
 	}
 }
-
 
 func TestPowerSourceRowsAreReservedForPowerSources(t *testing.T) {
 	o := DefaultOptions()
@@ -638,25 +675,29 @@ func TestPowerSourceSpanConstrainsAllRoutes(t *testing.T) {
 	o := DefaultOptions()
 	o.ConstrainComponentsToPowerSourceSpan = true
 	top, bottom, err := powerSourcePositions(o)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	plan, err := buildBoard(o, rand.New(rand.NewSource(92)), top, bottom)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	active := make([]powerSource, 0, len(plan.Clusters))
 	for _, cluster := range plan.Clusters {
 		active = append(active, powerSource{Position: cluster.PowerSource})
 	}
 	minimumX, maximumX := math.Inf(1), math.Inf(-1)
 	for _, source := range active {
-		x := hexgrid.GridPositionToPoint(source.Position,o.Width,o.Height,o.Pitch,"pointy").X
+		x := hexgrid.GridPositionToPoint(source.Position, o.Width, o.Height, o.Pitch, "pointy").X
 		minimumX, maximumX = math.Min(minimumX, x), math.Max(maximumX, x)
 	}
-	allowed := routingCellsWithinPowerSourceSpan(routingCellsWithinPowerSourceCorridor(routingCellsWithoutPowerSourceRows(o,top,bottom),top,bottom,o),active,o)
+	allowed := routingCellsWithinPowerSourceSpan(routingCellsWithinPowerSourceCorridor(routingCellsWithoutPowerSourceRows(o, top, bottom), top, bottom, o), active, o)
 	powerAllowed := copyAllowedRoutes(allowed)
 	for _, source := range active {
 		powerAllowed[source.Position] = true
 	}
 	for position := range allowed {
-		x := hexgrid.GridPositionToPoint(position,o.Width,o.Height,o.Pitch,"pointy").X
+		x := hexgrid.GridPositionToPoint(position, o.Width, o.Height, o.Pitch, "pointy").X
 		if x < minimumX-1e-9 || x > maximumX+1e-9 {
 			t.Errorf("route map includes %v outside [%f,%f]", position, minimumX, maximumX)
 		}
@@ -676,11 +717,17 @@ func TestPowerSourceTrapezoidConstrainsLayoutAndRoutes(t *testing.T) {
 	o.ConstrainLayoutToPowerSourceTrapezoid = true
 	o.Seed, o.SeedSet = 473, true
 	top, bottom, err := powerSourcePositions(o)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	bounds, err := newPowerSourceTrapezoid(top, bottom, o)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	plan, err := buildBoard(o, rand.New(rand.NewSource(o.Seed)), top, bottom)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, cluster := range plan.Clusters {
 		for _, component := range cluster.Components {
 			if !bounds.contains(component.Position, o) {
@@ -695,11 +742,11 @@ func TestPowerSourceTrapezoidConstrainsLayoutAndRoutes(t *testing.T) {
 			}
 		}
 	}
-	cells:=hexgrid.GridCells(o.Width,o.Height,o.Pitch,"pointy",math.Max(o.ComponentRadius+o.ComponentStrokeWidth/2,o.ConnectorInset))
-	globalLeft,globalRight:=math.Min(bounds.topLeft,bounds.bottomLeft),math.Max(bounds.topRight,bounds.bottomRight)
-	foundOutsideCorner:=false
-	for _,cell:=range cells {
-		position:=hexgrid.GridPosition{Q:cell.Q,R:cell.R}
+	cells := hexgrid.GridCells(o.Width, o.Height, o.Pitch, "pointy", math.Max(o.ComponentRadius+o.ComponentStrokeWidth/2, o.ConnectorInset))
+	globalLeft, globalRight := math.Min(bounds.topLeft, bounds.bottomLeft), math.Max(bounds.topRight, bounds.bottomRight)
+	foundOutsideCorner := false
+	for _, cell := range cells {
+		position := hexgrid.GridPosition{Q: cell.Q, R: cell.R}
 		if cell.Center.Y > bounds.topY && cell.Center.Y < bounds.bottomY &&
 			cell.Center.X >= globalLeft-1e-9 && cell.Center.X <= globalRight+1e-9 &&
 			!bounds.contains(position, o) {
@@ -711,9 +758,11 @@ func TestPowerSourceTrapezoidConstrainsLayoutAndRoutes(t *testing.T) {
 		t.Fatal("test geometry has no inner rectangular corner cells outside the trapezoid")
 	}
 	filtered := routingCellsWithinPowerSourceTrapezoid(routingCellsWithinPowerSourceCorridor(routingCellsWithoutPowerSourceRows(o, top, bottom), top, bottom, o), bounds, o)
-	for position:=range filtered { if !bounds.contains(position, o) {
+	for position := range filtered {
+		if !bounds.contains(position, o) {
 			t.Errorf("trapezoid route mask includes %v outside bounds", position)
-		} }
+		}
+	}
 }
 
 func TestPowerSourceTrapezoidRequiresBothRows(t *testing.T) {
@@ -865,6 +914,7 @@ func TestPowerRowsCanBeConfiguredIndependently(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			o := DefaultOptions()
+			o.PowerSourceSpacing = PowerSourceSpacingAdjacent
 			o.TopPowerSourceCount = test.top
 			o.BottomPowerSourceCount = test.bottom
 			top, bottom, err := powerSourcePositions(o)
