@@ -18,6 +18,8 @@ const (
 	FallbackEdgeOrderRanked FallbackEdgeOrder = "ranked"
 )
 
+const maxGenerationAttempts = 20
+
 // Options contains the configuration needed to generate the SVG. All dimensions are in inches.
 type Options struct {
 	// Width is the physical width of the SVG canvas, in inches.
@@ -111,6 +113,9 @@ type Options struct {
 	// RouteAttempts is the number of alternative route attempts made for each
 	// direction of a candidate component pair.
 	RouteAttempts int
+	// GenerationAttempts is the number of complete layout attempts. The first
+	// uses Seed; later attempts use reproducible seeds derived from it.
+	GenerationAttempts int
 
 	// Seed is the integer seed used to make layout and routing choices
 	// reproducible when SeedSet is true.
@@ -159,6 +164,7 @@ func DefaultOptions() Options {
 		FallbackEdgeOrder:         FallbackEdgeOrderRandomized, // Preserve the current effective fallback ordering.
 		MaxRouteSteps:             24,
 		RouteAttempts:             12,
+		GenerationAttempts:        4,
 	}
 }
 
@@ -251,6 +257,9 @@ func normalizeOptions(o Options) (Options, error) {
 	}
 	if o.RouteAttempts < 1 {
 		return o, errors.New("route attempts must be at least 1")
+	}
+	if o.GenerationAttempts < 1 || o.GenerationAttempts > maxGenerationAttempts {
+		return o, fmt.Errorf("generation attempts must be between 1 and %d", maxGenerationAttempts)
 	}
 	if strings.TrimSpace(o.Color) == "" {
 		return o, errors.New("stroke color cannot be empty")

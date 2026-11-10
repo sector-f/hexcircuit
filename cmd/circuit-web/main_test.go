@@ -26,7 +26,41 @@ func validGenerateRequest() generateRequest {
 		LabelDistance: o.LabelDistance, LabelInsideComponents: o.LabelInsideComponents,
 		UseDeterministicRouteCost: o.UseDeterministicRouteCost,
 		FallbackEdgeOrder: string(o.FallbackEdgeOrder), MaxRouteSteps: o.MaxRouteSteps,
-		RouteAttempts: o.RouteAttempts, Seed: "42", SeedSet: true,
+		RouteAttempts: o.RouteAttempts, GenerationAttempts: o.GenerationAttempts, Seed: "42", SeedSet: true,
+	}
+}
+
+func TestGenerateRequestMapsGenerationAttempts(t *testing.T) {
+	req := validGenerateRequest()
+	req.GenerationAttempts = 6
+	got, err := req.options()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.GenerationAttempts != 6 {
+		t.Fatalf("generation attempts = %d, want 6", got.GenerationAttempts)
+	}
+}
+
+func TestGenerateRequestDefaultsGenerationAttemptsWhenOmitted(t *testing.T) {
+	req := validGenerateRequest()
+	req.GenerationAttempts = 0
+	got, err := req.options()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.GenerationAttempts != circuit.DefaultOptions().GenerationAttempts {
+		t.Fatalf("generation attempts = %d, want %d", got.GenerationAttempts, circuit.DefaultOptions().GenerationAttempts)
+	}
+}
+
+func TestGenerateRequestRejectsInvalidGenerationAttempts(t *testing.T) {
+	for _, attempts := range []int{-1, 21} {
+		req := validGenerateRequest()
+		req.GenerationAttempts = attempts
+		if _, err := req.options(); err == nil {
+			t.Errorf("generation attempts %d should be rejected", attempts)
+		}
 	}
 }
 

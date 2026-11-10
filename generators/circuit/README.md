@@ -53,7 +53,7 @@ The generator works in the hexagonal lattice first and converts the accepted lay
 
 ### 1. Normalize the options and initialize randomness
 
-`DefaultOptions` provides a complete starting configuration. `Generate` validates the supplied options and adjusts the routing pitch when automatic pitch adjustment is enabled. If `SeedSet` is true, the supplied `Seed` controls random placement, route choices, component details, and labels. Otherwise, the generator selects a fresh seed for the run.
+`DefaultOptions` provides a complete starting configuration. `Generate` validates the supplied options and adjusts the routing pitch when automatic pitch adjustment is enabled. If `SeedSet` is true, the supplied `Seed` controls random placement, route choices, component details, and labels. Otherwise, the generator selects a fresh master seed for the run. When randomized component placement gets trapped after enough candidate cells were found, `GenerationAttempts` retries the complete layout using deterministic seeds derived from that master seed. The default is four total attempts, including the first seed; validation, insufficient candidate capacity, and rendering errors are not retried.
 
 All dimensional options are expressed in inches. The background grid's radius, gap, and outline width are separate from the routing pitch, which is the center-to-center distance between lattice positions.
 
@@ -113,7 +113,7 @@ options.Seed = 42
 options.SeedSet = true
 ```
 
-The same seed, options, and program version produce the same generated composition. Leaving `SeedSet` false asks the generator to choose a new seed for each run. Set `SeedSet` to true even when the intended seed is zero.
+The same seed, options, and program version produce the same generated composition, including the fallback-seed sequence. Leaving `SeedSet` false asks the generator to choose a new master seed for each run. Set `SeedSet` to true even when the intended seed is zero. Set `GenerationAttempts` to `1` to disable seed fallback.
 
 ### Automatic routing pitch
 
@@ -137,7 +137,7 @@ Use `DefaultOptions` and modify only the values that need to change. The primary
 | Connections | `Connections`, `MaxParallel`, `TrackCountWeights`, `ParallelSpacing` | Target bundle count and distribution of bundle sizes. |
 | Trace geometry | `TraceWidth`, `NodeRadius`, `TraceClearance` | Track thickness, terminal pads, and route separation. |
 | Search | `MaxRouteSteps`, `RouteAttempts`, `UseDeterministicRouteCost`, `FallbackEdgeOrder` | Route search bounds and candidate ordering/cost behavior. |
-| Reproducibility | `Seed`, `SeedSet` | Control the random sequence. |
+| Reproducibility | `Seed`, `SeedSet`, `GenerationAttempts` | Control the random sequence and the number of complete-layout seed attempts (default 4, maximum 20). |
 | Labels | `ShowLabels`, `LabelWordList`, `LabelWordListSet`, `LabelFont`, `LabelFontSize`, `LabelProbability`, `FontColor`, `FontColorSpecified`, `LabelDistance`, `LabelInsideComponents` | Enable and customize component labels. |
 
 See [`options.go`](options.go) for field-level documentation and defaults.

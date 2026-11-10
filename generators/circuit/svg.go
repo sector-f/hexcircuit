@@ -2,6 +2,7 @@ package circuit
 
 import (
 	"container/heap"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -229,13 +230,13 @@ func Generate(options Options) (string, int, int, error) {
 		return "", 0, 0, err
 	}
 
-	// A fixed seed makes the same options reproducible. Otherwise choose a fresh seed
-	// for this run; that same seed is also used later for reproducible component details.
-	seed := opts.Seed
+	// A fixed seed makes the same options reproducible. Otherwise choose a fresh master
+	// seed once, then derive every fallback seed from it.
+	masterSeed := opts.Seed
 	if !opts.SeedSet {
-		seed = time.Now().UnixNano()
+		masterSeed = time.Now().UnixNano()
 	}
-	rng := rand.New(rand.NewSource(seed))
+
 	// Work out the angle conventions for the chosen orientation. All routing directions
 	// then use the same six 60-degree increments as the hexagonal lattice.
 	vertexStart := -90.0
@@ -244,18 +245,76 @@ func Generate(options Options) (string, int, int, error) {
 	}
 	baseAngle := degreesToRadians(vertexStart + 30.0)
 
-	// Place the hubs/components and their preferred links first. Additional candidate
-	// links will be generated from this placement in case a preferred route is blocked.
+	return generateWithSeedAttempts(opts.GenerationAttempts, masterSeed, func(seed int64) (string, int, int, error) {
+		return generateAttempt(opts, seed, baseAngle)
+	})
+}
+
+
+// generateWithSeedAttempts retries only failures explicitly marked as dependent
+// on randomized placement. Attempt zero uses the master seed unchanged.
+func generateWithSeedAttempts(
+	attempts int,
+	masterSeed int64,
+	generate func(seed int64) (string, int, int, error),
+) (string, int, int, error) {
+	if attempts < 1 {
+		return "", 0, 0, fmt.Errorf("generation attempts must be at least 1")
+	}
+
+	var lastErr error
+	var lastSeed int64
+	for attempt := 0; attempt < attempts; attempt++ {
+		seed := generationAttemptSeed(masterSeed, attempt)
+		svg, accepted, candidateAttempts, err := generate(seed)
+		if err == nil {
+			return svg, accepted, candidateAttempts, nil
+		}
+		var retryable *retryableGenerationError
+		if !errors.As(err, &retryable) {
+			return "", 0, 0, err
+		}
+		lastErr = err
+		lastSeed = seed
+	}
+
+	return "", 0, 0, fmt.Errorf(
+		"generation failed after %d seed attempts (last seed %d): %w",
+		attempts, lastSeed, lastErr,
+	)
+}
+
+// generationAttemptSeed preserves the master seed for attempt zero and uses a
+// SplitMix64 step to derive well-distributed, reproducible fallback seeds.
+func generationAttemptSeed(masterSeed int64, attempt int) int64 {
+	if attempt <= 0 {
+		return masterSeed
+	}
+	value := uint64(masterSeed) + uint64(attempt)*0x9e3779b97f4a7c15
+	value = (value ^ (value >> 30)) * 0xbf58476d1ce4e5b9
+	value = (value ^ (value >> 27)) * 0x94d049bb133111eb
+	value ^= value >> 31
+	return int64(value)
+}
+
+type retryableGenerationError struct {
+	err error
+}
+
+func (e *retryableGenerationError) Error() string { return e.err.Error() }
+func (e *retryableGenerationError) Unwrap() error { return e.err }
+
+// generateAttempt builds and renders one complete layout from a single RNG seed.
+func generateAttempt(opts Options, seed int64, baseAngle float64) (string, int, int, error) {
+	rng := rand.New(rand.NewSource(seed))
 	components, baseEdges, err := chooseComponents(opts, rng)
 	if err != nil {
 		return "", 0, 0, err
 	}
-	// The router owns the mutable state shared by route attempts, along with the
-	// preferred component links produced during placement.
+
 	rt := newRouter(opts, components, baseEdges, baseAngle, rng)
 	accepted, attempts := rt.route()
 
-	// Geometry generation is complete; now serialize the layered drawing as SVG text.
 	svgText, err := renderSVG(opts, components, accepted, seed)
 	if err != nil {
 		return "", 0, 0, err
@@ -550,7 +609,7 @@ func growClusters(coords, anchors []Coord, componentCount int, rng *rand.Rand) (
 			}
 		}
 		if len(eligible) == 0 {
-			return nil, fmt.Errorf("could not place %d components within the canvas while maintaining the minimum separation; increase the canvas dimensions or reduce the component count", componentCount)
+			return nil, &retryableGenerationError{err: fmt.Errorf("could not place %d components within the canvas while maintaining the minimum separation; increase the canvas dimensions or reduce the component count", componentCount)}
 		}
 
 		clusterOrder := make([]int, clusterCount)

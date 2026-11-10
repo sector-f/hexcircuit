@@ -5,6 +5,16 @@ import (
 	"testing"
 )
 
+func TestParseOptionsAcceptsGenerationAttempts(t *testing.T) {
+	options, err := parseOptions([]string{"--generation-attempts=6"}, os.Stderr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if options.Generator.GenerationAttempts != 6 {
+		t.Fatalf("generation attempts = %d, want 6", options.Generator.GenerationAttempts)
+	}
+}
+
 func TestParseOptionsAcceptsSeparateGridColor(t *testing.T) {
 	options, err := parseOptions([]string{"--color", "#123456", "--grid-color", "#abcdef"}, os.Stderr)
 	if err != nil {

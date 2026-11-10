@@ -65,6 +65,7 @@ type generateRequest struct {
 	FallbackEdgeOrder         string  `json:"fallbackEdgeOrder"`
 	MaxRouteSteps             int     `json:"maxRouteSteps"`
 	RouteAttempts             int     `json:"routeAttempts"`
+	GenerationAttempts        int     `json:"generationAttempts"`
 	Seed                      string  `json:"seed"`
 	SeedSet                   bool    `json:"seedSet"`
 }
@@ -214,6 +215,13 @@ func (r generateRequest) options() (circuit.Options, error) {
 	if r.RouteAttempts < 1 || r.RouteAttempts > 1000 {
 		return circuit.Options{}, fmt.Errorf("route attempts must be between 1 and 1000")
 	}
+	generationAttempts := r.GenerationAttempts
+	if generationAttempts == 0 {
+		generationAttempts = circuit.DefaultOptions().GenerationAttempts
+	}
+	if generationAttempts < 1 || generationAttempts > 20 {
+		return circuit.Options{}, fmt.Errorf("generation attempts must be between 1 and 20")
+	}
 	fallbackEdgeOrder := circuit.FallbackEdgeOrder(r.FallbackEdgeOrder)
 	if fallbackEdgeOrder == "" {
 		fallbackEdgeOrder = circuit.FallbackEdgeOrderRandomized
@@ -274,6 +282,7 @@ func (r generateRequest) options() (circuit.Options, error) {
 		FallbackEdgeOrder:         fallbackEdgeOrder,
 		MaxRouteSteps:             r.MaxRouteSteps,
 		RouteAttempts:             r.RouteAttempts,
+		GenerationAttempts:        generationAttempts,
 		Seed:                      seed,
 		SeedSet:                   r.SeedSet,
 	}, nil

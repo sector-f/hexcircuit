@@ -228,7 +228,9 @@
         <div class="fields">
           <div class="field"><label for="detailProb">Detail probability</label><input id="detailProb" type="number" min="0" max="1" step="0.01" value="0.48" required></div>
           <div class="field"><label for="maxRouteSteps">Max route steps</label><input id="maxRouteSteps" type="number" min="1" max="1000" step="1" value="24" required></div>
-          <div class="field full"><label for="routeAttempts">Route attempts</label><input id="routeAttempts" type="number" min="1" max="1000" step="1" value="12" required></div>
+          <div class="field"><label for="routeAttempts">Route attempts</label><input id="routeAttempts" type="number" min="1" max="1000" step="1" value="12" required></div>
+          <div class="field"><label for="generationAttempts">Generation attempts</label><input id="generationAttempts" type="number" min="1" max="20" step="1" value="4" required></div>
+          <div class="field full"><div class="hint">Complete layout-generation attempts. The first uses the current seed; later attempts use deterministic fallback seeds after randomized placement fails.</div></div>
           <div class="field full check-field"><input id="useDeterministicRouteCost" type="checkbox"><label for="useDeterministicRouteCost">Use deterministic route costs</label></div>
           <div class="field full"><div class="hint">Unchecked (default) preserves the legacy method, which adds random jitter to route costs. Checked uses fixed move and turn costs; randomization still affects exploration order and ties.</div></div>
           <div class="field full"><label for="fallbackEdgeOrder">Fallback edge ordering</label><select id="fallbackEdgeOrder"><option value="randomized" selected>Randomized (current behavior)</option><option value="ranked">Rank by cluster, then distance</option></select><div class="hint">Preferred placement links are always tried first. Randomized shuffles fallback links; ranked favors same-cluster links, then shorter axial distances. Ties remain randomized.</div></div>
@@ -331,6 +333,7 @@
           labelInsideComponents: checked('labelInsideComponents'),
           maxRouteSteps: number('maxRouteSteps'),
           routeAttempts: number('routeAttempts'),
+          generationAttempts: number('generationAttempts'),
           useDeterministicRouteCost: checked('useDeterministicRouteCost'),
           fallbackEdgeOrder: value('fallbackEdgeOrder'),
           seed: seedInput.value.trim(),

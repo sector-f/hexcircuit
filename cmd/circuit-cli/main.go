@@ -94,6 +94,7 @@ func parseOptions(arguments []string, stderr *os.File) (CLIOptions, error) {
 	flags.Float64Var(&opts.Generator.DetailProb, "detail-prob", opts.Generator.DetailProb, "Probability that a sufficiently large component gets inner hexagonal details (0 to 1).")
 	flags.IntVar(&opts.Generator.MaxRouteSteps, "max-route-steps", opts.Generator.MaxRouteSteps, "Maximum number of lattice steps in a route.")
 	flags.IntVar(&opts.Generator.RouteAttempts, "route-attempts", opts.Generator.RouteAttempts, "Routing attempts per candidate connection.")
+	flags.IntVar(&opts.Generator.GenerationAttempts, "generation-attempts", opts.Generator.GenerationAttempts, "Complete layout-generation attempts using deterministic fallback seeds (includes the initial seed).")
 
 	flags.BoolVar(&opts.Generator.ShowLabels, "show-labels", false, "Label components")
 	flags.StringVar(&opts.Generator.LabelFont, "label-font", "monospace", "Specify font used for labels")
