@@ -33,6 +33,7 @@ type generateRequest struct {
 	Width                     float64 `json:"width"`
 	Height                    float64 `json:"height"`
 	Color                     string  `json:"color"`
+	GridColor                 string  `json:"gridColor"`
 	Background                string  `json:"background"`
 	Orientation               string  `json:"orientation"`
 	ComponentCount            int     `json:"componentCount"`
@@ -161,6 +162,10 @@ func (r generateRequest) options() (circuit.Options, error) {
 	if !paintPattern.MatchString(r.Color) {
 		return circuit.Options{}, fmt.Errorf("color must be a hex color or a CSS color name")
 	}
+	gridColor := strings.TrimSpace(r.GridColor)
+	if gridColor != "" && !paintPattern.MatchString(gridColor) {
+		return circuit.Options{}, fmt.Errorf("grid color must be a hex color or a CSS color name")
+	}
 	if r.Background != "none" && r.Background != "transparent" && !paintPattern.MatchString(r.Background) {
 		return circuit.Options{}, fmt.Errorf("background must be none, transparent, a hex color, or a CSS color name")
 	}
@@ -237,6 +242,7 @@ func (r generateRequest) options() (circuit.Options, error) {
 		Width:                     r.Width,
 		Height:                    r.Height,
 		Color:                     r.Color,
+		GridColor:                 gridColor,
 		Background:                r.Background,
 		Orientation:               r.Orientation,
 		ComponentCount:            r.ComponentCount,

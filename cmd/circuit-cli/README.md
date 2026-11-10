@@ -47,6 +47,7 @@ Use a dark background and a blue stroke:
 ./circuit-cli \
   --background '#141314' \
   --color '#396cf8' \
+  --grid-color '#263b70' \
   --seed 42 \
   -o blue-circuit.svg
 ```
@@ -90,7 +91,8 @@ Run `--help` for the exact defaults printed by the executable. The following tab
 | `-W`, `--width` | `10` | Canvas width in inches. |
 | `-H`, `--height` | `8` | Canvas height in inches. |
 | `--background` | `none` | Canvas fill. `none` or `transparent` leaves the background transparent. |
-| `--color` | `#C7834A` | Stroke color for the grid, components, traces, and terminal pads. |
+| `--color` | `#C7834A` | Stroke color for components, traces, and terminal pads. |
+| `--grid-color` | (same as `--color`) | Background hexagon grid color. |
 | `--orientation` | `pointy` | Hexagon orientation: `pointy` or `flat`. |
 
 ### Grid and component layout

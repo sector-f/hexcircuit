@@ -184,6 +184,7 @@
 
         <div class="section-title">Background grid</div>
         <div class="fields">
+          <div class="field"><label for="gridColor">Grid color</label><input id="gridColor" type="color" value="#c7834a"></div>
           <div class="field"><label for="gridRadius">Grid radius (in)</label><input id="gridRadius" type="number" min="0.001" step="0.001" value="0.33255" required></div>
           <div class="field"><label for="gridGap">Grid gap (in)</label><input id="gridGap" type="number" min="0" step="0.001" value="0.04" required></div>
           <div class="field"><label for="gridWidth">Grid line width (in)</label><input id="gridWidth" type="number" min="0" step="0.001" value="0.004" required></div>
@@ -300,6 +301,7 @@
           width: number('width'),
           height: number('height'),
           color: value('color'),
+          gridColor: value('gridColor'),
           background,
           orientation: value('orientation'),
           componentCount: number('componentCount'),

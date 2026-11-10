@@ -72,6 +72,7 @@ func parseOptions(arguments []string, stderr *os.File) (CLIOptions, error) {
 	flags.Float64VarP(&opts.Generator.Width, "width", "W", opts.Generator.Width, "Canvas width in inches.")
 	flags.Float64VarP(&opts.Generator.Height, "height", "H", opts.Generator.Height, "Canvas height in inches.")
 	flags.StringVar(&opts.Generator.Color, "color", opts.Generator.Color, "Stroke color for components and traces.")
+	flags.StringVar(&opts.Generator.GridColor, "grid-color", opts.Generator.GridColor, "Background hexagon grid color; defaults to --color.")
 	flags.StringVar(&opts.Generator.Background, "background", opts.Generator.Background, "Background fill; use 'none' for transparency.")
 	flags.StringVar(&opts.Generator.Orientation, "orientation", opts.Generator.Orientation, "Hexagon orientation: pointy or flat.")
 	flags.IntVar(&opts.Generator.ComponentCount, "component-count", opts.Generator.ComponentCount, "Number of hexagonal components.")
