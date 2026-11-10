@@ -130,11 +130,19 @@ func placeClusters(
 	}
 	candidates := make([]hexgrid.GridPosition, 0, len(allCells))
 	for _, cell := range allCells {
-		if sourceRows[cell.R] { continue }
-		if len(topSources) > 0 && cell.Center.Y < topY+1.6*o.Pitch { continue }
-		if len(bottomSources) > 0 && cell.Center.Y > bottomY-1.6*o.Pitch { continue }
+		if sourceRows[cell.R] {
+			continue
+		}
+		if len(topSources) > 0 && cell.Center.Y < topY+1.6*o.Pitch {
+			continue
+		}
+		if len(bottomSources) > 0 && cell.Center.Y > bottomY-1.6*o.Pitch {
+			continue
+		}
 		position := hexgrid.GridPosition{Q: cell.Q, R: cell.R}
-		if trapezoid != nil && !trapezoid.contains(position, o) { continue }
+		if trapezoid != nil && !trapezoid.contains(position, o) {
+			continue
+		}
 		candidates = append(candidates, position)
 	}
 	sort.Slice(candidates, func(i, j int) bool {
@@ -174,12 +182,18 @@ func placeClusters(
 		if o.ConstrainComponentsToPowerSourceSpan {
 			attemptCandidates = candidatesWithinPowerSourceSpan(attemptCandidates, sources, o)
 			attemptAllowedRoutes = routingCellsWithinPowerSourceSpan(attemptAllowedRoutes, sources, o)
-			if len(attemptCandidates) < o.ComponentCount { constrainedCandidatesFailed = true; continue }
+			if len(attemptCandidates) < o.ComponentCount {
+				constrainedCandidatesFailed = true
+				continue
+			}
 		}
 		if trapezoid != nil {
 			attemptCandidates = candidatesWithinPowerSourceTrapezoid(attemptCandidates, *trapezoid, o)
 			attemptAllowedRoutes = routingCellsWithinPowerSourceTrapezoid(attemptAllowedRoutes, *trapezoid, o)
-			if len(attemptCandidates) < o.ComponentCount { constrainedCandidatesFailed = true; continue }
+			if len(attemptCandidates) < o.ComponentCount {
+				constrainedCandidatesFailed = true
+				continue
+			}
 		}
 		eligible := make(map[hexgrid.GridPosition]bool, len(attemptCandidates))
 		for _, position := range attemptCandidates {
@@ -236,7 +250,9 @@ func placeClusters(
 		})
 		powerCorridors := make(map[hexgrid.GridPosition]bool)
 		powerAllowedRoutes := copyAllowedRoutes(attemptAllowedRoutes)
-		for _, source := range sources { powerAllowedRoutes[source.Position] = true }
+		for _, source := range sources {
+			powerAllowedRoutes[source.Position] = true
+		}
 		routed := true
 		for _, clusterID := range routeOrder {
 			cluster := &centerClusters[clusterID]
@@ -324,34 +340,52 @@ func candidatesWithinPowerSourceSpan(
 
 
 type powerSourceTrapezoid struct {
-	topY, bottomY float64
-	topLeft, topRight float64
+	topY, bottomY           float64
+	topLeft, topRight       float64
 	bottomLeft, bottomRight float64
 }
 
 func newPowerSourceTrapezoid(topSources, bottomSources []hexgrid.GridPosition, o Options) (powerSourceTrapezoid, error) {
-	if len(topSources) == 0 || len(bottomSources) == 0 { return powerSourceTrapezoid{}, fmt.Errorf("power-source trapezoid requires both top and bottom source rows") }
-	tl := hexgrid.GridPositionToPoint(topSources[0], o.Width, o.Height, o.Pitch, "pointy")
-	tr := hexgrid.GridPositionToPoint(topSources[len(topSources)-1], o.Width, o.Height, o.Pitch, "pointy")
-	bl := hexgrid.GridPositionToPoint(bottomSources[0], o.Width, o.Height, o.Pitch, "pointy")
-	br := hexgrid.GridPositionToPoint(bottomSources[len(bottomSources)-1], o.Width, o.Height, o.Pitch, "pointy")
-	if bl.Y <= tl.Y { return powerSourceTrapezoid{}, fmt.Errorf("cannot construct power-source trapezoid: bottom row must be below the top row") }
-	return powerSourceTrapezoid{topY:tl.Y,bottomY:bl.Y,topLeft:tl.X,topRight:tr.X,bottomLeft:bl.X,bottomRight:br.X},nil
+	if len(topSources) == 0 || len(bottomSources) == 0 {
+		return powerSourceTrapezoid{}, fmt.Errorf("power-source trapezoid requires both top and bottom source rows")
+	}
+	topLeft := hexgrid.GridPositionToPoint(topSources[0], o.Width, o.Height, o.Pitch, "pointy")
+	topRight := hexgrid.GridPositionToPoint(topSources[len(topSources)-1], o.Width, o.Height, o.Pitch, "pointy")
+	bottomLeft := hexgrid.GridPositionToPoint(bottomSources[0], o.Width, o.Height, o.Pitch, "pointy")
+	bottomRight := hexgrid.GridPositionToPoint(bottomSources[len(bottomSources)-1], o.Width, o.Height, o.Pitch, "pointy")
+	if bottomLeft.Y <= topLeft.Y {
+		return powerSourceTrapezoid{}, fmt.Errorf("cannot construct power-source trapezoid: bottom row must be below the top row")
+	}
+	return powerSourceTrapezoid{
+		topY: topLeft.Y, bottomY: bottomLeft.Y,
+		topLeft: topLeft.X, topRight: topRight.X,
+		bottomLeft: bottomLeft.X, bottomRight: bottomRight.X,
+	}, nil
 }
 
 func (b powerSourceTrapezoid) contains(position hexgrid.GridPosition, o Options) bool {
 	point := hexgrid.GridPositionToPoint(position, o.Width, o.Height, o.Pitch, "pointy")
 	const epsilon = 1e-9
-	if point.Y < b.topY-epsilon || point.Y > b.bottomY+epsilon { return false }
-	t := (point.Y-b.topY)/(b.bottomY-b.topY)
-	left := b.topLeft+(b.bottomLeft-b.topLeft)*t
-	right := b.topRight+(b.bottomRight-b.topRight)*t
+	if point.Y < b.topY-epsilon || point.Y > b.bottomY+epsilon {
+		return false
+	}
+	t := (point.Y - b.topY) / (b.bottomY - b.topY)
+	left := b.topLeft + (b.bottomLeft-b.topLeft)*t
+	right := b.topRight + (b.bottomRight-b.topRight)*t
 	return point.X >= left-epsilon && point.X <= right+epsilon
 }
 
-func candidatesWithinPowerSourceTrapezoid(candidates []hexgrid.GridPosition, bounds powerSourceTrapezoid, o Options) []hexgrid.GridPosition {
-	filtered := make([]hexgrid.GridPosition,0,len(candidates))
-	for _, candidate := range candidates { if bounds.contains(candidate,o) { filtered=append(filtered,candidate) } }
+func candidatesWithinPowerSourceTrapezoid(
+	candidates []hexgrid.GridPosition,
+	bounds powerSourceTrapezoid,
+	o Options,
+) []hexgrid.GridPosition {
+	filtered := make([]hexgrid.GridPosition, 0, len(candidates))
+	for _, candidate := range candidates {
+		if bounds.contains(candidate, o) {
+			filtered = append(filtered, candidate)
+		}
+	}
 	return filtered
 }
 

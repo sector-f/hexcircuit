@@ -158,7 +158,7 @@ func DefaultOptions() Options {
 		PowerSourceStyle:                     PowerSourceStyleSingle,
 		ConstrainComponentsToPowerSourceSpan:  false,
 		ConstrainLayoutToPowerSourceTrapezoid: false,
-		ConnectorInset:                        0.25,
+		ConnectorInset:                       0.25,
 	}
 }
 
@@ -260,12 +260,16 @@ func normalizeOptions(o Options) (Options, error) {
 		return o, fmt.Errorf("trace bundle does not fit inside power-entry cores; reduce trace spacing, node radius, or maximum parallel tracks")
 	}
 	topSources, bottomSources, err := powerSourcePositions(o)
-	if err != nil { return o, err }
+	if err != nil {
+		return o, err
+	}
 	if o.ConstrainLayoutToPowerSourceTrapezoid {
 		if len(topSources) == 0 || len(bottomSources) == 0 {
 			return o, fmt.Errorf("trapezoid layout constraint requires both top and bottom power-source rows")
 		}
-		if _, err := newPowerSourceTrapezoid(topSources, bottomSources, o); err != nil { return o, err }
+		if _, err := newPowerSourceTrapezoid(topSources, bottomSources, o); err != nil {
+			return o, err
+		}
 	}
 	return o, nil
 }

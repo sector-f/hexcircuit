@@ -311,7 +311,9 @@ func TestSourceStyleControlsBaseLayerComponents(t *testing.T) {
 		o := DefaultOptions()
 		o.PowerSourceStyle = test.style
 		top, bottom, err := powerSourcePositions(o)
-		if err != nil { t.Fatal(err) }
+		if err != nil {
+		t.Fatal(err)
+	}
 		plan, err := buildBoard(o, rand.New(rand.NewSource(41)), top, bottom)
 		if err != nil { t.Fatal(err) }
 		if got, want := len(plan.Components)-o.ComponentCount, len(top)+len(bottom); got != want {
@@ -409,16 +411,24 @@ func TestPowerSourceRowsAreReservedForPowerSources(t *testing.T) {
 	if err != nil { t.Fatal(err) }
 	rows := powerSourceRowIDs(top, bottom)
 	for _, cluster := range plan.Clusters {
-		for _, component := range cluster.Components { if rows[component.Position.R] { t.Errorf("ordinary component %v occupies a power-source row", component.Position) } }
-		for i, position := range cluster.PowerPath { if i > 0 && rows[position.R] { t.Errorf("power route re-enters a power-source row at %v", position) } }
+		for _, component := range cluster.Components { if rows[component.Position.R] {
+				t.Errorf("ordinary component %v occupies a power-source row", component.Position)
+			} }
+		for i, position := range cluster.PowerPath { if i > 0 && rows[position.R] {
+				t.Errorf("power route re-enters a power-source row at %v", position)
+			} }
 	}
 	allowed := routingCellsWithinPowerSourceCorridor(routingCellsWithoutPowerSourceRows(o, top, bottom), top, bottom, o)
 	for position := range allowed {
-		if rows[position.R] { t.Errorf("ordinary route map permits source row cell %v", position) }
+		if rows[position.R] {
+			t.Errorf("ordinary route map permits source row cell %v", position)
+		}
 		y := hexgrid.GridPositionToPoint(position,o.Width,o.Height,o.Pitch,"pointy").Y
 		topY := hexgrid.GridPositionToPoint(top[0],o.Width,o.Height,o.Pitch,"pointy").Y
 		bottomY := hexgrid.GridPositionToPoint(bottom[0],o.Width,o.Height,o.Pitch,"pointy").Y
-		if y<=topY || y>=bottomY { t.Errorf("ordinary route map permits cell %v outside source-row corridor",position) }
+		if y <= topY || y >= bottomY {
+			t.Errorf("ordinary route map permits cell %v outside source-row corridor", position)
+		}
 	}
 }
 
@@ -430,20 +440,32 @@ func TestPowerSourceSpanConstrainsAllRoutes(t *testing.T) {
 	plan, err := buildBoard(o, rand.New(rand.NewSource(92)), top, bottom)
 	if err != nil { t.Fatal(err) }
 	active := make([]powerSource, 0, len(plan.Clusters))
-	for _, cluster := range plan.Clusters { active = append(active, powerSource{Position:cluster.PowerSource}) }
+	for _, cluster := range plan.Clusters {
+		active = append(active, powerSource{Position: cluster.PowerSource})
+	}
 	minimumX, maximumX := math.Inf(1), math.Inf(-1)
 	for _, source := range active {
 		x := hexgrid.GridPositionToPoint(source.Position,o.Width,o.Height,o.Pitch,"pointy").X
-		minimumX, maximumX = math.Min(minimumX,x), math.Max(maximumX,x)
+		minimumX, maximumX = math.Min(minimumX, x), math.Max(maximumX, x)
 	}
 	allowed := routingCellsWithinPowerSourceSpan(routingCellsWithinPowerSourceCorridor(routingCellsWithoutPowerSourceRows(o,top,bottom),top,bottom,o),active,o)
 	powerAllowed := copyAllowedRoutes(allowed)
-	for _, source := range active { powerAllowed[source.Position] = true }
+	for _, source := range active {
+		powerAllowed[source.Position] = true
+	}
 	for position := range allowed {
 		x := hexgrid.GridPositionToPoint(position,o.Width,o.Height,o.Pitch,"pointy").X
-		if x<minimumX-1e-9||x>maximumX+1e-9 { t.Errorf("route map includes %v outside [%f,%f]",position,minimumX,maximumX) }
+		if x < minimumX-1e-9 || x > maximumX+1e-9 {
+			t.Errorf("route map includes %v outside [%f,%f]", position, minimumX, maximumX)
+		}
 	}
-	for _, route := range plan.PowerRoutes { for _, position := range route { if !powerAllowed[position] { t.Errorf("power route uses %v outside constrained route map",position) } } }
+	for _, route := range plan.PowerRoutes {
+		for _, position := range route {
+			if !powerAllowed[position] {
+				t.Errorf("power route uses %v outside constrained route map", position)
+			}
+		}
+	}
 }
 
 func TestPowerSourceTrapezoidConstrainsLayoutAndRoutes(t *testing.T) {
@@ -453,33 +475,56 @@ func TestPowerSourceTrapezoidConstrainsLayoutAndRoutes(t *testing.T) {
 	o.Seed, o.SeedSet = 473, true
 	top, bottom, err := powerSourcePositions(o)
 	if err != nil { t.Fatal(err) }
-	bounds, err := newPowerSourceTrapezoid(top,bottom,o)
+	bounds, err := newPowerSourceTrapezoid(top, bottom, o)
 	if err != nil { t.Fatal(err) }
-	plan, err := buildBoard(o,rand.New(rand.NewSource(o.Seed)),top,bottom)
+	plan, err := buildBoard(o, rand.New(rand.NewSource(o.Seed)), top, bottom)
 	if err != nil { t.Fatal(err) }
 	for _, cluster := range plan.Clusters {
-		for _, component := range cluster.Components { if !bounds.contains(component.Position,o) { t.Errorf("component %v outside trapezoid",component.Position) } }
-		for _, position := range cluster.PowerPath { if !bounds.contains(position,o) { t.Errorf("power route cell %v outside trapezoid",position) } }
+		for _, component := range cluster.Components {
+			if !bounds.contains(component.Position, o) {
+				t.Errorf("component %v outside trapezoid", component.Position)
+			}
+		}
+		for _, position := range cluster.PowerPath {
+			if !bounds.contains(position, o) {
+				t.Errorf("power route cell %v outside trapezoid", position)
+			}
+		}
 	}
 	cells:=hexgrid.GridCells(o.Width,o.Height,o.Pitch,"pointy",math.Max(o.ComponentRadius+o.ComponentStrokeWidth/2,o.ConnectorInset))
 	globalLeft,globalRight:=math.Min(bounds.topLeft,bounds.bottomLeft),math.Max(bounds.topRight,bounds.bottomRight)
 	foundOutsideCorner:=false
 	for _,cell:=range cells {
 		position:=hexgrid.GridPosition{Q:cell.Q,R:cell.R}
-		if cell.Center.Y>bounds.topY&&cell.Center.Y<bounds.bottomY&&cell.Center.X>=globalLeft-1e-9&&cell.Center.X<=globalRight+1e-9&&!bounds.contains(position,o) { foundOutsideCorner=true; break }
+		if cell.Center.Y > bounds.topY && cell.Center.Y < bounds.bottomY &&
+			cell.Center.X >= globalLeft-1e-9 && cell.Center.X <= globalRight+1e-9 &&
+			!bounds.contains(position, o) {
+			foundOutsideCorner = true
+			break
+		}
 	}
-	if !foundOutsideCorner { t.Fatal("test geometry has no inner rectangular corner cells outside the trapezoid") }
-	filtered:=routingCellsWithinPowerSourceTrapezoid(routingCellsWithinPowerSourceCorridor(routingCellsWithoutPowerSourceRows(o,top,bottom),top,bottom,o),bounds,o)
-	for position:=range filtered { if !bounds.contains(position,o) { t.Errorf("trapezoid route mask includes %v outside bounds",position) } }
+	if !foundOutsideCorner {
+		t.Fatal("test geometry has no inner rectangular corner cells outside the trapezoid")
+	}
+	filtered := routingCellsWithinPowerSourceTrapezoid(routingCellsWithinPowerSourceCorridor(routingCellsWithoutPowerSourceRows(o, top, bottom), top, bottom, o), bounds, o)
+	for position:=range filtered { if !bounds.contains(position, o) {
+			t.Errorf("trapezoid route mask includes %v outside bounds", position)
+		} }
 }
 
 func TestPowerSourceTrapezoidRequiresBothRows(t *testing.T) {
-	o:=DefaultOptions(); o.TopPowerSourceCount=0; o.ConstrainLayoutToPowerSourceTrapezoid=true
-	if _,err:=normalizeOptions(o);err==nil { t.Fatal("expected missing top source row to be rejected") }
+	o := DefaultOptions()
+	o.TopPowerSourceCount = 0
+	o.ConstrainLayoutToPowerSourceTrapezoid = true
+	if _, err := normalizeOptions(o); err == nil {
+		t.Fatal("expected missing top source row to be rejected")
+	}
 }
 
 func TestPowerSourceTrapezoidConstraintDefaultsOff(t *testing.T) {
-	if DefaultOptions().ConstrainLayoutToPowerSourceTrapezoid { t.Fatal("trapezoid constraint must default to disabled") }
+	if DefaultOptions().ConstrainLayoutToPowerSourceTrapezoid {
+		t.Fatal("trapezoid constraint must default to disabled")
+	}
 }
 
 func TestAppendSVGLayerNamespacesOverlayIDs(t *testing.T) {

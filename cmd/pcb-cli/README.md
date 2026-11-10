@@ -112,7 +112,7 @@ Selected power-source contacts receive an accent-colored core and a power feed. 
 
 `--component-count` controls the number of ordinary components distributed among clusters. It excludes power-source row contacts. `--cluster-count` determines the number of clusters and therefore the number of active power feeds. `--min-components-per-cluster` sets the minimum number of ordinary components in every cluster; the default of `1` permits singleton clusters.
 
-When `--constrain-components-to-power-source-span` is enabled, every ordinary component must lie horizontally between the leftmost and rightmost active power-source contacts. The option is disabled by default. Narrow source spans may leave insufficient room for the requested component count, in which case generation returns an error rather than placing components outside the requested bounds.
+When `--constrain-components-to-power-source-span` is enabled, every ordinary component and every signal/power route stays horizontally between the leftmost and rightmost active power-source contacts. The option is disabled by default. Narrow source spans may leave insufficient room for the requested component count, in which case generation returns an error rather than placing components outside the requested bounds.
 
 Power-source count flags describe the number of physical contact components on each edge, not the number that will be active. Exactly one position per cluster is selected as active. In `separated` mode, neighboring physical contacts are placed two lattice cells apart. In `adjacent` mode, they occupy neighboring lattice cells.
 
@@ -148,7 +148,8 @@ Run `./pcb-cli --help` for the complete flag list and defaults reported by the p
 | `--component-count` | `38` | Number of ordinary components distributed among clusters, excluding active power contacts. |
 | `--cluster-count` | `6` | Number of clusters and active power feeds. |
 | `--min-components-per-cluster` | `1` | Minimum number of ordinary components in each cluster. |
-| `--constrain-components-to-power-source-span` | `false` | Restrict ordinary components to the horizontal span between the leftmost and rightmost active power contacts. |
+| `--constrain-components-to-power-source-span` | `false` | Restrict components and all routes to the horizontal span between the leftmost and rightmost active power contacts. |
+| `--constrain-layout-to-power-source-trapezoid` | `false` | Restrict components and all routes to the trapezoid connecting the left/right extents of the top and bottom source rows. Requires both rows. |
 | `--pitch` | `0.50` | Center-to-center spacing of neighboring grid positions. |
 | `--component-radius` | `0.26` | Circumradius of full-size component hexagons. |
 | `--component-stroke-width` | `0.012` | Component outline width. |
@@ -204,7 +205,7 @@ The two row counts may individually be zero, but their sum must be at least `clu
 
 **The command rejects the options.** The generator validates dimensions, source-row capacity, cluster minimums, and geometric relationships before rendering. Check the constraints above and run `--help` to verify flag names and defaults.
 
-**Generation cannot fit the components inside the power-source span.** Disable `--constrain-components-to-power-source-span`, increase the width or source-row counts, or reduce the component count/cluster sizes.
+**Generation cannot fit the components inside the power-source span or trapezoid.** Disable the relevant constraint, increase the canvas width or source-row counts, or reduce the component count/cluster sizes. The trapezoid option also requires both power-source rows.
 
 **Fewer additional signal traces appear than requested.** `--connections` is a target, not a guarantee. Routing candidates can be rejected when they cannot satisfy the geometry and collision constraints. Try increasing the canvas size or reducing the connection target.
 

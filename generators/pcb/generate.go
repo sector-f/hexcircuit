@@ -143,12 +143,21 @@ func buildBoard(
 			routingCellsWithoutPowerSourceRows(o, topSources, bottomSources), topSources, bottomSources, o,
 		)
 		activeSources := make([]powerSource, 0, len(clusters))
-		for _, cluster := range clusters { activeSources = append(activeSources, powerSource{Position:cluster.PowerSource, Side:cluster.PowerSide}) }
-		if o.ConstrainComponentsToPowerSourceSpan { signalRoutes = routingCellsWithinPowerSourceSpan(signalRoutes, activeSources, o) }
+		for _, cluster := range clusters {
+			activeSources = append(activeSources, powerSource{
+				Position: cluster.PowerSource,
+				Side:     cluster.PowerSide,
+			})
+		}
+		if o.ConstrainComponentsToPowerSourceSpan {
+			signalRoutes = routingCellsWithinPowerSourceSpan(signalRoutes, activeSources, o)
+		}
 		if o.ConstrainLayoutToPowerSourceTrapezoid {
 			bounds, err := newPowerSourceTrapezoid(topSources,bottomSources,o)
-			if err != nil { return boardPlan{}, err }
-			signalRoutes = routingCellsWithinPowerSourceTrapezoid(signalRoutes,bounds,o)
+			if err != nil {
+				return boardPlan{}, err
+			}
+			signalRoutes = routingCellsWithinPowerSourceTrapezoid(signalRoutes, bounds, o)
 		}
 		extra, err := addExtraSignalConnections(o, rng, clusters, signalRoutes, blocked, reserved)
 		if err != nil {
