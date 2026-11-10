@@ -29,6 +29,6 @@ Use -addr to listen on a different address:
 
 The controls cover the PCB generator options: canvas dimensions and colors, component and cluster counts, component geometry, top/bottom power-source rows, contact spacing and style, the active-source span and power-source trapezoid constraints, routing dimensions, background grid settings, and reproducible seeds.
 
-Generation is debounced while settings change. A request already in progress is cancelled when a newer request starts. The page saves the SVG currently displayed in the preview. A fixed seed keeps the randomized composition reproducible; the Generate new layout button changes that seed when fixed-seed mode is enabled.
+Generation is debounced while settings change. When newer settings trigger generation, the browser aborts the previous fetch and ignores any stale response. The page saves the SVG currently displayed in the preview. A fixed seed keeps the randomized composition reproducible; the Generate new layout button changes that seed when fixed-seed mode is enabled.
 
 The server accepts JSON at POST /api/generate and returns an SVG string. Request bodies are limited to 1 MiB, unknown JSON fields are rejected, and the server applies restrictive browser security headers.

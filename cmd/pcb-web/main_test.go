@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"testing"
 
@@ -94,6 +97,51 @@ func TestGenerateRequestRejectsInvalidOptions(t *testing.T) {
 				t.Fatal("expected invalid request to be rejected")
 			}
 		})
+	}
+}
+
+
+func TestHandleIndexRendersPCBInterface(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	response := httptest.NewRecorder()
+
+	handleIndex(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
+	}
+	if got := response.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
+		t.Fatalf("content type = %q, want HTML", got)
+	}
+	for _, want := range []string{"PCB Layout Generator", "constrain-layout-to-power-source-trapezoid", "powerSourceSpacing", "{{.Seed}}"} {
+		if bytes.Contains(response.Body.Bytes(), []byte(want)) {
+			t.Errorf("rendered HTML still contains template placeholder %q", want)
+		}
+	}
+	if !bytes.Contains(response.Body.Bytes(), []byte("value=\"")) {
+		t.Fatal("rendered HTML does not contain form values")
+	}
+}
+
+func TestHandleGenerateRejectsUnknownJSONFields(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/api/generate", bytes.NewBufferString(`{"unexpected":true}`))
+	response := httptest.NewRecorder()
+
+	handleGenerate(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleGenerateRejectsTrailingJSONValues(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/api/generate", bytes.NewBufferString(`{} {}`))
+	response := httptest.NewRecorder()
+
+	handleGenerate(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusBadRequest)
 	}
 }
 
