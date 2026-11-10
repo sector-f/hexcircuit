@@ -1173,6 +1173,79 @@ func TestGenerateUsesSeparateGridColor(t *testing.T) {
 }
 
 
+func TestDefaultGenerationAttempts(t *testing.T) {
+	if got := DefaultOptions().GenerationAttempts; got != 4 {
+		t.Fatalf("default generation attempts = %d, want 4", got)
+	}
+}
+
+func TestNormalizeOptionsRejectsInvalidGenerationAttempts(t *testing.T) {
+	for _, attempts := range []int{0, -1, maxGenerationAttempts + 1} {
+		o := DefaultOptions()
+		o.GenerationAttempts = attempts
+		if _, err := normalizeOptions(o); err == nil {
+			t.Errorf("generation attempts %d should be rejected", attempts)
+		}
+	}
+}
+
+func TestBuildBoardWithSeedAttemptsRetriesOnlyRetryableFailures(t *testing.T) {
+	var seen []int64
+	wantPlan := boardPlan{Components: []hexgrid.GridComponent{{Position: hexgrid.GridPosition{Q: 3, R: 2}}}}
+	got, err := buildBoardWithSeedAttempts(3, 42, func(seed int64) (boardPlan, error) {
+		seen = append(seen, seed)
+		if len(seen) < 3 {
+			return boardPlan{}, &retryableGenerationError{err: fmt.Errorf("placement exhausted")}
+		}
+		return wantPlan, nil
+	})
+	if err != nil {
+		t.Fatalf("expected a later seed to succeed: %v", err)
+	}
+	if !reflect.DeepEqual(got, wantPlan) {
+		t.Fatalf("returned board plan = %#v, want %#v", got, wantPlan)
+	}
+	wantSeeds := []int64{42, generationAttemptSeed(42, 1), generationAttemptSeed(42, 2)}
+	if !reflect.DeepEqual(seen, wantSeeds) {
+		t.Fatalf("attempt seeds = %v, want %v", seen, wantSeeds)
+	}
+	if seen[0] != 42 {
+		t.Fatalf("first attempt seed = %d, want the supplied seed 42", seen[0])
+	}
+}
+
+func TestBuildBoardWithSeedAttemptsDoNotRetryPermanentErrors(t *testing.T) {
+	calls := 0
+	permanentErr := fmt.Errorf("invalid board geometry")
+	_, err := buildBoardWithSeedAttempts(4, 17, func(seed int64) (boardPlan, error) {
+		calls++
+		return boardPlan{}, permanentErr
+	})
+	if err != permanentErr {
+		t.Fatalf("returned error = %v, want original error %v", err, permanentErr)
+	}
+	if calls != 1 {
+		t.Fatalf("build callback called %d times for a permanent error, want once", calls)
+	}
+}
+
+func TestBuildBoardWithSeedAttemptsReportsExhaustion(t *testing.T) {
+	calls := 0
+	_, err := buildBoardWithSeedAttempts(2, 17, func(seed int64) (boardPlan, error) {
+		calls++
+		return boardPlan{}, &retryableGenerationError{err: fmt.Errorf("placement exhausted")}
+	})
+	if err == nil {
+		t.Fatal("expected an error after all seed attempts failed")
+	}
+	if calls != 2 {
+		t.Fatalf("build callback called %d times, want 2", calls)
+	}
+	if !strings.Contains(err.Error(), "generation failed after 2 seed attempts") {
+		t.Fatalf("exhaustion error does not report attempt count: %v", err)
+	}
+}
+
 func TestDefaultRouteAttempts(t *testing.T) {
 	if got := DefaultOptions().RouteAttempts; got != 12 { t.Fatalf("default route attempts = %d, want 12", got) }
 }

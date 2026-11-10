@@ -20,6 +20,7 @@ func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 		"--constrain-layout-to-power-source-trapezoid",
 		"--inter-cluster-traces",
 		"--route-attempts=7",
+		"--generation-attempts=6",
 		"--grid-color=#abcdef",
 		"--seed=42",
 	}, io.Discard)
@@ -54,6 +55,7 @@ func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 		t.Error("inter-cluster traces were not enabled")
 	}
 	if opts.Generator.RouteAttempts != 7 { t.Errorf("route attempts = %d, want 7", opts.Generator.RouteAttempts) }
+	if opts.Generator.GenerationAttempts != 6 { t.Errorf("generation attempts = %d, want 6", opts.Generator.GenerationAttempts) }
 	if !opts.Generator.SeedSet || opts.Generator.Seed != 42 {
 		t.Errorf("seed state = (%d, %v), want (42, true)", opts.Generator.Seed, opts.Generator.SeedSet)
 	}

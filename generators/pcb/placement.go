@@ -333,9 +333,9 @@ func placeClusters(
 		return placements, clusters, nil
 	}
 	if constrainedCandidatesFailed {
-		return nil, nil, fmt.Errorf("could not place %d components within the horizontal span of the active power sources; increase the source-row width or disable ConstrainComponentsToPowerSourceSpan", o.ComponentCount)
+		return nil, nil, &retryableGenerationError{err: fmt.Errorf("could not place %d components within the horizontal span of the active power sources; increase the source-row width or disable ConstrainComponentsToPowerSourceSpan", o.ComponentCount)}
 	}
-	return nil, nil, fmt.Errorf("could not place %d components in %d separated clusters with non-crossing power feeds; reduce component density or cluster size, or increase the canvas dimensions", o.ComponentCount, o.ClusterCount)
+	return nil, nil, &retryableGenerationError{err: fmt.Errorf("could not place %d components in %d separated clusters with non-crossing power feeds; reduce component density or cluster size, or increase the canvas dimensions", o.ComponentCount, o.ClusterCount)}
 }
 
 // routePowerFeeds retries the complete feed set with fresh reservations. Changing

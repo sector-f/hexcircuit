@@ -121,7 +121,7 @@ Power-source count flags describe the number of physical contact components on e
 
 The base color is used for ordinary components, all source-contact outlines (including unused contacts), and signal traces. The optional background grid uses the grid color, which defaults to the base color unless --grid-color is set. The accent color is used for power feeds and their connected power-entry cores at source contacts and selected destination components, plus optional inter-cluster traces. The background hexagonal field is disabled by default; enable it with `--show-background-grid`.
 
-The generator uses randomized placement and routing. Without `--seed`, each run selects a fresh seed. Supplying an integer seed makes the output reproducible for the same generator version and options:
+The generator uses randomized placement and routing. It first makes up to `--route-attempts` complete mandatory power-feed routing passes for each placement, and it tries up to `--generation-attempts` complete board generations if randomized placement/routing is exhausted. The latter defaults to 4 total attempts, including the original seed. Fallback seeds are derived deterministically from the first seed, so supplying an integer `--seed` keeps the entire retry sequence reproducible for the same generator version and options. Static validation and geometry errors are not retried. Without `--seed`, each run selects a fresh master seed.
 
 ```sh
 ./pcb-cli --seed 1234 --output repeatable.svg
@@ -174,8 +174,9 @@ The inner and middle scales must satisfy `0 < inner < middle < 1`. The pitch mus
 | `--trace-spacing` | `0.032` | Perpendicular centerline spacing between parallel traces. |
 | `--node-radius` | `0.014` | Radius of hollow terminal pads. |
 | `--route-attempts` | `12` | Complete randomized power-feed routing passes per component placement. |
+| `--generation-attempts` | `4` | Complete board-generation attempts using deterministic fallback seeds; includes the initial seed and accepts values from 1 to 20. |
 
-The requested connection count is a target; the generator's routing constraints may prevent every candidate connection from being placed. The connection count must be nonnegative. `--route-attempts` controls the number of complete randomized passes over mandatory power feeds for each placement.
+The requested connection count is a target; the generator's routing constraints may prevent every candidate connection from being placed. The connection count must be nonnegative. `--route-attempts` controls complete randomized passes over mandatory power feeds for one placement. `--generation-attempts` controls how many different deterministic seeds may be tried for the entire board when placement/routing exhausts its internal search; `1` disables seed fallback.
 
 ### Background grid
 

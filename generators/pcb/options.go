@@ -11,6 +11,7 @@ const (
 	defaultWidth                  = 10.0
 	defaultHeight                 = 8.0
 	defaultBottomPowerSourceCount = 10
+	maxGenerationAttempts         = 20
 	powerCoreRadiusScale          = 0.36
 )
 
@@ -77,6 +78,9 @@ type Options struct {
 	MaxParallel int
 	// RouteAttempts is the number of randomized passes over all power feeds per placement.
 	RouteAttempts int
+	// GenerationAttempts is the number of complete board-generation attempts. The first
+	// uses the configured seed; later attempts use seeds deterministically derived from it.
+	GenerationAttempts int
 
 	// Pitch is the center-to-center spacing of neighboring axial grid positions.
 	Pitch float64
@@ -155,6 +159,7 @@ func DefaultOptions() Options {
 		InterClusterTraces:                   false,
 		MaxParallel:                          3,
 		RouteAttempts:                        12,
+		GenerationAttempts:                   4,
 		Pitch:                                0.50,
 		ComponentRadius:                      0.26,
 		ComponentStrokeWidth:                 0.012,
@@ -262,6 +267,9 @@ func normalizeOptions(o Options) (Options, error) {
 	}
 	if o.RouteAttempts < 1 {
 		return o, fmt.Errorf("route attempts must be at least 1")
+	}
+	if o.GenerationAttempts < 1 || o.GenerationAttempts > maxGenerationAttempts {
+		return o, fmt.Errorf("generation attempts must be between 1 and %d", maxGenerationAttempts)
 	}
 	if o.TopPowerSourceCount < 0 || o.BottomPowerSourceCount < 0 {
 		return o, fmt.Errorf("top and bottom power-source counts cannot be negative")

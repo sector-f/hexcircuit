@@ -1,6 +1,7 @@
 package pcb
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -56,13 +57,14 @@ func Generate(options Options) (string, int, int, error) {
 	if !o.SeedSet {
 		seed = time.Now().UnixNano()
 	}
-	rng := rand.New(rand.NewSource(seed))
-
 	topSources, bottomSources, err := powerSourcePositions(o)
 	if err != nil {
 		return "", 0, 0, err
 	}
-	plan, err := buildBoard(o, rng, topSources, bottomSources)
+	plan, err := buildBoardWithSeedAttempts(o.GenerationAttempts, seed, func(attemptSeed int64) (boardPlan, error) {
+		rng := rand.New(rand.NewSource(attemptSeed))
+		return buildBoard(o, rng, topSources, bottomSources)
+	})
 	if err != nil {
 		return "", 0, 0, err
 	}
@@ -71,6 +73,66 @@ func Generate(options Options) (string, int, int, error) {
 		return "", 0, 0, fmt.Errorf("render PCB: %w", err)
 	}
 	return svg, len(plan.Components), len(plan.SignalTraces) + len(plan.PowerTraces) + len(plan.InterClusterTraces), nil
+}
+
+
+// buildBoardWithSeedAttempts retries only failures caused by exhausted randomized
+// placement and mandatory power routing. The first attempt always uses masterSeed;
+// fallback seeds are derived deterministically so explicit-seed runs stay reproducible.
+func buildBoardWithSeedAttempts(
+	attempts int,
+	masterSeed int64,
+	build func(seed int64) (boardPlan, error),
+) (boardPlan, error) {
+	if attempts < 1 {
+		return boardPlan{}, fmt.Errorf("generation attempts must be at least 1")
+	}
+
+	var lastErr error
+	var lastSeed int64
+	for attempt := 0; attempt < attempts; attempt++ {
+		seed := generationAttemptSeed(masterSeed, attempt)
+		plan, err := build(seed)
+		if err == nil {
+			return plan, nil
+		}
+		var retryable *retryableGenerationError
+		if !errors.As(err, &retryable) {
+			return boardPlan{}, err
+		}
+		lastErr = err
+		lastSeed = seed
+	}
+
+	return boardPlan{}, fmt.Errorf(
+		"generation failed after %d seed attempts (last seed %d): %w",
+		attempts, lastSeed, lastErr,
+	)
+}
+
+// generationAttemptSeed preserves the master seed for attempt zero and uses a
+// SplitMix64 step to derive well-distributed, reproducible fallback seeds.
+func generationAttemptSeed(masterSeed int64, attempt int) int64 {
+	if attempt <= 0 {
+		return masterSeed
+	}
+	value := uint64(masterSeed) + uint64(attempt)*0x9e3779b97f4a7c15
+	value = (value ^ (value >> 30)) * 0xbf58476d1ce4e5b9
+	value = (value ^ (value >> 27)) * 0x94d049bb133111eb
+	value ^= value >> 31
+	return int64(value)
+}
+
+type retryableGenerationError struct {
+	err error
+}
+
+func (e *retryableGenerationError) Error() string {
+	return e.err.Error()
+}
+
+func (e *retryableGenerationError) Unwrap() error {
+	return e.err
 }
 
 func buildBoard(
