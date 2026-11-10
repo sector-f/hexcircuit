@@ -1317,7 +1317,6 @@ func renderSVG(
 		labelFontFamily = loadedFont.Family
 	}
 	scene.LabelFontFamily = labelFontFamily
-	scene.LabelColor = componentLabelFontColor(o)
 	scene.LabelFontSize = o.LabelFontSize
 	assignComponentDetails(o, components, &scene, seed)
 	return hexgrid.Render(scene), nil
@@ -1373,12 +1372,11 @@ func gridSceneForRender(
 	gridOptions.Height = o.Height
 	gridOptions.Orientation = o.Orientation
 	gridOptions.Color = o.Color
-	gridOptions.GridColor = o.GridColor
 	gridOptions.Background = o.Background
 	gridOptions.Grid = hexgrid.Grid{
 		Pitch: o.RoutingPitch, Radius: o.GridRadius,
-		StrokeWidth: o.GridWidth, OmitPartial: o.OmitPartialGridHexagons,
-	}
+		StrokeWidth: o.GridWidth, Color: o.GridColor, OmitPartial: o.OmitPartialGridHexagons,
+}
 	gridOptions.ComponentRadius = o.ComponentRadius
 	gridOptions.ComponentStrokeWidth = o.StrokeWidth
 	gridOptions.TraceStrokeWidth = o.TraceWidth

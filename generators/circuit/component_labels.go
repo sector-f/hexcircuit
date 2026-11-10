@@ -244,6 +244,7 @@ func placeComponentLabels(
 					Gap:            o.LabelDistance,
 					Padding:        labelTextPadding,
 					ObjectGap:      labelObjectGap,
+					Color:          componentLabelFontColor(o),
 				})
 				if err != nil {
 					continue
@@ -276,6 +277,7 @@ func placeComponentLabels(
 					Gap:            o.LabelDistance,
 					Padding:        labelTextPadding,
 					ObjectGap:      labelObjectGap,
+					Color:          componentLabelFontColor(o),
 				})
 				if err != nil {
 					continue

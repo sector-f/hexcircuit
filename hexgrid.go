@@ -55,6 +55,7 @@ type Grid struct {
 	Pitch       float64
 	Radius      float64
 	StrokeWidth float64
+	Color       string
 	OmitPartial bool
 }
 
@@ -79,6 +80,7 @@ type Component struct {
 	Index  int
 	X, Y   float64
 	Radius float64
+	Color  string
 	Detail ComponentDetail
 	Style  ComponentStyle
 }
@@ -89,6 +91,7 @@ type Component struct {
 // high-level grid trace to terminate exactly at a component boundary without a pad.
 type Trace struct {
 	Points       []Point
+	Color        string
 	HideTerminal bool
 }
 
@@ -96,6 +99,7 @@ type Trace struct {
 type Terminal struct {
 	X, Y   float64
 	Radius float64
+	Color  string
 }
 
 // Label is an already placed label. X and Y are the text origin and baseline; Bounds
@@ -107,17 +111,17 @@ type Label struct {
 	Anchor         string
 	Bounds         Rect
 	Inside         bool
+	Color          string
 }
 
 // Scene describes both the geometry to draw and its visual styling. Coordinates and
-// dimensions use inches. Empty GridColor and LabelColor values fall back to Color. The
-// renderer preserves the established layer order: grid, traces, components, labels,
-// then terminal pads.
+// dimensions use inches. Scene.Color is the fallback for the grid, components, traces,
+// terminals, and labels when an element-specific color is empty. The renderer preserves
+// the established layer order: grid, traces, components, labels, then terminal pads.
 type Scene struct {
 	Width, Height float64
 	Orientation   string
 	Color         string
-	GridColor     string
 	Background    string
 
 	Grid       Grid
@@ -132,7 +136,6 @@ type Scene struct {
 	TraceStrokeWidth            float64
 	NodeRadius                  float64
 
-	LabelColor      string
 	LabelFontFamily string
 	LabelFontSize   float64
 }
@@ -149,6 +152,7 @@ type LabelRequest struct {
 	Gap            float64
 	Padding        float64
 	ObjectGap      float64
+	Color          string
 }
 
 // TryPlaceLabel calculates and validates one label placement. It returns an error when
@@ -204,6 +208,7 @@ func TryPlaceLabel(scene Scene, request LabelRequest) (Label, error) {
 		Anchor:         "start",
 		Bounds:         bounds,
 		Inside:         request.Inside,
+		Color:          request.Color,
 	}
 	if err := labelFits(scene, owner, label, request); err != nil {
 		return Label{}, fmt.Errorf("label %q does not fit: %w", request.Text, err)
@@ -329,10 +334,10 @@ func Render(scene Scene) string {
 	}
 
 	// Layer 1: continue grid hexagons beyond the canvas edge unless configured otherwise.
-	gridColor := strings.TrimSpace(scene.GridColor)
+	gridColor := strings.TrimSpace(scene.Grid.Color)
 	if gridColor == "" {
 		gridColor = scene.Color
-	}
+}
 	canvas.Group(
 		`id="background-grid"`,
 		`fill="none"`,
@@ -362,11 +367,18 @@ func Render(scene Scene) string {
 		`stroke-linejoin="round"`,
 	)
 	for _, trace := range scene.Traces {
+		color := strings.TrimSpace(trace.Color)
+		if color != "" && color != scene.Color {
+			canvas.Group(fmt.Sprintf(`stroke="%s"`, html.EscapeString(color)))
+		}
 		points := trace.Points
 		if !trace.HideTerminal {
 			points = TrimEndpoint(points, scene.NodeRadius)
 		}
 		drawPolyline(canvas, points, "")
+		if color != "" && color != scene.Color {
+			canvas.Gend()
+		}
 	}
 	canvas.Gend()
 
@@ -379,30 +391,40 @@ func Render(scene Scene) string {
 		`stroke-linejoin="round"`,
 	)
 	for _, component := range scene.Components {
+		color := strings.TrimSpace(component.Color)
+		if color != "" && color != scene.Color {
+			canvas.Group(fmt.Sprintf(`stroke="%s"`, html.EscapeString(color)))
+		}
 		drawPolygon(canvas, HexVertices(component.X, component.Y, component.Radius, scene.Orientation), "")
 		innerScales := componentInnerScales(scene, component)
 		for _, scale := range innerScales {
 			inner := HexVertices(component.X, component.Y, component.Radius*scale, scene.Orientation)
 			drawPolygon(canvas, inner, fmt.Sprintf("stroke-width:%d", userUnits(scene.ComponentStrokeWidth*innerDetailStrokeScale)))
 		}
+		if color != "" && color != scene.Color {
+			canvas.Gend()
+		}
 	}
 	canvas.Gend()
 
-	labelColor := scene.LabelColor
-	if labelColor == "" {
-		labelColor = scene.Color
-	}
 	canvas.Group(
 		`id="component-labels"`,
-		fmt.Sprintf(`fill="%s"`, html.EscapeString(labelColor)),
+		fmt.Sprintf(`fill="%s"`, html.EscapeString(scene.Color)),
 		`stroke="none"`,
 	)
 	for _, label := range scene.Labels {
+		color := strings.TrimSpace(label.Color)
+		if color != "" && color != scene.Color {
+			canvas.Group(fmt.Sprintf(`fill="%s"`, html.EscapeString(color)))
+		}
 		style := fmt.Sprintf(
 			"font-family:%s;font-size:%spt;font-kerning:normal;font-variant-ligatures:none;text-anchor:%s",
 			cssFontFamily(scene.LabelFontFamily), formatFloat(scene.LabelFontSize), label.Anchor,
 		)
 		canvas.Text(userUnits(label.X), userUnits(label.Y), html.EscapeString(label.Text), html.EscapeString(style))
+		if color != "" && color != scene.Color {
+			canvas.Gend()
+		}
 	}
 	canvas.Gend()
 
@@ -414,11 +436,18 @@ func Render(scene Scene) string {
 		fmt.Sprintf(`stroke-width="%d"`, userUnits(scene.TraceStrokeWidth)),
 	)
 	for _, terminal := range scene.Terminals {
+		color := strings.TrimSpace(terminal.Color)
+		if color != "" && color != scene.Color {
+			canvas.Group(fmt.Sprintf(`stroke="%s"`, html.EscapeString(color)))
+		}
 		canvas.Circle(userUnits(terminal.X), userUnits(terminal.Y), userUnits(terminal.Radius))
+		if color != "" && color != scene.Color {
+			canvas.Gend()
+		}
 	}
 	canvas.Gend()
 
-	canvas.End()
+		canvas.End()
 	return out.String()
 }
 

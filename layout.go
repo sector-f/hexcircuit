@@ -44,6 +44,7 @@ type GridComponent struct {
 	Position    GridPosition
 	Style       ComponentStyle
 	RadiusScale float64
+	Color       string
 }
 
 // GridTrace describes a bundle that starts at a component and follows a sequence
@@ -53,10 +54,12 @@ type GridComponent struct {
 // HideTerminal requires the final position to contain a component and clips each
 // track at that component's outer boundary instead of drawing a terminal circle.
 type GridTrace struct {
-	Start        GridPosition
-	Path         []GridPosition
-	Lines        int
-	HideTerminal bool
+	Start         GridPosition
+	Path          []GridPosition
+	Lines         int
+	HideTerminal  bool
+	Color         string
+	TerminalColor string
 }
 
 // Options contains the physical dimensions and styling used to turn a grid layout
@@ -67,7 +70,6 @@ type Options struct {
 	Width, Height float64
 	Orientation   string
 	Color         string
-	GridColor     string
 	Background    string
 
 	Grid Grid
@@ -127,7 +129,6 @@ func BuildScene(layout GridScene) (Scene, error) {
 		Height:                      o.Height,
 		Orientation:                 o.Orientation,
 		Color:                       o.Color,
-		GridColor:                   o.GridColor,
 		Background:                  o.Background,
 		Grid:                        o.Grid,
 		ComponentStrokeWidth:        o.ComponentStrokeWidth,
@@ -159,6 +160,7 @@ func BuildScene(layout GridScene) (Scene, error) {
 			X:      center.X,
 			Y:      center.Y,
 			Radius: o.ComponentRadius * radiusScale,
+			Color:  component.Color,
 			Style:  component.Style,
 		}
 		componentsByPosition[component.Position] = rendered
@@ -236,12 +238,17 @@ func BuildScene(layout GridScene) (Scene, error) {
 			}
 
 			endpoint := track[len(track)-1]
-			visual.Traces = append(visual.Traces, Trace{Points: track, HideTerminal: trace.HideTerminal})
+			visual.Traces = append(visual.Traces, Trace{Points: track, Color: trace.Color, HideTerminal: trace.HideTerminal})
 			if !trace.HideTerminal {
+				terminalColor := trace.TerminalColor
+				if terminalColor == "" {
+					terminalColor = trace.Color
+				}
 				visual.Terminals = append(visual.Terminals, Terminal{
 					X:      endpoint.X,
 					Y:      endpoint.Y,
 					Radius: o.NodeRadius,
+					Color:  terminalColor,
 				})
 			}
 		}

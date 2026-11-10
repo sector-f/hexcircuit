@@ -15,8 +15,8 @@ func TestGridSceneForRenderPassesGridColor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if layout.Options.GridColor != options.GridColor {
-		t.Fatalf("grid color = %q, want %q", layout.Options.GridColor, options.GridColor)
+	if layout.Options.Grid.Color != options.GridColor {
+		t.Fatalf("grid color = %q, want %q", layout.Options.Grid.Color, options.GridColor)
 	}
 
 	svg, err := hexgrid.RenderGrid(layout)
@@ -29,6 +29,6 @@ func TestGridSceneForRenderPassesGridColor(t *testing.T) {
 		t.Fatal("could not locate background grid layer in SVG")
 	}
 	if !strings.Contains(svg[gridStart:tracesStart], `stroke="#abcdef"`) {
-		t.Fatal("circuit background grid does not use GridColor")
+		t.Fatal("circuit background grid does not use Grid.Color")
 	}
 }

@@ -328,17 +328,18 @@ func TestLegacyComponentDetailKeepsOriginalInnerHexagons(t *testing.T) {
 }
 
 
+
 func TestGridColorOverridesOnlyBackgroundGrid(t *testing.T) {
 	options := DefaultOptions()
 	options.Color = "#123456"
-	options.GridColor = "#abcdef"
+	options.Grid.Color = "#abcdef"
 
 	scene, err := BuildScene(GridScene{Options: options})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if scene.GridColor != options.GridColor {
-		t.Fatalf("built scene grid color = %q, want %q", scene.GridColor, options.GridColor)
+	if scene.Grid.Color != options.Grid.Color {
+		t.Fatalf("built scene grid color = %q, want %q", scene.Grid.Color, options.Grid.Color)
 	}
 
 	svg := Render(scene)
@@ -348,10 +349,10 @@ func TestGridColorOverridesOnlyBackgroundGrid(t *testing.T) {
 		t.Fatalf("could not locate grid and component layers in SVG: %s", svg)
 	}
 	if !strings.Contains(svg[gridStart:componentsStart], `stroke="#abcdef"`) {
-		t.Fatal("background grid does not use GridColor")
+		t.Fatal("background grid does not use Grid.Color")
 	}
 	if !strings.Contains(svg[componentsStart:], `stroke="#123456"`) {
-		t.Fatal("components do not retain Color")
+		t.Fatal("components do not retain Scene.Color")
 	}
 }
 
@@ -368,5 +369,66 @@ func TestGridColorFallsBackToSceneColor(t *testing.T) {
 	}
 	if !strings.Contains(svg[gridStart:tracesStart], `stroke="#123456"`) {
 		t.Fatal("background grid did not fall back to Scene.Color")
+	}
+}
+
+func TestGridScenePropagatesElementColors(t *testing.T) {
+	options := DefaultOptions()
+	options.Color = "#111111"
+	options.Grid.Color = "#222222"
+	layout := GridScene{
+		Options: options,
+		Components: []GridComponent{
+			{Position: GridPosition{Q: 0, R: 0}, Style: ComponentStyleSingle, Color: "#333333"},
+			{Position: GridPosition{Q: 0, R: 2}, Style: ComponentStyleSingle},
+		},
+		Traces: []GridTrace{{
+			Start:         GridPosition{Q: 0, R: 0},
+			Path:          []GridPosition{{Q: 0, R: 2}},
+			Lines:         1,
+			Color:         "#444444",
+			TerminalColor: "#555555",
+		}},
+	}
+
+	scene, err := BuildScene(layout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scene.Components[0].Color != "#333333" || scene.Components[1].Color != "" {
+		t.Fatalf("component colors = %q, %q", scene.Components[0].Color, scene.Components[1].Color)
+	}
+	if len(scene.Traces) != 1 || scene.Traces[0].Color != "#444444" {
+		t.Fatalf("trace color = %#v, want #444444", scene.Traces)
+	}
+	if len(scene.Terminals) != 1 || scene.Terminals[0].Color != "#555555" {
+		t.Fatalf("terminal color = %#v, want #555555", scene.Terminals)
+	}
+	if scene.Grid.Color != "#222222" {
+		t.Fatalf("grid color = %q, want #222222", scene.Grid.Color)
+	}
+}
+
+func TestRenderUsesPerElementColors(t *testing.T) {
+	scene := Scene{
+		Width: 2, Height: 2, Color: "#111111",
+		Grid: Grid{Pitch: 0.5, Radius: 0.2, StrokeWidth: 0.01, Color: "#222222"},
+		Components: []Component{{X: 0.5, Y: 0.5, Radius: 0.2, Color: "#333333"}},
+		Traces: []Trace{{Points: []Point{{X: 0.5, Y: 0.5}, {X: 1.5, Y: 0.5}}, Color: "#444444"}},
+		Terminals: []Terminal{{X: 1.5, Y: 0.5, Radius: 0.05, Color: "#555555"}},
+		Labels: []Label{{Text: "label", X: 0.5, Y: 1.5, Anchor: "start", Color: "#666666"}},
+		LabelFontFamily: "monospace",
+	}
+	svg := Render(scene)
+	for _, want := range []string{
+		`stroke="#222222"`, `stroke="#333333"`, `stroke="#444444"`,
+		`stroke="#555555"`, `fill="#666666"`,
+	} {
+		if !strings.Contains(svg, want) {
+			t.Errorf("rendered SVG does not contain element color %s", want)
+		}
+	}
+	if !strings.Contains(svg, `stroke="#111111"`) {
+		t.Fatal("Scene.Color fallback was not retained for the default drawing groups")
 	}
 }

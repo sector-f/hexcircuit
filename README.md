@@ -31,6 +31,7 @@ The `hexgrid.Grid` type describes this lattice:
 | `Pitch` | Center-to-center distance between neighboring cells, in inches. |
 | `Radius` | Distance from a hexagon's center to one of its vertices, in inches. |
 | `StrokeWidth` | Width of the background hexagon outlines, in inches. |
+| `Color` | Background grid color; an empty value falls back to `Scene.Color`. |
 | `OmitPartial` | When true, omit background hexagons whose stroked outlines would extend beyond the canvas. |
 
 Grid pitch and hexagon radius are independent. The pitch determines the spacing of the coordinate lattice; the radius determines the size of the visible background hexagons. The radius, pitch, and stroke width should be chosen so neighboring outlines do not overlap unless that appearance is intentional.
@@ -115,7 +116,7 @@ For a manually authored composition, use `GridScene` and `RenderGrid`:
 
 `BuildScene` converts a `GridScene` into the renderer's lower-level `Scene` representation. That lower-level API uses explicit inch-based coordinates (`Point` values) instead of axial coordinates. `Render` serializes a `Scene` to SVG. This is useful when an application needs to construct geometry directly rather than using the grid-based layout API.
 
-The renderer draws the supplied geometry; it does not rearrange objects or prevent overlaps. The normal layer order is background fill, background grid, traces, components, labels, and terminal pads. `Scene.GridColor` controls the background grid independently of `Scene.Color`; an empty grid color falls back to `Color`. The same setting is available through `hexgrid.Options` for grid-based scenes.
+The renderer draws the supplied geometry; it does not rearrange objects or prevent overlaps. The normal layer order is background fill, background grid, traces, components, labels, and terminal pads. `Scene.Color` is the fallback color for each element. `Grid.Color`, `Component.Color`, `Trace.Color`, `Terminal.Color`, and `Label.Color` override it independently when set. In `GridScene`, `GridComponent.Color` and `GridTrace.Color` map to their corresponding scene elements; `GridTrace.TerminalColor` optionally overrides the generated terminal-pad color, which otherwise inherits the trace color.
 
 ## Use `hexgrid` directly for manually-authored artwork
 
