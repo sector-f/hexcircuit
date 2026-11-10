@@ -131,6 +131,7 @@ By default, the CLI allows the generator to increase the routing pitch when nece
 | --- | --- | --- |
 | `--max-route-steps` | `24` | Maximum number of lattice steps explored in a candidate route. |
 | `--route-attempts` | `12` | Alternative route attempts for a candidate component pair and direction. |
+| `--generation-attempts` | `4` | Complete layout-generation attempts using deterministic fallback seeds; includes the initial seed. Allowed values are 1 through 20. |
 | `--show-labels` | `false` | Enable generated component labels. |
 | `--label-font` | `monospace` | Font family used for labels. The font is not embedded in the SVG. |
 | `--label-probability` | `0.35` | Probability that an eligible component receives a label. |
@@ -151,7 +152,9 @@ The requested connection count is a target, not a guarantee. The generator rejec
 
 **The track-count weights are rejected.** Supply exactly `--max-parallel` comma-separated percentages whose sum is 100. For example, `--max-parallel 4 --track-count-weights 10,20,30,40`.
 
-**The result changes between runs.** Supply an integer `--seed`. Repeating the same seed with the same options and program version reproduces the composition.
+**Component placement fails despite enough space being available.** Increase `--generation-attempts` to let the generator retry the full layout with different, deterministic seeds. The default is four total attempts, including the initial seed; use `1` to disable fallback. Insufficient candidate capacity and invalid geometry are not retried.
+
+**The result changes between runs.** Supply an integer `--seed`. Repeating the same seed with the same options and program version reproduces the composition, including its fallback-seed sequence.
 
 **The grid is clipped at the canvas edges.** That is the default. Use `--omit-partial-grid-hexagons` to draw only complete background hexagons. This flag changes only the background grid; it does not change component or trace placement.
 
