@@ -131,8 +131,8 @@ Use `DefaultOptions` and modify only the values that need to change. The primary
 
 | Group | Options | Purpose |
 | --- | --- | --- |
-| Canvas and styling | `Width`, `Height`, `Color`, `Background`, `Orientation` | SVG dimensions, colors, and pointy/flat hexagon orientation. |
-| Grid geometry | `GridRadius`, `GridGap`, `GridWidth`, `RoutingPitch`, `AutoRoutingPitch`, `OmitPartialGridHexagons` | Background hexagon appearance and lattice spacing. |
+| Canvas and styling | `Width`, `Height`, `Color`, `GridColor`, `Background`, `Orientation` | SVG dimensions, component/trace color, independent background-grid color, and pointy/flat orientation. An empty `GridColor` falls back to `Color`. |
+| Grid geometry | `GridRadius`, `GridGap`, `GridWidth`, `RoutingPitch`, `AutoRoutingPitch`, `OmitPartialGridHexagons` | Background hexagon geometry and lattice spacing. |
 | Components | `ComponentCount`, `ComponentRadius`, `StrokeWidth`, `DetailProb` | Component population, size, outline, and internal details. |
 | Connections | `Connections`, `MaxParallel`, `TrackCountWeights`, `ParallelSpacing` | Target bundle count and distribution of bundle sizes. |
 | Trace geometry | `TraceWidth`, `NodeRadius`, `TraceClearance` | Track thickness, terminal pads, and route separation. |

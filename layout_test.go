@@ -326,3 +326,47 @@ func TestLegacyComponentDetailKeepsOriginalInnerHexagons(t *testing.T) {
 		}
 	}
 }
+
+
+func TestGridColorOverridesOnlyBackgroundGrid(t *testing.T) {
+	options := DefaultOptions()
+	options.Color = "#123456"
+	options.GridColor = "#abcdef"
+
+	scene, err := BuildScene(GridScene{Options: options})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scene.GridColor != options.GridColor {
+		t.Fatalf("built scene grid color = %q, want %q", scene.GridColor, options.GridColor)
+	}
+
+	svg := Render(scene)
+	gridStart := strings.Index(svg, `id="background-grid"`)
+	componentsStart := strings.Index(svg, `id="components"`)
+	if gridStart < 0 || componentsStart <= gridStart {
+		t.Fatalf("could not locate grid and component layers in SVG: %s", svg)
+	}
+	if !strings.Contains(svg[gridStart:componentsStart], `stroke="#abcdef"`) {
+		t.Fatal("background grid does not use GridColor")
+	}
+	if !strings.Contains(svg[componentsStart:], `stroke="#123456"`) {
+		t.Fatal("components do not retain Color")
+	}
+}
+
+func TestGridColorFallsBackToSceneColor(t *testing.T) {
+	scene := Scene{
+		Width: 2, Height: 2, Color: "#123456",
+		Grid: Grid{Pitch: 0.5, Radius: 0.2, StrokeWidth: 0.01},
+	}
+	svg := Render(scene)
+	gridStart := strings.Index(svg, `id="background-grid"`)
+	tracesStart := strings.Index(svg, `id="traces"`)
+	if gridStart < 0 || tracesStart <= gridStart {
+		t.Fatalf("could not locate background grid layer in SVG")
+	}
+	if !strings.Contains(svg[gridStart:tracesStart], `stroke="#123456"`) {
+		t.Fatal("background grid did not fall back to Scene.Color")
+	}
+}

@@ -110,13 +110,14 @@ type Label struct {
 }
 
 // Scene describes both the geometry to draw and its visual styling. Coordinates and
-// dimensions use inches. An empty LabelColor falls back to Color. The renderer preserves
-// the established layer order: grid,
-// traces, components, labels, then terminal pads.
+// dimensions use inches. Empty GridColor and LabelColor values fall back to Color. The
+// renderer preserves the established layer order: grid, traces, components, labels,
+// then terminal pads.
 type Scene struct {
 	Width, Height float64
 	Orientation   string
 	Color         string
+	GridColor     string
 	Background    string
 
 	Grid       Grid
@@ -328,10 +329,14 @@ func Render(scene Scene) string {
 	}
 
 	// Layer 1: continue grid hexagons beyond the canvas edge unless configured otherwise.
+	gridColor := strings.TrimSpace(scene.GridColor)
+	if gridColor == "" {
+		gridColor = scene.Color
+	}
 	canvas.Group(
 		`id="background-grid"`,
 		`fill="none"`,
-		fmt.Sprintf(`stroke="%s"`, html.EscapeString(scene.Color)),
+		fmt.Sprintf(`stroke="%s"`, html.EscapeString(gridColor)),
 		fmt.Sprintf(`stroke-width="%d"`, userUnits(scene.Grid.StrokeWidth)),
 		`stroke-linejoin="round"`,
 	)

@@ -67,6 +67,7 @@ type Options struct {
 	Width, Height float64
 	Orientation   string
 	Color         string
+	GridColor     string
 	Background    string
 
 	Grid Grid
@@ -126,6 +127,7 @@ func BuildScene(layout GridScene) (Scene, error) {
 		Height:                      o.Height,
 		Orientation:                 o.Orientation,
 		Color:                       o.Color,
+		GridColor:                   o.GridColor,
 		Background:                  o.Background,
 		Grid:                        o.Grid,
 		ComponentStrokeWidth:        o.ComponentStrokeWidth,

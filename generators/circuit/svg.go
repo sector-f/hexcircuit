@@ -1373,6 +1373,7 @@ func gridSceneForRender(
 	gridOptions.Height = o.Height
 	gridOptions.Orientation = o.Orientation
 	gridOptions.Color = o.Color
+	gridOptions.GridColor = o.GridColor
 	gridOptions.Background = o.Background
 	gridOptions.Grid = hexgrid.Grid{
 		Pitch: o.RoutingPitch, Radius: o.GridRadius,

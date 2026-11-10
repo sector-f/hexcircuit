@@ -24,8 +24,10 @@ type Options struct {
 	Width float64
 	// Height is the physical height of the SVG canvas, in inches.
 	Height float64
-	// Color is the stroke color used for the grid, components, traces, and terminal pads.
+	// Color is the stroke color used for components, traces, and terminal pads.
 	Color string
+	// GridColor is the background hexagon grid color. An empty value falls back to Color.
+	GridColor string
 	// Background is the canvas fill color; "none" or "transparent" leaves it transparent.
 	Background string
 	// Orientation sets the hexagon layout: "pointy" has a vertex at the top,
@@ -253,6 +255,7 @@ func normalizeOptions(o Options) (Options, error) {
 	if strings.TrimSpace(o.Color) == "" {
 		return o, errors.New("stroke color cannot be empty")
 	}
+	o.GridColor = strings.TrimSpace(o.GridColor)
 	if o.Orientation != "pointy" && o.Orientation != "flat" {
 		return o, errors.New("orientation must be either pointy or flat")
 	}
