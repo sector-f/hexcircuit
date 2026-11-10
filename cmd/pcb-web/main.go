@@ -34,6 +34,7 @@ type generateRequest struct {
 	Width                               float64 `json:"width"`
 	Height                              float64 `json:"height"`
 	BaseColor                           string  `json:"baseColor"`
+	GridColor                           string  `json:"gridColor"`
 	AccentColor                         string  `json:"accentColor"`
 	Background                          string  `json:"background"`
 	ComponentCount                      int     `json:"componentCount"`
@@ -158,8 +159,12 @@ func (r generateRequest) options() (pcb.Options, error) {
 	if !positiveFinite(r.Width) || r.Width > 100 || !positiveFinite(r.Height) || r.Height > 100 {
 		return pcb.Options{}, fmt.Errorf("canvas width and height must be greater than 0 and no more than 100 inches")
 	}
+	gridColor := strings.TrimSpace(r.GridColor)
 	if !paintPattern.MatchString(r.BaseColor) || !paintPattern.MatchString(r.AccentColor) {
 		return pcb.Options{}, fmt.Errorf("base and accent colors must be hex colors or CSS color names")
+	}
+	if gridColor != "" && !paintPattern.MatchString(gridColor) {
+		return pcb.Options{}, fmt.Errorf("grid color must be a hex color or a CSS color name")
 	}
 	if r.Background != "none" && r.Background != "transparent" && !paintPattern.MatchString(r.Background) {
 		return pcb.Options{}, fmt.Errorf("background must be none, transparent, a hex color, or a CSS color name")
@@ -232,6 +237,7 @@ func (r generateRequest) options() (pcb.Options, error) {
 		Width:                                r.Width,
 		Height:                               r.Height,
 		BaseColor:                            r.BaseColor,
+		GridColor:                            gridColor,
 		AccentColor:                          r.AccentColor,
 		Background:                           r.Background,
 		ComponentCount:                       r.ComponentCount,

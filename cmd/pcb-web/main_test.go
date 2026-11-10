@@ -13,7 +13,7 @@ import (
 func validRequest() generateRequest {
 	o := pcb.DefaultOptions()
 	return generateRequest{
-		Width: o.Width, Height: o.Height, BaseColor: o.BaseColor, AccentColor: o.AccentColor,
+		Width: o.Width, Height: o.Height, BaseColor: o.BaseColor, GridColor: o.GridColor, AccentColor: o.AccentColor,
 		Background: o.Background, ComponentCount: o.ComponentCount, ClusterCount: o.ClusterCount,
 		MinComponentsPerCluster: o.MinComponentsPerCluster,
 		MinPowerSourcesPerCluster: o.MinPowerSourcesPerCluster, MaxPowerSourcesPerCluster: o.MaxPowerSourcesPerCluster,
@@ -36,6 +36,7 @@ func validRequest() generateRequest {
 func TestGenerateRequestMapsToPCBOptions(t *testing.T) {
 	req := validRequest()
 	req.BaseColor = "#123456"
+	req.GridColor = "#fedcba"
 	req.AccentColor = "#abcdef"
 	req.TopPowerSourceCount = 8
 	req.BottomPowerSourceCount = 9
@@ -49,8 +50,9 @@ func TestGenerateRequestMapsToPCBOptions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.BaseColor != req.BaseColor || got.AccentColor != req.AccentColor {
-		t.Fatalf("colors = (%q, %q), want (%q, %q)", got.BaseColor, got.AccentColor, req.BaseColor, req.AccentColor)
+	if got.BaseColor != req.BaseColor || got.AccentColor != req.AccentColor || got.GridColor != req.GridColor {
+		t.Fatalf("colors = (base %q, grid %q, accent %q), want (base %q, grid %q, accent %q)",
+			got.BaseColor, got.GridColor, got.AccentColor, req.BaseColor, req.GridColor, req.AccentColor)
 	}
 	if got.MinPowerSourcesPerCluster != 1 || got.MaxPowerSourcesPerCluster != 1 {
 		t.Fatalf("power-source range = %d..%d, want 1..1", got.MinPowerSourcesPerCluster, got.MaxPowerSourcesPerCluster)
@@ -110,6 +112,7 @@ func TestGenerateRequestRejectsInvalidOptions(t *testing.T) {
 		edit func(*generateRequest)
 	}{
 		{"invalid color", func(r *generateRequest) { r.BaseColor = "not a color!" }},
+		{"invalid grid color", func(r *generateRequest) { r.GridColor = "not a color!" }},
 		{"unknown spacing", func(r *generateRequest) { r.PowerSourceSpacing = "wide" }},
 		{"unknown source style", func(r *generateRequest) { r.PowerSourceStyle = "triple" }},
 		{"too few source contacts", func(r *generateRequest) { r.TopPowerSourceCount = 1; r.BottomPowerSourceCount = 1 }},
@@ -143,7 +146,7 @@ func TestHandleIndexRendersPCBInterface(t *testing.T) {
 	if got := response.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
 		t.Fatalf("content type = %q, want HTML", got)
 	}
-	for _, want := range []string{"PCB Layout Generator", "constrainLayoutToPowerSourceTrapezoid", "powerSourceSpacing", "minPowerSourcesPerCluster", "maxPowerSourcesPerCluster", "interClusterTraces"} {
+	for _, want := range []string{"PCB Layout Generator", "constrainLayoutToPowerSourceTrapezoid", "powerSourceSpacing", "minPowerSourcesPerCluster", "maxPowerSourcesPerCluster", "interClusterTraces", "gridColor"} {
 		if !bytes.Contains(response.Body.Bytes(), []byte(want)) {
 			t.Errorf("rendered HTML is missing %q", want)
 		}

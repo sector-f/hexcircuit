@@ -115,7 +115,7 @@ For a manually authored composition, use `GridScene` and `RenderGrid`:
 
 `BuildScene` converts a `GridScene` into the renderer's lower-level `Scene` representation. That lower-level API uses explicit inch-based coordinates (`Point` values) instead of axial coordinates. `Render` serializes a `Scene` to SVG. This is useful when an application needs to construct geometry directly rather than using the grid-based layout API.
 
-The renderer draws the supplied geometry; it does not rearrange objects or prevent overlaps. The normal layer order is background fill, background grid, traces, components, labels, and terminal pads.
+The renderer draws the supplied geometry; it does not rearrange objects or prevent overlaps. The normal layer order is background fill, background grid, traces, components, labels, and terminal pads. `Scene.GridColor` controls the background grid independently of `Scene.Color`; an empty grid color falls back to `Color`. The same setting is available through `hexgrid.Options` for grid-based scenes.
 
 ## Use `hexgrid` directly for manually-authored artwork
 

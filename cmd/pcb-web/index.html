@@ -228,6 +228,7 @@
         <div class="section-title">Background grid</div>
         <div class="fields">
           <div class="field full check-field"><input id="showBackgroundGrid" type="checkbox"><label for="showBackgroundGrid">Show background hexagonal grid</label></div>
+          <div class="field"><label for="gridColor">Grid color</label><input id="gridColor" type="color" value="#396cf8"></div>
           <div class="field"><label for="gridRadius">Grid radius (in)</label><input id="gridRadius" type="number" min="0.001" step="0.001" value="0.26" required></div>
           <div class="field"><label for="gridStrokeWidth">Grid line width (in)</label><input id="gridStrokeWidth" type="number" min="0" step="0.001" value="0.0035" required></div>
           <div class="field full check-field"><input id="omitPartialGridHexagons" type="checkbox"><label for="omitPartialGridHexagons">Omit partial grid hexagons at canvas edges</label></div>
@@ -294,6 +295,7 @@
           width: number('width'),
           height: number('height'),
           baseColor: value('baseColor'),
+          gridColor: value('gridColor'),
           accentColor: value('accentColor'),
           background,
           componentCount: number('componentCount'),
