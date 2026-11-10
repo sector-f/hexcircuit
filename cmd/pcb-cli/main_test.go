@@ -19,6 +19,7 @@ func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 		"--constrain-components-to-power-source-span",
 		"--constrain-layout-to-power-source-trapezoid",
 		"--inter-cluster-traces",
+		"--grid-color=#abcdef",
 		"--seed=42",
 	}, io.Discard)
 	if err != nil {
@@ -32,6 +33,9 @@ func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 	}
 	if opts.Generator.TopPowerSourceCount != 9 || opts.Generator.BottomPowerSourceCount != 11 {
 		t.Errorf("power-source counts = %d top, %d bottom; want 9 and 11", opts.Generator.TopPowerSourceCount, opts.Generator.BottomPowerSourceCount)
+	}
+	if opts.Generator.GridColor != "#abcdef" {
+		t.Errorf("grid color = %q, want #abcdef", opts.Generator.GridColor)
 	}
 	if opts.Generator.PowerSourceSpacing != pcb.PowerSourceSpacingAdjacent {
 		t.Errorf("power-source spacing = %q, want adjacent", opts.Generator.PowerSourceSpacing)

@@ -99,6 +99,7 @@ Change the signal and power colors:
 ```sh
 ./pcb-cli \
   --base-color '#396CF8' \
+  --grid-color '#243c75' \
   --accent-color '#FF6A00' \
   --background '#141314' \
   --output blue-and-orange.svg
@@ -118,7 +119,7 @@ When `--constrain-components-to-power-source-span` is enabled, every ordinary co
 
 Power-source count flags describe the number of physical contact components on each edge, not the number that will be active. Active contacts are assigned to clusters according to the configured minimum and maximum feeds per cluster; multiple feeds within a cluster are routed to different components before destinations are reused. In `separated` mode, neighboring physical contacts are placed two lattice cells apart. In `adjacent` mode, they occupy neighboring lattice cells.
 
-The base color is used for ordinary components, all source-contact outlines (including unused contacts), signal traces, and the optional background grid. The accent color is used for power feeds and their connected power-entry cores at source contacts and selected destination components, plus optional inter-cluster traces. The background hexagonal field is disabled by default; enable it with `--show-background-grid`.
+The base color is used for ordinary components, all source-contact outlines (including unused contacts), and signal traces. The optional background grid uses the grid color, which defaults to the base color unless --grid-color is set. The accent color is used for power feeds and their connected power-entry cores at source contacts and selected destination components, plus optional inter-cluster traces. The background hexagonal field is disabled by default; enable it with `--show-background-grid`.
 
 The generator uses randomized placement and routing. Without `--seed`, each run selects a fresh seed. Supplying an integer seed makes the output reproducible for the same generator version and options:
 

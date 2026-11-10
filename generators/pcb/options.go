@@ -45,10 +45,11 @@ type Options struct {
 	Width  float64
 	Height float64
 
-	// BaseColor is used for ordinary components, all source-contact outlines,
-	// signal traces, and the background grid.
+	// BaseColor is used for ordinary components, all source-contact outlines, and signal traces.
+	// GridColor is used for the background hexagon grid; an empty value falls back to BaseColor.
 	// AccentColor is reserved for power feeds, their connected terminals, and optional inter-cluster traces.
 	BaseColor   string
+	GridColor   string
 	AccentColor string
 
 	// Background is the canvas fill; "none" or "transparent" leaves it transparent.
@@ -188,6 +189,7 @@ func normalizeOptions(o Options) (Options, error) {
 		return o, fmt.Errorf("accent color cannot be empty")
 	}
 	o.BaseColor = strings.TrimSpace(o.BaseColor)
+	o.GridColor = strings.TrimSpace(o.GridColor)
 	o.AccentColor = strings.TrimSpace(o.AccentColor)
 	if strings.TrimSpace(o.Background) == "" {
 		o.Background = "none"

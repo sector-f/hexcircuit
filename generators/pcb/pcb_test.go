@@ -1149,3 +1149,25 @@ func makePositions(count, r int) []hexgrid.GridPosition {
 	}
 	return positions
 }
+
+
+func TestGenerateUsesSeparateGridColor(t *testing.T) {
+	o := DefaultOptions()
+	o.ShowBackgroundGrid = true
+	o.GridColor = "#abcdef"
+	o.Seed = 13579
+	o.SeedSet = true
+
+	svg, _, _, err := Generate(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gridStart := strings.Index(svg, `id="background-grid"`)
+	tracesStart := strings.Index(svg, `id="traces"`)
+	if gridStart < 0 || tracesStart <= gridStart {
+		t.Fatal("could not locate background grid layer in generated SVG")
+	}
+	if !strings.Contains(svg[gridStart:tracesStart], `stroke="#abcdef"`) {
+		t.Fatal("PCB background grid does not use GridColor")
+	}
+}

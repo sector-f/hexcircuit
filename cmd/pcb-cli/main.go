@@ -43,7 +43,8 @@ func parseOptions(arguments []string, stderr io.Writer) (CLIOptions, error) {
 	flags.StringVarP(&opts.Output, "output", "o", opts.Output, "Output SVG filename.")
 	flags.Float64VarP(&opts.Generator.Width, "width", "W", opts.Generator.Width, "Canvas width in inches.")
 	flags.Float64VarP(&opts.Generator.Height, "height", "H", opts.Generator.Height, "Canvas height in inches.")
-	flags.StringVar(&opts.Generator.BaseColor, "base-color", opts.Generator.BaseColor, "Color for ordinary components and signal traces.")
+	flags.StringVar(&opts.Generator.BaseColor, "base-color", opts.Generator.BaseColor, "Color for ordinary components, source contacts, and signal traces.")
+	flags.StringVar(&opts.Generator.GridColor, "grid-color", opts.Generator.GridColor, "Background hexagon grid color; defaults to --base-color.")
 	flags.StringVar(&opts.Generator.AccentColor, "accent-color", opts.Generator.AccentColor, "Color exclusively for power feeds and connected power-entry cores.")
 	flags.StringVar(&opts.Generator.Background, "background", opts.Generator.Background, "Canvas background fill; use 'none' or 'transparent' for no fill.")
 

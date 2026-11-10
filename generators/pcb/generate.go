@@ -247,6 +247,7 @@ func renderBoard(o Options, plan boardPlan) (string, error) {
 	base.Height = o.Height
 	base.Orientation = "pointy"
 	base.Color = o.BaseColor
+	base.GridColor = o.GridColor
 	base.Background = o.Background
 	base.Grid = hexgrid.Grid{
 		Pitch:       o.Pitch,
