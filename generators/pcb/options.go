@@ -63,7 +63,7 @@ type Options struct {
 	MinComponentsPerCluster int
 	// MinPowerSourcesPerCluster and MaxPowerSourcesPerCluster bound the randomized
 	// number of active power feeds assigned to each cluster. Zero permits unpowered clusters.
-	// The current common-hub topology supports at most six independent feeds per cluster.
+	// The current generator supports at most six feeds per cluster.
 	MinPowerSourcesPerCluster int
 	MaxPowerSourcesPerCluster int
 	// Connections is the target number of additional signal connections beyond the
@@ -240,7 +240,7 @@ func normalizeOptions(o Options) (Options, error) {
 		return o, fmt.Errorf("maximum power sources per cluster (%d) cannot be less than the minimum (%d)", o.MaxPowerSourcesPerCluster, o.MinPowerSourcesPerCluster)
 	}
 	if o.MaxPowerSourcesPerCluster > 6 {
-		return o, fmt.Errorf("maximum power sources per cluster cannot exceed 6 with the current common-hub routing")
+		return o, fmt.Errorf("maximum power sources per cluster cannot exceed 6")
 	}
 	if o.ClusterCount > o.ComponentCount/o.MinComponentsPerCluster {
 		return o, fmt.Errorf("component count (%d) cannot satisfy %d clusters with a minimum of %d components each", o.ComponentCount, o.ClusterCount, o.MinComponentsPerCluster)

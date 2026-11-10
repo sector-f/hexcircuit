@@ -239,70 +239,8 @@ func placeClusters(
 			sourceOffset = end
 		}
 
-		blockedForPower := make(map[hexgrid.GridPosition]bool, len(topSources)+len(bottomSources)+len(centers))
-		for _, source := range topSources {
-			blockedForPower[source] = true
-		}
-		for _, source := range bottomSources {
-			blockedForPower[source] = true
-		}
-		for _, cluster := range centerClusters {
-			blockedForPower[cluster.Hub] = true
-		}
-
-		// Route the longest feeds first. Independent feeds may share their
-		// destination hub, but no other lattice vertices or route segments.
-		type routeAssignment struct {
-			clusterIndex int
-			sourceIndex  int
-			source       powerSource
-		}
-		var routeOrder []routeAssignment
-		for clusterIndex, cluster := range centerClusters {
-			for sourceIndex, source := range cluster.PowerSources {
-				routeOrder = append(routeOrder, routeAssignment{
-					clusterIndex: clusterIndex,
-					sourceIndex:  sourceIndex,
-					source:       source,
-				})
-			}
-		}
-		sort.SliceStable(routeOrder, func(i, j int) bool {
-			a := routeOrder[i]
-			b := routeOrder[j]
-			return hexDistance(a.source.Position, centerClusters[a.clusterIndex].Hub) >
-				hexDistance(b.source.Position, centerClusters[b.clusterIndex].Hub)
-		})
-		powerCorridors := make(map[hexgrid.GridPosition]bool)
-		powerAllowedRoutes := copyAllowedRoutes(attemptAllowedRoutes)
-		for _, source := range sources {
-			powerAllowedRoutes[source.Position] = true
-		}
-		routed := true
-		for _, assignment := range routeOrder {
-			cluster := &centerClusters[assignment.clusterIndex]
-			path, ok := findRoute(
-				assignment.source.Position, cluster.Hub,
-				powerAllowedRoutes, blockedForPower, powerCorridors, assignment.source.Side, rng,
-			)
-			if !ok || len(path) < 2 {
-				routed = false
-				break
-			}
-			cluster.PowerPaths[assignment.sourceIndex] = path
-			for _, position := range path {
-				powerCorridors[position] = true
-			}
-		}
-		if !routed {
-			continue
-		}
-
-		reservedCells := make(map[hexgrid.GridPosition]bool, len(powerCorridors))
-		for position := range powerCorridors {
-			reservedCells[position] = true
-		}
-
+		// Place complete clusters before routing power feeds. This makes every
+		// component in a cluster available as a possible power-feed destination.
 		occupied := make(map[hexgrid.GridPosition]int, o.ComponentCount)
 		clusters := make([]clusterPlan, o.ClusterCount)
 		placements := make([]placedComponent, 0, o.ComponentCount)
@@ -313,30 +251,101 @@ func placeClusters(
 				failed = true
 				break
 			}
-			cluster, err := growCluster(clusterID, center, sizes[clusterID], eligible, occupied, reservedCells, rng)
+			cluster, err := growCluster(
+				clusterID, center, sizes[clusterID], eligible, occupied,
+				map[hexgrid.GridPosition]bool{}, rng,
+			)
 			if err != nil {
 				failed = true
 				break
 			}
 			cluster.PowerSources = append([]powerSource(nil), centerClusters[clusterID].PowerSources...)
-			cluster.PowerPaths = make([][]hexgrid.GridPosition, len(centerClusters[clusterID].PowerPaths))
-			for i, path := range centerClusters[clusterID].PowerPaths {
-				cluster.PowerPaths[i] = append([]hexgrid.GridPosition(nil), path...)
-			}
-			if len(cluster.PowerSources) > 0 {
-				cluster.PowerSource = cluster.PowerSources[0].Position
-				cluster.PowerSide = cluster.PowerSources[0].Side
-				cluster.PowerPath = append([]hexgrid.GridPosition(nil), cluster.PowerPaths[0]...)
-			}
+			cluster.PowerTargets = choosePowerTargets(cluster.Components, len(cluster.PowerSources), rng)
+			cluster.PowerPaths = make([][]hexgrid.GridPosition, len(cluster.PowerSources))
 			clusters[clusterID] = cluster
 			placements = append(placements, cluster.Components...)
 			for _, component := range cluster.Components {
 				occupied[component.Position] = clusterID
 			}
 		}
-		if !failed && len(placements) == o.ComponentCount {
-			return placements, clusters, nil
+		if failed || len(placements) != o.ComponentCount {
+			continue
 		}
+
+		// Power routes may pass through empty cells, but never through another
+		// component or source contact. Their destination component is the only
+		// blocked cell they are allowed to enter.
+		blockedForPower := make(map[hexgrid.GridPosition]bool, len(topSources)+len(bottomSources)+len(placements))
+		for _, source := range topSources {
+			blockedForPower[source] = true
+		}
+		for _, source := range bottomSources {
+			blockedForPower[source] = true
+		}
+		for _, cluster := range clusters {
+			for _, component := range cluster.Components {
+				blockedForPower[component.Position] = true
+			}
+		}
+
+		// Route the longest feeds first. Feeds to different components in one
+		// cluster share neither route cells nor endpoints unless the feed count
+		// exceeds the number of components in that cluster.
+		type routeAssignment struct {
+			clusterIndex int
+			sourceIndex  int
+			source       powerSource
+			target       hexgrid.GridPosition
+		}
+		var routeOrder []routeAssignment
+		for clusterIndex, cluster := range clusters {
+			for sourceIndex, source := range cluster.PowerSources {
+				routeOrder = append(routeOrder, routeAssignment{
+					clusterIndex: clusterIndex,
+					sourceIndex:  sourceIndex,
+					source:       source,
+					target:       cluster.PowerTargets[sourceIndex],
+				})
+			}
+		}
+		sort.SliceStable(routeOrder, func(i, j int) bool {
+			a := routeOrder[i]
+			b := routeOrder[j]
+			return hexDistance(a.source.Position, a.target) > hexDistance(b.source.Position, b.target)
+		})
+		powerCorridors := make(map[hexgrid.GridPosition]bool)
+		powerAllowedRoutes := copyAllowedRoutes(attemptAllowedRoutes)
+		for _, source := range sources {
+			powerAllowedRoutes[source.Position] = true
+		}
+		routed := true
+		for _, assignment := range routeOrder {
+			path, ok := findRoute(
+				assignment.source.Position, assignment.target,
+				powerAllowedRoutes, blockedForPower, powerCorridors, assignment.source.Side, rng,
+			)
+			if !ok || len(path) < 2 {
+				routed = false
+				break
+			}
+			clusters[assignment.clusterIndex].PowerPaths[assignment.sourceIndex] = path
+			for _, position := range path {
+				powerCorridors[position] = true
+			}
+		}
+		if !routed {
+			continue
+		}
+
+		for clusterID := range clusters {
+			cluster := &clusters[clusterID]
+			if len(cluster.PowerSources) > 0 {
+				cluster.PowerSource = cluster.PowerSources[0].Position
+				cluster.PowerSide = cluster.PowerSources[0].Side
+				cluster.PowerPath = append([]hexgrid.GridPosition(nil), cluster.PowerPaths[0]...)
+			}
+		}
+		return placements, clusters, nil
 	}
 	if constrainedCandidatesFailed {
 		return nil, nil, fmt.Errorf("could not place %d components within the horizontal span of the active power sources; increase the source-row width or disable ConstrainComponentsToPowerSourceSpan", o.ComponentCount)
@@ -509,6 +518,27 @@ func toPowerSources(positions []hexgrid.GridPosition, side powerSide) []powerSou
 		sources[i] = powerSource{Position: position, Side: side}
 	}
 	return sources
+}
+
+// choosePowerTargets assigns each feed to a component in its cluster. It uses
+// every component once before reusing a destination when there are more feeds
+// than components, then repeats that order as necessary.
+func choosePowerTargets(components []placedComponent, count int, rng *rand.Rand) []hexgrid.GridPosition {
+	if count <= 0 || len(components) == 0 {
+		return nil
+	}
+	positions := make([]hexgrid.GridPosition, len(components))
+	for i, component := range components {
+		positions[i] = component.Position
+	}
+	rng.Shuffle(len(positions), func(i, j int) {
+		positions[i], positions[j] = positions[j], positions[i]
+	})
+	targets := make([]hexgrid.GridPosition, count)
+	for i := range targets {
+		targets[i] = positions[i%len(positions)]
+	}
+	return targets
 }
 
 func allocateClusterSizes(componentCount, clusterCount, minimum int, rng *rand.Rand) []int {

@@ -254,8 +254,9 @@ func TestBuildBoardSupportsMultipleFeedsPerCluster(t *testing.T) {
 	o := DefaultOptions()
 	o.Width = 14
 	o.Height = 10
-	o.ComponentCount = 8
+	o.ComponentCount = 10
 	o.ClusterCount = 2
+	o.MinComponentsPerCluster = 3
 	o.MinPowerSourcesPerCluster = 2
 	o.MaxPowerSourcesPerCluster = 2
 	o.MaxParallel = 1
@@ -272,31 +273,55 @@ func TestBuildBoardSupportsMultipleFeedsPerCluster(t *testing.T) {
 	if len(plan.PowerTraces) != 4 || len(plan.PowerRoutes) != 4 {
 		t.Fatalf("got %d power traces and %d routes, want 4 each", len(plan.PowerTraces), len(plan.PowerRoutes))
 	}
-	if len(plan.PowerCores) != 6 {
-		t.Fatalf("got %d power cores, want 4 source cores and 2 shared cluster hubs", len(plan.PowerCores))
+	if len(plan.PowerCores) != 8 {
+		t.Fatalf("got %d power cores, want 4 source cores and 4 selected component endpoints", len(plan.PowerCores))
+	}
+	powerCorePositions := make(map[hexgrid.GridPosition]bool, len(plan.PowerCores))
+	for _, core := range plan.PowerCores {
+		powerCorePositions[core.Position] = true
 	}
 	usedSources := make(map[hexgrid.GridPosition]bool)
 	usedRouteCells := make(map[hexgrid.GridPosition]hexgrid.GridPosition)
 	for _, cluster := range plan.Clusters {
-		if len(cluster.PowerSources) != 2 || len(cluster.PowerPaths) != 2 {
-			t.Fatalf("cluster %d has %d sources and %d paths, want 2 each", cluster.ID, len(cluster.PowerSources), len(cluster.PowerPaths))
+		if len(cluster.PowerSources) != 2 || len(cluster.PowerPaths) != 2 || len(cluster.PowerTargets) != 2 {
+			t.Fatalf("cluster %d has %d sources, %d targets, and %d paths, want 2 each",
+				cluster.ID, len(cluster.PowerSources), len(cluster.PowerTargets), len(cluster.PowerPaths))
 		}
+		componentPositions := make(map[hexgrid.GridPosition]bool, len(cluster.Components))
+		for _, component := range cluster.Components {
+			componentPositions[component.Position] = true
+		}
+		seenTargets := make(map[hexgrid.GridPosition]bool)
 		for i, source := range cluster.PowerSources {
 			if usedSources[source.Position] {
 				t.Errorf("source %v assigned to more than one feed", source.Position)
 			}
 			usedSources[source.Position] = true
+			target := cluster.PowerTargets[i]
+			if !componentPositions[target] {
+				t.Errorf("cluster %d feed %d targets %v outside its component set", cluster.ID, i, target)
+			}
+			if !powerCorePositions[target] {
+				t.Errorf("cluster %d feed %d destination %v has no accent power core", cluster.ID, i, target)
+			}
+			if seenTargets[target] {
+				t.Errorf("cluster %d repeats component destination %v", cluster.ID, target)
+			}
+			seenTargets[target] = true
 			path := cluster.PowerPaths[i]
-			if len(path) < 2 || path[0] != source.Position || path[len(path)-1] != cluster.Hub {
-				t.Errorf("cluster %d feed %d does not run from source %v to hub %v", cluster.ID, i, source.Position, cluster.Hub)
+			if len(path) < 2 || path[0] != source.Position || path[len(path)-1] != target {
+				t.Errorf("cluster %d feed %d does not run from source %v to component %v", cluster.ID, i, source.Position, target)
 				continue
 			}
 			for _, position := range path {
-				if previousHub, exists := usedRouteCells[position]; exists && (position != cluster.Hub || position != previousHub) {
-					t.Errorf("power routes share non-hub cell %v", position)
+				if previousTarget, exists := usedRouteCells[position]; exists && (position != target || position != previousTarget) {
+					t.Errorf("power routes share non-endpoint cell %v", position)
 				}
-				usedRouteCells[position] = cluster.Hub
+				usedRouteCells[position] = target
 			}
+		}
+		if cluster.PowerTargets[0] == cluster.Hub && cluster.PowerTargets[1] == cluster.Hub {
+			t.Errorf("cluster %d routes every feed to its hub", cluster.ID)
 		}
 	}
 	if _, _, _, err := Generate(o); err != nil {
@@ -336,7 +361,7 @@ func TestPowerFeedsUseTopAndBottomRowsWithoutCrossing(t *testing.T) {
 		bottomSet[source] = true
 	}
 	usedSources := make(map[hexgrid.GridPosition]bool, len(plan.PowerTraces))
-	usedHubs := make(map[hexgrid.GridPosition]bool, len(plan.PowerTraces))
+	usedTargets := make(map[hexgrid.GridPosition]bool, len(plan.PowerTraces))
 	usedPathCells := make(map[hexgrid.GridPosition]int)
 	usedTop, usedBottom := 0, 0
 
@@ -365,10 +390,18 @@ func TestPowerFeedsUseTopAndBottomRowsWithoutCrossing(t *testing.T) {
 		} else {
 			t.Errorf("cluster %d uses source %v outside the top/bottom rows", i, source)
 		}
-		if usedHubs[cluster.Hub] {
-			t.Errorf("multiple power feeds terminate at hub %v", cluster.Hub)
+		target := cluster.PowerTargets[0]
+		componentPositions := make(map[hexgrid.GridPosition]bool, len(cluster.Components))
+		for _, component := range cluster.Components {
+			componentPositions[component.Position] = true
 		}
-		usedHubs[cluster.Hub] = true
+		if !componentPositions[target] {
+			t.Errorf("power feed target %v is not a component in cluster %d", target, cluster.ID)
+		}
+		if usedTargets[target] {
+			t.Errorf("multiple clusters target the same component %v", target)
+		}
+		usedTargets[target] = true
 
 		path := plan.PowerRoutes[i]
 		if len(path) < 2 {
@@ -378,8 +411,8 @@ func TestPowerFeedsUseTopAndBottomRowsWithoutCrossing(t *testing.T) {
 		if path[0] != source {
 			t.Errorf("power feed %d starts at %v, want source %v", i, path[0], source)
 		}
-		if path[len(path)-1] != cluster.Hub {
-			t.Errorf("power feed %d ends at %v, want hub %v", i, path[len(path)-1], cluster.Hub)
+		if path[len(path)-1] != target {
+			t.Errorf("power feed %d ends at %v, want component %v", i, path[len(path)-1], target)
 		}
 		first := path[1]
 		direction := hexgrid.GridPosition{Q: first.Q - source.Q, R: first.R - source.R}
@@ -398,8 +431,8 @@ func TestPowerFeedsUseTopAndBottomRowsWithoutCrossing(t *testing.T) {
 			usedPathCells[position] = i
 		}
 		trace := plan.PowerTraces[i]
-		if trace.Start != source || len(trace.Path) == 0 || trace.Path[len(trace.Path)-1] != cluster.Hub {
-			t.Errorf("rendered power trace %d does not match its source and hub", i)
+		if trace.Start != source || len(trace.Path) == 0 || trace.Path[len(trace.Path)-1] != target {
+			t.Errorf("rendered power trace %d does not match its source and component target", i)
 		}
 	}
 	if usedTop == 0 || usedBottom == 0 {
@@ -504,8 +537,12 @@ func TestEveryConfiguredPowerSourceContactIsRendered(t *testing.T) {
 	if err != nil { t.Fatal(err) }
 	drawn := make(map[hexgrid.GridPosition]hexgrid.GridComponent, len(plan.Components))
 	for _, component := range plan.Components { drawn[component.Position] = component }
-	active := make(map[hexgrid.GridPosition]bool, len(plan.Clusters))
-	for _, cluster := range plan.Clusters { active[cluster.PowerSource] = true }
+	active := make(map[hexgrid.GridPosition]bool, len(plan.PowerTraces))
+	for _, cluster := range plan.Clusters {
+		for _, source := range cluster.PowerSources {
+			active[source.Position] = true
+		}
+	}
 	cores := make(map[hexgrid.GridPosition]bool, len(plan.PowerCores))
 	for _, component := range plan.PowerCores { cores[component.Position] = true }
 	all := append(append([]hexgrid.GridPosition(nil), top...), bottom...)
@@ -559,26 +596,38 @@ func TestPowerSourceRowsAreReservedForPowerSources(t *testing.T) {
 	o := DefaultOptions()
 	o.Seed, o.SeedSet = 726, true
 	top, bottom, err := powerSourcePositions(o)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	plan, err := buildBoard(o, rand.New(rand.NewSource(o.Seed)), top, bottom)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	rows := powerSourceRowIDs(top, bottom)
 	for _, cluster := range plan.Clusters {
-		for _, component := range cluster.Components { if rows[component.Position.R] {
+		for _, component := range cluster.Components {
+			if rows[component.Position.R] {
 				t.Errorf("ordinary component %v occupies a power-source row", component.Position)
-			} }
-		for i, position := range cluster.PowerPath { if i > 0 && rows[position.R] {
-				t.Errorf("power route re-enters a power-source row at %v", position)
-			} }
+			}
+		}
+		for _, path := range cluster.PowerPaths {
+			for i, position := range path {
+				if i > 0 && rows[position.R] {
+					t.Errorf("power route re-enters a power-source row at %v", position)
+				}
+			}
+		}
 	}
-	allowed := routingCellsWithinPowerSourceCorridor(routingCellsWithoutPowerSourceRows(o, top, bottom), top, bottom, o)
+	allowed := routingCellsWithinPowerSourceCorridor(
+		routingCellsWithoutPowerSourceRows(o, top, bottom), top, bottom, o,
+	)
 	for position := range allowed {
 		if rows[position.R] {
 			t.Errorf("ordinary route map permits source row cell %v", position)
 		}
-		y := hexgrid.GridPositionToPoint(position,o.Width,o.Height,o.Pitch,"pointy").Y
-		topY := hexgrid.GridPositionToPoint(top[0],o.Width,o.Height,o.Pitch,"pointy").Y
-		bottomY := hexgrid.GridPositionToPoint(bottom[0],o.Width,o.Height,o.Pitch,"pointy").Y
+		y := hexgrid.GridPositionToPoint(position, o.Width, o.Height, o.Pitch, "pointy").Y
+		topY := hexgrid.GridPositionToPoint(top[0], o.Width, o.Height, o.Pitch, "pointy").Y
+		bottomY := hexgrid.GridPositionToPoint(bottom[0], o.Width, o.Height, o.Pitch, "pointy").Y
 		if y <= topY || y >= bottomY {
 			t.Errorf("ordinary route map permits cell %v outside source-row corridor", position)
 		}
@@ -638,9 +687,11 @@ func TestPowerSourceTrapezoidConstrainsLayoutAndRoutes(t *testing.T) {
 				t.Errorf("component %v outside trapezoid", component.Position)
 			}
 		}
-		for _, position := range cluster.PowerPath {
-			if !bounds.contains(position, o) {
-				t.Errorf("power route cell %v outside trapezoid", position)
+		for _, path := range cluster.PowerPaths {
+			for _, position := range path {
+				if !bounds.contains(position, o) {
+					t.Errorf("power route cell %v outside trapezoid", position)
+				}
 			}
 		}
 	}
