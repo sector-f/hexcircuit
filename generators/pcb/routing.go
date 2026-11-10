@@ -305,6 +305,67 @@ func addExtraSignalConnections(
 	return traces, nil
 }
 
+// addInterClusterConnections opportunistically adds accent-colored routes
+// between distinct clusters. It chooses a random number of cluster pairs from
+// zero through clusterCount-1, shuffles pair and endpoint order, and skips pairs
+// for which no non-crossing route can be found.
+func addInterClusterConnections(
+	o Options,
+	rng *rand.Rand,
+	clusters []clusterPlan,
+	allowed, blocked, reserved map[hexgrid.GridPosition]bool,
+) []hexgrid.GridTrace {
+	if len(clusters) < 2 {
+		return nil
+	}
+
+	type clusterPair struct {
+		a, b int
+	}
+	pairs := make([]clusterPair, 0, len(clusters)*(len(clusters)-1)/2)
+	for i := 0; i < len(clusters); i++ {
+		for j := i + 1; j < len(clusters); j++ {
+			pairs = append(pairs, clusterPair{a: i, b: j})
+		}
+	}
+	rng.Shuffle(len(pairs), func(i, j int) { pairs[i], pairs[j] = pairs[j], pairs[i] })
+
+	// A sparse random set of links creates occasional cross-cluster structure
+	// without making the board's clusters look like a fully connected mesh.
+	targetCount := rng.Intn(len(clusters))
+	traces := make([]hexgrid.GridTrace, 0, targetCount)
+	for _, pair := range pairs {
+		if len(traces) >= targetCount {
+			break
+		}
+		endpoints := make([][2]hexgrid.GridPosition, 0,
+			len(clusters[pair.a].Components)*len(clusters[pair.b].Components))
+		for _, a := range clusters[pair.a].Components {
+			for _, b := range clusters[pair.b].Components {
+				endpoints = append(endpoints, [2]hexgrid.GridPosition{a.Position, b.Position})
+			}
+		}
+		rng.Shuffle(len(endpoints), func(i, j int) { endpoints[i], endpoints[j] = endpoints[j], endpoints[i] })
+		for _, endpoint := range endpoints {
+			path, ok := findRoute(endpoint[0], endpoint[1], allowed, blocked, reserved, powerSideAny, rng)
+			if !ok || len(path) < 2 {
+				continue
+			}
+			traces = append(traces, hexgrid.GridTrace{
+				Start:        endpoint[0],
+				Path:         compressPath(path),
+				Lines:        randomLines(rng, o.MaxParallel),
+				HideTerminal: true,
+			})
+			for _, position := range path[1 : len(path)-1] {
+				reserved[position] = true
+			}
+			break
+		}
+	}
+	return traces
+}
+
 func hasTreeEdge(cluster clusterPlan, a, b hexgrid.GridPosition) bool {
 	for _, component := range cluster.Components {
 		if component.Parent == nil {

@@ -46,6 +46,7 @@ type generateRequest struct {
 	ComponentMiddleHexagonScale         float64 `json:"componentMiddleHexagonScale"`
 	ComponentInnerHexagonScale          float64 `json:"componentInnerHexagonScale"`
 	Connections                         int     `json:"connections"`
+	InterClusterTraces                  bool    `json:"interClusterTraces"`
 	MaxParallel                         int     `json:"maxParallel"`
 	Pitch                               float64 `json:"pitch"`
 	TraceStrokeWidth                    float64 `json:"traceStrokeWidth"`
@@ -239,6 +240,7 @@ func (r generateRequest) options() (pcb.Options, error) {
 		MinPowerSourcesPerCluster:             r.MinPowerSourcesPerCluster,
 		MaxPowerSourcesPerCluster:             r.MaxPowerSourcesPerCluster,
 		Connections:                          r.Connections,
+		InterClusterTraces:                   r.InterClusterTraces,
 		MaxParallel:                          r.MaxParallel,
 		Pitch:                                r.Pitch,
 		ComponentRadius:                      r.ComponentRadius,

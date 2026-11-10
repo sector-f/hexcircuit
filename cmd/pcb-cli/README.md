@@ -110,13 +110,15 @@ The generator first assigns each cluster a random number of active contacts with
 
 Selected power-source contacts receive an accent-colored core and a power feed. Every configured physical contact is rendered. In `separated` mode, one empty lattice cell lies between neighboring contacts; in `adjacent` mode, contacts occupy neighboring cells.
 
+`--inter-cluster-traces` optionally enables a randomized number of accent-colored traces between components in different clusters. The generator may produce no such traces for a given seed or layout.
+
 `--component-count` controls the number of ordinary components distributed among clusters. It excludes power-source row contacts. `--cluster-count` determines the number of clusters. `--min-components-per-cluster` sets the minimum number of ordinary components in every cluster; the default of `1` permits singleton clusters. `--min-power-sources-per-cluster` and `--max-power-sources-per-cluster` set the inclusive range of active power feeds per cluster. Both default to `1`; a minimum of `0` permits unpowered clusters, and a maximum of `6` is currently supported.
 
 When `--constrain-components-to-power-source-span` is enabled, every ordinary component and every signal/power route stays horizontally between the leftmost and rightmost active power-source contacts. The option is disabled by default. Narrow source spans may leave insufficient room for the requested component count, in which case generation returns an error rather than placing components outside the requested bounds.
 
 Power-source count flags describe the number of physical contact components on each edge, not the number that will be active. Active contacts are assigned to clusters according to the configured minimum and maximum feeds per cluster; multiple feeds within a cluster are routed to different components before destinations are reused. In `separated` mode, neighboring physical contacts are placed two lattice cells apart. In `adjacent` mode, they occupy neighboring lattice cells.
 
-The base color is used for ordinary components, all source-contact outlines (including unused contacts), signal traces, and the optional background grid. The accent color is reserved exclusively for power feeds and their connected power-entry cores at the source contacts and selected destination components. The background hexagonal field is disabled by default; enable it with `--show-background-grid`.
+The base color is used for ordinary components, all source-contact outlines (including unused contacts), signal traces, and the optional background grid. The accent color is used for power feeds and their connected power-entry cores at source contacts and selected destination components, plus optional inter-cluster traces. The background hexagonal field is disabled by default; enable it with `--show-background-grid`.
 
 The generator uses randomized placement and routing. Without `--seed`, each run selects a fresh seed. Supplying an integer seed makes the output reproducible for the same generator version and options:
 
@@ -138,7 +140,7 @@ Run `./pcb-cli --help` for the complete flag list and defaults reported by the p
 | `-W, --width` | `10` | Canvas width. |
 | `-H, --height` | `8` | Canvas height. |
 | `--base-color` | `#396CF8` | Color for ordinary components and signal traces. |
-| `--accent-color` | `#FF6A00` | Color exclusively for power feeds and connected power-entry cores. |
+| `--accent-color` | `#FF6A00` | Color for power feeds, connected power-entry cores, and optional inter-cluster traces. |
 | `--background` | `none` | Canvas fill. Use `none` or `transparent` for no fill. |
 
 ### Components and clusters
@@ -165,6 +167,7 @@ The inner and middle scales must satisfy `0 < inner < middle < 1`. The pitch mus
 | Flag | Default | Description |
 | --- | ---: | --- |
 | `--connections` | `18` | Target number of additional intra-cluster signal connections beyond mandatory spanning-tree connections. |
+| `--inter-cluster-traces` | `false` | Enable optional randomized accent-colored traces between clusters. |
 | `--max-parallel` | `3` | Maximum number of parallel traces in a bundle; allowed values are 1 through 3. |
 | `--trace-stroke-width` | `0.009` | Width of each signal trace. |
 | `--trace-spacing` | `0.032` | Perpendicular centerline spacing between parallel traces. |

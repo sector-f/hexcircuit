@@ -32,16 +32,18 @@ type placedComponent struct {
 type boardPlan struct {
 	Components   []hexgrid.GridComponent
 	SignalTraces []hexgrid.GridTrace
-	PowerCores   []hexgrid.GridComponent
-	PowerTraces  []hexgrid.GridTrace
-	PowerRoutes  [][]hexgrid.GridPosition // Full cell paths, retained for no-crossing tests.
+	PowerCores         []hexgrid.GridComponent
+	PowerTraces        []hexgrid.GridTrace
+	// InterClusterTraces remains separate from the power layer so its style can evolve independently.
+	InterClusterTraces []hexgrid.GridTrace
+	PowerRoutes        [][]hexgrid.GridPosition // Full cell paths, retained for no-crossing tests.
 	Clusters     []clusterPlan
 }
 
 // Generate constructs and renders a PCB-inspired illustration.
 // It returns the SVG, the number of rendered base-layer components (cluster
 // components plus every configured top- and bottom-row source contact), the
-// number of rendered trace bundles (signal plus power), and any generation error.
+// number of rendered trace bundles (signal, power, and optional inter-cluster), and any generation error.
 func Generate(options Options) (string, int, int, error) {
 	o, err := normalizeOptions(options)
 	if err != nil {
@@ -66,7 +68,7 @@ func Generate(options Options) (string, int, int, error) {
 	if err != nil {
 		return "", 0, 0, fmt.Errorf("render PCB: %w", err)
 	}
-	return svg, len(plan.Components), len(plan.SignalTraces) + len(plan.PowerTraces), nil
+	return svg, len(plan.Components), len(plan.SignalTraces) + len(plan.PowerTraces) + len(plan.InterClusterTraces), nil
 }
 
 func buildBoard(
@@ -153,7 +155,7 @@ func buildBoard(
 		}
 	}
 
-	if o.Connections > 0 {
+	if o.Connections > 0 || o.InterClusterTraces {
 		signalRoutes := routingCellsWithinPowerSourceCorridor(
 			routingCellsWithoutPowerSourceRows(o, topSources, bottomSources), topSources, bottomSources, o,
 		)
@@ -172,11 +174,16 @@ func buildBoard(
 			}
 			signalRoutes = routingCellsWithinPowerSourceTrapezoid(signalRoutes, bounds, o)
 		}
-		extra, err := addExtraSignalConnections(o, rng, clusters, signalRoutes, blocked, reserved)
-		if err != nil {
-			return boardPlan{}, err
+		if o.Connections > 0 {
+			extra, err := addExtraSignalConnections(o, rng, clusters, signalRoutes, blocked, reserved)
+			if err != nil {
+				return boardPlan{}, err
+			}
+			plan.SignalTraces = append(plan.SignalTraces, extra...)
 		}
-		plan.SignalTraces = append(plan.SignalTraces, extra...)
+		if o.InterClusterTraces {
+			plan.InterClusterTraces = addInterClusterConnections(o, rng, clusters, signalRoutes, blocked, reserved)
+		}
 	}
 
 	return plan, nil
@@ -244,30 +251,51 @@ func renderBoard(o Options, plan boardPlan) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("render base layer: %w", err)
 	}
-	if len(plan.PowerTraces) == 0 {
-		return baseSVG, nil
+	combined := baseSVG
+	if len(plan.PowerTraces) > 0 {
+		accent := base
+		accent.Color = o.AccentColor
+		accent.Background = "none"
+		accent.Grid.StrokeWidth = 0
+		accentSVG, err := hexgrid.RenderGrid(hexgrid.GridScene{
+			Options:    accent,
+			Components: plan.PowerCores,
+			Traces:     plan.PowerTraces,
+		})
+		if err != nil {
+			return "", fmt.Errorf("render power layer: %w", err)
+		}
+		combined, err = appendSVGLayerNamed(combined, accentSVG, "power")
+		if err != nil {
+			return "", err
+		}
+	}
+	if len(plan.InterClusterTraces) > 0 {
+		interCluster := base
+		interCluster.Color = o.AccentColor
+		interCluster.Background = "none"
+		interCluster.Grid.StrokeWidth = 0
+		interClusterSVG, err := hexgrid.RenderGrid(hexgrid.GridScene{
+			Options: interCluster,
+			Traces:  plan.InterClusterTraces,
+		})
+		if err != nil {
+			return "", fmt.Errorf("render inter-cluster trace layer: %w", err)
+		}
+		combined, err = appendSVGLayerNamed(combined, interClusterSVG, "inter-cluster")
+		if err != nil {
+			return "", err
+		}
 	}
 
-	accent := base
-	accent.Color = o.AccentColor
-	accent.Background = "none"
-	accent.Grid.StrokeWidth = 0
-	accentSVG, err := hexgrid.RenderGrid(hexgrid.GridScene{
-		Options:    accent,
-		Components: plan.PowerCores,
-		Traces:     plan.PowerTraces,
-	})
-	if err != nil {
-		return "", fmt.Errorf("render power layer: %w", err)
-	}
-	combined, err := appendSVGLayer(baseSVG, accentSVG)
-	if err != nil {
-		return "", err
-	}
 	return combined, nil
 }
 
 func appendSVGLayer(baseSVG, overlaySVG string) (string, error) {
+	return appendSVGLayerNamed(baseSVG, overlaySVG, "power")
+}
+
+func appendSVGLayerNamed(baseSVG, overlaySVG, prefix string) (string, error) {
 	baseOpen := strings.Index(baseSVG, "<svg")
 	baseClose := strings.LastIndex(baseSVG, "</svg>")
 	overlayOpen := strings.Index(overlaySVG, "<svg")
@@ -293,7 +321,7 @@ func appendSVGLayer(baseSVG, overlaySVG string) (string, error) {
 		"component-labels",
 		"terminal-pads",
 	} {
-		overlayBody = strings.ReplaceAll(overlayBody, `id="`+id+`"`, `id="power-`+id+`"`)
+		overlayBody = strings.ReplaceAll(overlayBody, `id="`+id+`"`, `id="`+prefix+`-`+id+`"`)
 	}
 	return baseSVG[:baseInsert] + overlayBody + baseSVG[baseInsert:], nil
 }

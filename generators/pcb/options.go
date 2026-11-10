@@ -47,7 +47,7 @@ type Options struct {
 
 	// BaseColor is used for ordinary components, all source-contact outlines,
 	// signal traces, and the background grid.
-	// AccentColor is reserved exclusively for power feeds and their connected terminals.
+	// AccentColor is reserved for power feeds, their connected terminals, and optional inter-cluster traces.
 	BaseColor   string
 	AccentColor string
 
@@ -69,6 +69,9 @@ type Options struct {
 	// Connections is the target number of additional signal connections beyond the
 	// spanning-tree connections required to connect every multi-component cluster.
 	Connections int
+	// InterClusterTraces enables a randomized number of accent-colored traces
+	// connecting components in different clusters. Generation may produce none.
+	InterClusterTraces bool
 	// MaxParallel is the maximum number of parallel tracks in a trace bundle (1-3).
 	MaxParallel int
 
@@ -146,6 +149,7 @@ func DefaultOptions() Options {
 		MinPowerSourcesPerCluster:             1,
 		MaxPowerSourcesPerCluster:             1,
 		Connections:                          18,
+		InterClusterTraces:                   false,
 		MaxParallel:                          3,
 		Pitch:                                0.50,
 		ComponentRadius:                      0.26,

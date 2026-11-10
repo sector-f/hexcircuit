@@ -21,7 +21,7 @@ func validRequest() generateRequest {
 		ComponentStrokeWidth: o.ComponentStrokeWidth,
 		ComponentMiddleHexagonScale: o.ComponentMiddleHexagonScale,
 		ComponentInnerHexagonScale: o.ComponentInnerHexagonScale,
-		Connections: o.Connections, MaxParallel: o.MaxParallel, Pitch: o.Pitch,
+		Connections: o.Connections, InterClusterTraces: o.InterClusterTraces, MaxParallel: o.MaxParallel, Pitch: o.Pitch,
 		TraceStrokeWidth: o.TraceStrokeWidth, TraceSpacing: o.TraceSpacing, NodeRadius: o.NodeRadius,
 		ShowBackgroundGrid: o.ShowBackgroundGrid, OmitPartialGridHexagons: o.OmitPartialGridHexagons,
 		GridRadius: o.GridRadius, GridStrokeWidth: o.GridStrokeWidth,
@@ -43,6 +43,7 @@ func TestGenerateRequestMapsToPCBOptions(t *testing.T) {
 	req.PowerSourceStyle = "double"
 	req.ConstrainComponentsToPowerSourceSpan = true
 	req.ConstrainLayoutToPowerSourceTrapezoid = true
+	req.InterClusterTraces = true
 
 	got, err := req.options()
 	if err != nil {
@@ -62,6 +63,9 @@ func TestGenerateRequestMapsToPCBOptions(t *testing.T) {
 	}
 	if !got.ConstrainComponentsToPowerSourceSpan || !got.ConstrainLayoutToPowerSourceTrapezoid {
 		t.Fatal("layout constraints were not mapped")
+	}
+	if !got.InterClusterTraces {
+		t.Fatal("inter-cluster trace option was not mapped")
 	}
 	if !got.SeedSet || got.Seed != 42 {
 		t.Fatalf("seed = (%d, %v), want (42, true)", got.Seed, got.SeedSet)
@@ -139,7 +143,7 @@ func TestHandleIndexRendersPCBInterface(t *testing.T) {
 	if got := response.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
 		t.Fatalf("content type = %q, want HTML", got)
 	}
-	for _, want := range []string{"PCB Layout Generator", "constrainLayoutToPowerSourceTrapezoid", "powerSourceSpacing", "minPowerSourcesPerCluster", "maxPowerSourcesPerCluster"} {
+	for _, want := range []string{"PCB Layout Generator", "constrainLayoutToPowerSourceTrapezoid", "powerSourceSpacing", "minPowerSourcesPerCluster", "maxPowerSourcesPerCluster", "interClusterTraces"} {
 		if !bytes.Contains(response.Body.Bytes(), []byte(want)) {
 			t.Errorf("rendered HTML is missing %q", want)
 		}

@@ -53,6 +53,7 @@ func parseOptions(arguments []string, stderr io.Writer) (CLIOptions, error) {
 	flags.IntVar(&opts.Generator.MinPowerSourcesPerCluster, "min-power-sources-per-cluster", opts.Generator.MinPowerSourcesPerCluster, "Minimum number of active power feeds per cluster; 0 permits unpowered clusters.")
 	flags.IntVar(&opts.Generator.MaxPowerSourcesPerCluster, "max-power-sources-per-cluster", opts.Generator.MaxPowerSourcesPerCluster, "Maximum number of active power feeds per cluster (up to 6).")
 	flags.IntVar(&opts.Generator.Connections, "connections", opts.Generator.Connections, "Target number of routed trace bundles.")
+	flags.BoolVar(&opts.Generator.InterClusterTraces, "inter-cluster-traces", opts.Generator.InterClusterTraces, "Enable optional randomized accent-colored traces between clusters.")
 	flags.IntVar(&opts.Generator.MaxParallel, "max-parallel", opts.Generator.MaxParallel, "Maximum number of parallel traces per bundle (1-3).")
 
 	flags.Float64Var(&opts.Generator.Pitch, "pitch", opts.Generator.Pitch, "Center-to-center spacing of neighboring grid positions, in inches.")

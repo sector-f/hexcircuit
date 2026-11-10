@@ -780,6 +780,82 @@ func TestPowerSourceTrapezoidConstraintDefaultsOff(t *testing.T) {
 	}
 }
 
+func TestInterClusterTracesDefaultDisabled(t *testing.T) {
+	if DefaultOptions().InterClusterTraces {
+		t.Fatal("inter-cluster traces should default to disabled")
+	}
+}
+
+func TestAddInterClusterConnectionsIsRandomAndUsesDifferentClusters(t *testing.T) {
+	o := DefaultOptions()
+	clusters := []clusterPlan{
+		{ID: 0, Components: []placedComponent{{Position: hexgrid.GridPosition{Q: 0, R: 0}}}},
+		{ID: 1, Components: []placedComponent{{Position: hexgrid.GridPosition{Q: 5, R: 0}}}},
+	}
+	allowed := make(map[hexgrid.GridPosition]bool, 6)
+	for q := 0; q <= 5; q++ {
+		allowed[hexgrid.GridPosition{Q: q, R: 0}] = true
+	}
+	blocked := map[hexgrid.GridPosition]bool{
+		{Q: 0, R: 0}: true,
+		{Q: 5, R: 0}: true,
+	}
+
+	sawEmpty, sawTrace := false, false
+	for seed := int64(0); seed < 64; seed++ {
+		reserved := make(map[hexgrid.GridPosition]bool)
+		traces := addInterClusterConnections(
+			o, rand.New(rand.NewSource(seed)), clusters, allowed, blocked, reserved,
+		)
+		if len(traces) == 0 {
+			sawEmpty = true
+			continue
+		}
+		if len(traces) != 1 {
+			t.Fatalf("two clusters produced %d inter-cluster traces, want at most one", len(traces))
+		}
+		trace := traces[0]
+		if trace.Start != clusters[0].Components[0].Position ||
+			len(trace.Path) == 0 || trace.Path[len(trace.Path)-1] != clusters[1].Components[0].Position {
+			t.Fatalf("trace does not connect the two distinct clusters: %#v", trace)
+		}
+		if trace.Lines < 1 || trace.Lines > o.MaxParallel {
+			t.Errorf("trace line count %d outside [1, %d]", trace.Lines, o.MaxParallel)
+		}
+		for q := 1; q < 5; q++ {
+			if !reserved[hexgrid.GridPosition{Q: q, R: 0}] {
+				t.Errorf("route interior cell %v was not reserved", hexgrid.GridPosition{Q: q, R: 0})
+			}
+		}
+		sawTrace = true
+	}
+	if !sawEmpty || !sawTrace {
+		t.Fatalf("random generation did not demonstrate both optional outcomes: empty=%v trace=%v", sawEmpty, sawTrace)
+	}
+}
+
+func TestRenderBoardKeepsInterClusterTracesInAccentLayer(t *testing.T) {
+	o := DefaultOptions()
+	plan := boardPlan{
+		InterClusterTraces: []hexgrid.GridTrace{{
+			Start:        hexgrid.GridPosition{Q: 0, R: 0},
+			Path:         []hexgrid.GridPosition{{Q: 2, R: 0}},
+			Lines:        2,
+			HideTerminal: true,
+		}},
+	}
+	svg, err := renderBoard(o, plan)
+	if err != nil {
+		t.Fatalf("render inter-cluster trace layer: %v", err)
+	}
+	if !strings.Contains(svg, `id="inter-cluster-traces"`) {
+		t.Fatalf("SVG is missing the separately namespaced inter-cluster trace layer")
+	}
+	if !strings.Contains(svg, o.AccentColor) {
+		t.Fatalf("inter-cluster layer does not use accent color %q", o.AccentColor)
+	}
+}
+
 func TestAppendSVGLayerNamespacesOverlayIDs(t *testing.T) {
 	base := `<svg viewBox="0 0 1 1"><g id="background-grid"></g><g id="traces"></g></svg>`
 	overlay := `<svg viewBox="0 0 1 1"><g id="background-grid"></g><g id="traces"></g></svg>`
