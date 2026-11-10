@@ -10,9 +10,9 @@ import (
 )
 
 type clusterPlan struct {
-	ID          int
-	Hub         hexgrid.GridPosition
-	Components  []placedComponent
+	ID           int
+	Hub          hexgrid.GridPosition
+	Components   []placedComponent
 	PowerSource  hexgrid.GridPosition // First-feed alias retained for test/helper compatibility.
 	PowerSide    powerSide
 	PowerPath    []hexgrid.GridPosition // First-feed alias retained for test/helper compatibility.
