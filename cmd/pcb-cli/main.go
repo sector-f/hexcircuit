@@ -56,6 +56,7 @@ func parseOptions(arguments []string, stderr io.Writer) (CLIOptions, error) {
 	flags.IntVar(&opts.Generator.Connections, "connections", opts.Generator.Connections, "Target number of routed trace bundles.")
 	flags.BoolVar(&opts.Generator.InterClusterTraces, "inter-cluster-traces", opts.Generator.InterClusterTraces, "Enable optional randomized accent-colored traces between clusters.")
 	flags.IntVar(&opts.Generator.MaxParallel, "max-parallel", opts.Generator.MaxParallel, "Maximum number of parallel traces per bundle (1-3).")
+	flags.IntVar(&opts.Generator.RouteAttempts, "route-attempts", opts.Generator.RouteAttempts, "Randomized power-feed routing passes per placement.")
 
 	flags.Float64Var(&opts.Generator.Pitch, "pitch", opts.Generator.Pitch, "Center-to-center spacing of neighboring grid positions, in inches.")
 	flags.Float64Var(&opts.Generator.ComponentRadius, "component-radius", opts.Generator.ComponentRadius, "Circumradius of full-size component hexagons, in inches.")

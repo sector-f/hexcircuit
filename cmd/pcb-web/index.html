@@ -217,6 +217,8 @@
         <div class="fields">
           <div class="field"><label for="pitch">Grid pitch (in)</label><input id="pitch" type="number" min="0.001" step="0.01" value="0.50" required></div>
           <div class="field"><label for="connections">Extra intra-cluster connections</label><input id="connections" type="number" min="0" max="1000" step="1" value="18" required></div>
+          <div class="field"><label for="routeAttempts">Power-route attempts</label><input id="routeAttempts" type="number" min="1" max="1000" step="1" value="12" required></div>
+          <div class="hint">Complete randomized passes over all power feeds for each component placement.</div>
           <div class="field full check-field"><input id="interClusterTraces" type="checkbox"><label for="interClusterTraces">Generate occasional inter-cluster traces (accent color)</label></div>
           <div class="hint">The generator attempts a small randomized set of links between clusters. It is normal for no inter-cluster traces to appear when no non-crossing route is available.</div>
           <div class="field"><label for="maxParallel">Max parallel tracks</label><input id="maxParallel" type="number" min="1" max="3" step="1" value="3" required></div>
@@ -308,6 +310,7 @@
           componentMiddleHexagonScale: number('componentMiddleHexagonScale'),
           componentInnerHexagonScale: number('componentInnerHexagonScale'),
           connections: number('connections'),
+          routeAttempts: number('routeAttempts'),
           interClusterTraces: checked('interClusterTraces'),
           maxParallel: number('maxParallel'),
           pitch: number('pitch'),

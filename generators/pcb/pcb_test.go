@@ -1171,3 +1171,33 @@ func TestGenerateUsesSeparateGridColor(t *testing.T) {
 		t.Fatal("PCB background grid does not use GridColor")
 	}
 }
+
+
+func TestDefaultRouteAttempts(t *testing.T) {
+	if got := DefaultOptions().RouteAttempts; got != 12 { t.Fatalf("default route attempts = %d, want 12", got) }
+}
+
+func TestNormalizeOptionsRejectsInvalidRouteAttempts(t *testing.T) {
+	for _, attempts := range []int{0, -1} {
+		o := DefaultOptions(); o.RouteAttempts = attempts
+		if _, err := normalizeOptions(o); err == nil { t.Errorf("route attempts %d should be rejected", attempts) }
+	}
+}
+
+func TestRoutePowerFeedsRetriesCompleteFeedSet(t *testing.T) {
+	// A route attempt must start with empty reservations; failed partial paths
+	// must never leak into the next pass.
+	order := []powerRouteAssignment{
+		{clusterIndex: 0, sourceIndex: 0, source: powerSource{Position: hexgrid.GridPosition{Q: 0, R: 0}}, target: hexgrid.GridPosition{Q: 3, R: 0}},
+	}
+	clusters := []clusterPlan{{PowerPaths: make([][]hexgrid.GridPosition, 1)}}
+	allowed := map[hexgrid.GridPosition]bool{}
+	for q := 0; q <= 3; q++ { allowed[hexgrid.GridPosition{Q: q, R: 0}] = true }
+	blocked := map[hexgrid.GridPosition]bool{
+		{Q: 0, R: 0}: true, {Q: 3, R: 0}: true,
+	}
+	if !routePowerFeeds(3, rand.New(rand.NewSource(1)), order, clusters, allowed, blocked) {
+		t.Fatal("expected a valid feed route")
+	}
+	if len(clusters[0].PowerPaths[0]) < 2 { t.Fatalf("stored route = %v", clusters[0].PowerPaths[0]) }
+}

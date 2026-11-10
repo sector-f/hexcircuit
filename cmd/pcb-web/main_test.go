@@ -21,7 +21,8 @@ func validRequest() generateRequest {
 		ComponentStrokeWidth: o.ComponentStrokeWidth,
 		ComponentMiddleHexagonScale: o.ComponentMiddleHexagonScale,
 		ComponentInnerHexagonScale: o.ComponentInnerHexagonScale,
-		Connections: o.Connections, InterClusterTraces: o.InterClusterTraces, MaxParallel: o.MaxParallel, Pitch: o.Pitch,
+		Connections: o.Connections, InterClusterTraces: o.InterClusterTraces, MaxParallel: o.MaxParallel,
+		RouteAttempts: o.RouteAttempts, Pitch: o.Pitch,
 		TraceStrokeWidth: o.TraceStrokeWidth, TraceSpacing: o.TraceSpacing, NodeRadius: o.NodeRadius,
 		ShowBackgroundGrid: o.ShowBackgroundGrid, OmitPartialGridHexagons: o.OmitPartialGridHexagons,
 		GridRadius: o.GridRadius, GridStrokeWidth: o.GridStrokeWidth,
@@ -45,6 +46,7 @@ func TestGenerateRequestMapsToPCBOptions(t *testing.T) {
 	req.ConstrainComponentsToPowerSourceSpan = true
 	req.ConstrainLayoutToPowerSourceTrapezoid = true
 	req.InterClusterTraces = true
+	req.RouteAttempts = 7
 
 	got, err := req.options()
 	if err != nil {
@@ -69,6 +71,7 @@ func TestGenerateRequestMapsToPCBOptions(t *testing.T) {
 	if !got.InterClusterTraces {
 		t.Fatal("inter-cluster trace option was not mapped")
 	}
+	if got.RouteAttempts != 7 { t.Fatalf("route attempts = %d, want 7", got.RouteAttempts) }
 	if !got.SeedSet || got.Seed != 42 {
 		t.Fatalf("seed = (%d, %v), want (42, true)", got.Seed, got.SeedSet)
 	}
@@ -91,6 +94,14 @@ func TestGenerateRequestAllowsUnpoweredClusters(t *testing.T) {
 			got.MinPowerSourcesPerCluster, got.MaxPowerSourcesPerCluster,
 			got.TopPowerSourceCount, got.BottomPowerSourceCount)
 	}
+}
+
+func TestGenerateRequestDefaultsRouteAttemptsWhenOmitted(t *testing.T) {
+	req := validRequest()
+	req.RouteAttempts = 0
+	got, err := req.options()
+	if err != nil { t.Fatal(err) }
+	if got.RouteAttempts != pcb.DefaultOptions().RouteAttempts { t.Fatalf("route attempts = %d, want %d", got.RouteAttempts, pcb.DefaultOptions().RouteAttempts) }
 }
 
 func TestGenerateRequestAllowsRandomSeed(t *testing.T) {
@@ -120,6 +131,8 @@ func TestGenerateRequestRejectsInvalidOptions(t *testing.T) {
 		{"too many power feeds", func(r *generateRequest) { r.MaxPowerSourcesPerCluster = 7 }},
 		{"trapezoid without both rows", func(r *generateRequest) { r.ConstrainLayoutToPowerSourceTrapezoid = true; r.TopPowerSourceCount = 0 }},
 		{"invalid component scales", func(r *generateRequest) { r.ComponentInnerHexagonScale = 0.8 }},
+		{"negative route attempts", func(r *generateRequest) { r.RouteAttempts = -1 }},
+		{"too many route attempts", func(r *generateRequest) { r.RouteAttempts = 1001 }},
 		{"invalid seed", func(r *generateRequest) { r.Seed = "seed" }},
 	}
 	for _, tt := range tests {
@@ -146,7 +159,7 @@ func TestHandleIndexRendersPCBInterface(t *testing.T) {
 	if got := response.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
 		t.Fatalf("content type = %q, want HTML", got)
 	}
-	for _, want := range []string{"PCB Layout Generator", "constrainLayoutToPowerSourceTrapezoid", "powerSourceSpacing", "minPowerSourcesPerCluster", "maxPowerSourcesPerCluster", "interClusterTraces", "gridColor"} {
+	for _, want := range []string{"PCB Layout Generator", "constrainLayoutToPowerSourceTrapezoid", "powerSourceSpacing", "minPowerSourcesPerCluster", "maxPowerSourcesPerCluster", "interClusterTraces", "gridColor", "routeAttempts"} {
 		if !bytes.Contains(response.Body.Bytes(), []byte(want)) {
 			t.Errorf("rendered HTML is missing %q", want)
 		}

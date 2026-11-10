@@ -173,8 +173,9 @@ The inner and middle scales must satisfy `0 < inner < middle < 1`. The pitch mus
 | `--trace-stroke-width` | `0.009` | Width of each signal trace. |
 | `--trace-spacing` | `0.032` | Perpendicular centerline spacing between parallel traces. |
 | `--node-radius` | `0.014` | Radius of hollow terminal pads. |
+| `--route-attempts` | `12` | Complete randomized power-feed routing passes per component placement. |
 
-The requested connection count is a target; the generator's routing constraints may prevent every candidate connection from being placed. The connection count must be nonnegative.
+The requested connection count is a target; the generator's routing constraints may prevent every candidate connection from being placed. The connection count must be nonnegative. `--route-attempts` controls the number of complete randomized passes over mandatory power feeds for each placement.
 
 ### Background grid
 

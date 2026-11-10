@@ -49,6 +49,7 @@ type generateRequest struct {
 	Connections                         int     `json:"connections"`
 	InterClusterTraces                  bool    `json:"interClusterTraces"`
 	MaxParallel                         int     `json:"maxParallel"`
+	RouteAttempts                       int     `json:"routeAttempts"`
 	Pitch                               float64 `json:"pitch"`
 	TraceStrokeWidth                    float64 `json:"traceStrokeWidth"`
 	TraceSpacing                        float64 `json:"traceSpacing"`
@@ -185,6 +186,9 @@ func (r generateRequest) options() (pcb.Options, error) {
 	if r.MaxParallel < 1 || r.MaxParallel > 3 {
 		return pcb.Options{}, fmt.Errorf("maximum parallel tracks must be between 1 and 3")
 	}
+	routeAttempts := r.RouteAttempts
+	if routeAttempts == 0 { routeAttempts = pcb.DefaultOptions().RouteAttempts }
+	if routeAttempts < 1 || routeAttempts > 1000 { return pcb.Options{}, fmt.Errorf("route attempts must be between 1 and 1000") }
 	if r.MinPowerSourcesPerCluster < 0 || r.MaxPowerSourcesPerCluster < r.MinPowerSourcesPerCluster || r.MaxPowerSourcesPerCluster > 6 {
 		return pcb.Options{}, fmt.Errorf("power sources per cluster must satisfy 0 <= minimum <= maximum <= 6")
 	}
@@ -248,6 +252,7 @@ func (r generateRequest) options() (pcb.Options, error) {
 		Connections:                          r.Connections,
 		InterClusterTraces:                   r.InterClusterTraces,
 		MaxParallel:                          r.MaxParallel,
+		RouteAttempts:                        routeAttempts,
 		Pitch:                                r.Pitch,
 		ComponentRadius:                      r.ComponentRadius,
 		ComponentStrokeWidth:                 r.ComponentStrokeWidth,

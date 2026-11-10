@@ -31,6 +31,13 @@ type powerSource struct {
 	Side     powerSide
 }
 
+type powerRouteAssignment struct {
+	clusterIndex int
+	sourceIndex int
+	source powerSource
+	target hexgrid.GridPosition
+}
+
 // powerSourcePositions returns centered top and bottom rows of potential power
 // contacts. A zero count disables that row.
 func powerSourcePositions(o Options) (top, bottom []hexgrid.GridPosition, err error) {
@@ -291,16 +298,10 @@ func placeClusters(
 		// Route the longest feeds first. Feeds to different components in one
 		// cluster share neither route cells nor endpoints unless the feed count
 		// exceeds the number of components in that cluster.
-		type routeAssignment struct {
-			clusterIndex int
-			sourceIndex  int
-			source       powerSource
-			target       hexgrid.GridPosition
-		}
-		var routeOrder []routeAssignment
+		var routeOrder []powerRouteAssignment
 		for clusterIndex, cluster := range clusters {
 			for sourceIndex, source := range cluster.PowerSources {
-				routeOrder = append(routeOrder, routeAssignment{
+				routeOrder = append(routeOrder, powerRouteAssignment{
 					clusterIndex: clusterIndex,
 					sourceIndex:  sourceIndex,
 					source:       source,
@@ -313,27 +314,11 @@ func placeClusters(
 			b := routeOrder[j]
 			return hexDistance(a.source.Position, a.target) > hexDistance(b.source.Position, b.target)
 		})
-		powerCorridors := make(map[hexgrid.GridPosition]bool)
 		powerAllowedRoutes := copyAllowedRoutes(attemptAllowedRoutes)
 		for _, source := range sources {
 			powerAllowedRoutes[source.Position] = true
 		}
-		routed := true
-		for _, assignment := range routeOrder {
-			path, ok := findRoute(
-				assignment.source.Position, assignment.target,
-				powerAllowedRoutes, blockedForPower, powerCorridors, assignment.source.Side, rng,
-			)
-			if !ok || len(path) < 2 {
-				routed = false
-				break
-			}
-			clusters[assignment.clusterIndex].PowerPaths[assignment.sourceIndex] = path
-			for _, position := range path {
-				powerCorridors[position] = true
-			}
-		}
-		if !routed {
+		if !routePowerFeeds(o.RouteAttempts, rng, routeOrder, clusters, powerAllowedRoutes, blockedForPower) {
 			continue
 		}
 
@@ -351,6 +336,26 @@ func placeClusters(
 		return nil, nil, fmt.Errorf("could not place %d components within the horizontal span of the active power sources; increase the source-row width or disable ConstrainComponentsToPowerSourceSpan", o.ComponentCount)
 	}
 	return nil, nil, fmt.Errorf("could not place %d components in %d separated clusters with non-crossing power feeds; reduce component density or cluster size, or increase the canvas dimensions", o.ComponentCount, o.ClusterCount)
+}
+
+// routePowerFeeds retries the complete feed set with fresh reservations. Changing
+// an earlier feed's path can leave a valid corridor for a later feed.
+func routePowerFeeds(attempts int, rng *rand.Rand, order []powerRouteAssignment, clusters []clusterPlan, allowed, blocked map[hexgrid.GridPosition]bool) bool {
+	for attempt := 0; attempt < attempts; attempt++ {
+		reserved := make(map[hexgrid.GridPosition]bool)
+		paths := make([][]hexgrid.GridPosition, len(order))
+		failed := false
+		for i, assignment := range order {
+			path, ok := findRoute(assignment.source.Position, assignment.target, allowed, blocked, reserved, assignment.source.Side, rng)
+			if !ok || len(path) < 2 { failed = true; break }
+			paths[i] = path
+			for _, position := range path { reserved[position] = true }
+		}
+		if failed { continue }
+		for i, assignment := range order { clusters[assignment.clusterIndex].PowerPaths[assignment.sourceIndex] = paths[i] }
+		return true
+	}
+	return false
 }
 
 // candidatesWithinPowerSourceSpan keeps ordinary component positions between

@@ -75,6 +75,8 @@ type Options struct {
 	InterClusterTraces bool
 	// MaxParallel is the maximum number of parallel tracks in a trace bundle (1-3).
 	MaxParallel int
+	// RouteAttempts is the number of randomized passes over all power feeds per placement.
+	RouteAttempts int
 
 	// Pitch is the center-to-center spacing of neighboring axial grid positions.
 	Pitch float64
@@ -152,6 +154,7 @@ func DefaultOptions() Options {
 		Connections:                          18,
 		InterClusterTraces:                   false,
 		MaxParallel:                          3,
+		RouteAttempts:                        12,
 		Pitch:                                0.50,
 		ComponentRadius:                      0.26,
 		ComponentStrokeWidth:                 0.012,
@@ -256,6 +259,9 @@ func normalizeOptions(o Options) (Options, error) {
 	}
 	if o.MaxParallel < 1 || o.MaxParallel > 3 {
 		return o, fmt.Errorf("maximum parallel track count must be between 1 and 3")
+	}
+	if o.RouteAttempts < 1 {
+		return o, fmt.Errorf("route attempts must be at least 1")
 	}
 	if o.TopPowerSourceCount < 0 || o.BottomPowerSourceCount < 0 {
 		return o, fmt.Errorf("top and bottom power-source counts cannot be negative")
