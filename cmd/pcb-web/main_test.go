@@ -113,10 +113,13 @@ func TestHandleIndexRendersPCBInterface(t *testing.T) {
 	if got := response.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
 		t.Fatalf("content type = %q, want HTML", got)
 	}
-	for _, want := range []string{"PCB Layout Generator", "constrain-layout-to-power-source-trapezoid", "powerSourceSpacing", "{{.Seed}}"} {
-		if bytes.Contains(response.Body.Bytes(), []byte(want)) {
-			t.Errorf("rendered HTML still contains template placeholder %q", want)
+	for _, want := range []string{"PCB Layout Generator", "constrainLayoutToPowerSourceTrapezoid", "powerSourceSpacing"} {
+		if !bytes.Contains(response.Body.Bytes(), []byte(want)) {
+			t.Errorf("rendered HTML is missing %q", want)
 		}
+	}
+	if bytes.Contains(response.Body.Bytes(), []byte("{{.Seed}}")) {
+		t.Fatal("rendered HTML still contains the seed template placeholder")
 	}
 	if !bytes.Contains(response.Body.Bytes(), []byte("value=\"")) {
 		t.Fatal("rendered HTML does not contain form values")
