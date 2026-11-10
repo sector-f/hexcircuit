@@ -837,6 +837,10 @@ func TestAddInterClusterConnectionsIsRandomAndUsesDifferentClusters(t *testing.T
 func TestRenderBoardKeepsInterClusterTracesInAccentLayer(t *testing.T) {
 	o := DefaultOptions()
 	plan := boardPlan{
+		InterclusterComponents: []hexgrid.GridComponent{
+			{Position: hexgrid.GridPosition{Q: 0, R: 0}, Style: hexgrid.ComponentStyleSingle, RadiusScale: powerCoreRadiusScale},
+			{Position: hexgrid.GridPosition{Q: 2, R: 0}, Style: hexgrid.ComponentStyleSingle, RadiusScale: powerCoreRadiusScale},
+		},
 		InterClusterTraces: []hexgrid.GridTrace{{
 			Start:        hexgrid.GridPosition{Q: 0, R: 0},
 			Path:         []hexgrid.GridPosition{{Q: 2, R: 0}},
@@ -851,8 +855,59 @@ func TestRenderBoardKeepsInterClusterTracesInAccentLayer(t *testing.T) {
 	if !strings.Contains(svg, `id="inter-cluster-traces"`) {
 		t.Fatalf("SVG is missing the separately namespaced inter-cluster trace layer")
 	}
+	if !strings.Contains(svg, `id="inter-cluster-components"`) {
+		t.Fatalf("SVG is missing the separately namespaced inter-cluster endpoint components")
+	}
 	if !strings.Contains(svg, o.AccentColor) {
 		t.Fatalf("inter-cluster layer does not use accent color %q", o.AccentColor)
+	}
+}
+
+func TestInterClusterTraceSeedRendersEndpointComponents(t *testing.T) {
+	o := DefaultOptions()
+	o.Seed = 1365413531639368899
+	o.SeedSet = true
+	o.InterClusterTraces = true
+
+	top, bottom, err := powerSourcePositions(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := buildBoard(o, rand.New(rand.NewSource(o.Seed)), top, bottom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.InterClusterTraces) == 0 {
+		t.Fatal("regression seed did not produce an inter-cluster trace")
+	}
+
+	components := make(map[hexgrid.GridPosition]hexgrid.GridComponent, len(plan.InterclusterComponents))
+	for _, component := range plan.InterclusterComponents {
+		if _, exists := components[component.Position]; exists {
+			t.Errorf("duplicate inter-cluster endpoint component at %v", component.Position)
+		}
+		components[component.Position] = component
+		if component.Style != hexgrid.ComponentStyleSingle || component.RadiusScale != powerCoreRadiusScale {
+			t.Errorf("endpoint component at %v has style/radius (%v, %v), want single/%v",
+				component.Position, component.Style, component.RadiusScale, powerCoreRadiusScale)
+		}
+	}
+	for i, trace := range plan.InterClusterTraces {
+		if _, ok := components[trace.Start]; !ok {
+			t.Errorf("inter-cluster trace %d starts at %v without an endpoint component", i, trace.Start)
+		}
+		if len(trace.Path) == 0 {
+			t.Errorf("inter-cluster trace %d has an empty path", i)
+			continue
+		}
+		endpoint := trace.Path[len(trace.Path)-1]
+		if _, ok := components[endpoint]; !ok {
+			t.Errorf("inter-cluster trace %d ends at %v without an endpoint component", i, endpoint)
+		}
+	}
+
+	if _, err := renderBoard(o, plan); err != nil {
+		t.Fatalf("render regression seed: %v", err)
 	}
 }
 

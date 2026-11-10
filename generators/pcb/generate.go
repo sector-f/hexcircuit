@@ -30,14 +30,16 @@ type placedComponent struct {
 }
 
 type boardPlan struct {
-	Components   []hexgrid.GridComponent
-	SignalTraces []hexgrid.GridTrace
-	PowerCores         []hexgrid.GridComponent
-	PowerTraces        []hexgrid.GridTrace
+	Components             []hexgrid.GridComponent
+	SignalTraces           []hexgrid.GridTrace
+	PowerCores             []hexgrid.GridComponent
+	PowerTraces            []hexgrid.GridTrace
+	// InterclusterComponents contains the endpoint cores rendered with inter-cluster traces.
+	InterclusterComponents []hexgrid.GridComponent
 	// InterClusterTraces remains separate from the power layer so its style can evolve independently.
 	InterClusterTraces []hexgrid.GridTrace
 	PowerRoutes        [][]hexgrid.GridPosition // Full cell paths, retained for no-crossing tests.
-	Clusters     []clusterPlan
+	Clusters           []clusterPlan
 }
 
 // Generate constructs and renders a PCB-inspired illustration.
@@ -183,6 +185,26 @@ func buildBoard(
 		}
 		if o.InterClusterTraces {
 			plan.InterClusterTraces = addInterClusterConnections(o, rng, clusters, signalRoutes, blocked, reserved)
+			seenEndpoints := make(map[hexgrid.GridPosition]bool)
+			for _, trace := range plan.InterClusterTraces {
+				if len(trace.Path) == 0 {
+					continue
+				}
+				for _, position := range []hexgrid.GridPosition{
+					trace.Start,
+					trace.Path[len(trace.Path)-1],
+				} {
+					if seenEndpoints[position] {
+						continue
+					}
+					plan.InterclusterComponents = append(plan.InterclusterComponents, hexgrid.GridComponent{
+						Position:    position,
+						Style:       hexgrid.ComponentStyleSingle,
+						RadiusScale: powerCoreRadiusScale,
+					})
+					seenEndpoints[position] = true
+				}
+			}
 		}
 	}
 
@@ -276,8 +298,9 @@ func renderBoard(o Options, plan boardPlan) (string, error) {
 		interCluster.Background = "none"
 		interCluster.Grid.StrokeWidth = 0
 		interClusterSVG, err := hexgrid.RenderGrid(hexgrid.GridScene{
-			Options: interCluster,
-			Traces:  plan.InterClusterTraces,
+			Options:    interCluster,
+			Components: plan.InterclusterComponents,
+			Traces:     plan.InterClusterTraces,
 		})
 		if err != nil {
 			return "", fmt.Errorf("render inter-cluster trace layer: %w", err)
