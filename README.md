@@ -6,7 +6,7 @@ The repository separates three concerns:
 
 - **`hexgrid`** is the reusable geometry and rendering package. It knows how to position hexagons, components, traces, labels, and terminal pads, but it does not decide what an illustration should contain.
 - **`generators/`** contains procedural composition algorithms that use `hexgrid` to create particular kinds of artwork. See [`generators/circuit`](generators/circuit/README.md).
-- **`cmd/`** contains executable programs that expose those generators through user interfaces. See [`cmd/circuit-cli`](cmd/circuit-cli/README.md).
+- **`cmd/`** contains executable programs that expose those generators through user interfaces, including [`circuit-cli`](cmd/circuit-cli/README.md), [`pcb-cli`](cmd/pcb-cli/README.md), and [`pcb-web`](cmd/pcb-web/README.md).
 
 The package produces vector graphics. Its output is SVG, which can be displayed in a browser or edited in a vector-graphics application such as Inkscape.
 
