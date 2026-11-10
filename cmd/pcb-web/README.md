@@ -27,7 +27,7 @@ Use -addr to listen on a different address:
 
 ## Interface
 
-The controls cover the PCB generator options: canvas dimensions and colors, component and cluster counts, component geometry, top/bottom power-source rows, contact spacing and style, the active-source span and power-source trapezoid constraints, routing dimensions, background grid settings, and reproducible seeds.
+The controls cover the PCB generator options: canvas dimensions and colors, component and cluster counts, component geometry, minimum and maximum active power feeds per cluster (including zero), top/bottom power-source rows, contact spacing and style, the active-source span and power-source trapezoid constraints, routing dimensions, background grid settings, and reproducible seeds.
 
 Generation is debounced while settings change. When newer settings trigger generation, the browser aborts the previous fetch and ignores any stale response. The page saves the SVG currently displayed in the preview. A fixed seed keeps the randomized composition reproducible; the Generate new layout button changes that seed when fixed-seed mode is enabled.
 

@@ -106,11 +106,11 @@ Change the signal and power colors:
 
 ## Composition
 
-The generator first chooses active contacts from the available top and bottom rows, then places compact component clusters and routes one power feed to each cluster. The active source contacts are matched to cluster hubs from left to right, while the selected active contacts and their top/bottom origins vary with the random seed. Power routes are routed without crossing one another.
+The generator first assigns each cluster a random number of active contacts within the configured per-cluster minimum and maximum, then places compact component clusters and routes each selected feed to its cluster hub. Source contacts are matched to cluster hubs from left to right. Multiple feeds may converge on the same cluster hub; separate feeds do not share route cells except at that common endpoint. A cluster may have no active feed.
 
 Selected power-source contacts receive an accent-colored core and a power feed. Every configured physical contact is rendered. In `separated` mode, one empty lattice cell lies between neighboring contacts; in `adjacent` mode, contacts occupy neighboring cells.
 
-`--component-count` controls the number of ordinary components distributed among clusters. It excludes power-source row contacts. `--cluster-count` determines the number of clusters and therefore the number of active power feeds. `--min-components-per-cluster` sets the minimum number of ordinary components in every cluster; the default of `1` permits singleton clusters.
+`--component-count` controls the number of ordinary components distributed among clusters. It excludes power-source row contacts. `--cluster-count` determines the number of clusters. `--min-components-per-cluster` sets the minimum number of ordinary components in every cluster; the default of `1` permits singleton clusters. `--min-power-sources-per-cluster` and `--max-power-sources-per-cluster` set the inclusive range of active power feeds per cluster. Both default to `1`; a minimum of `0` permits unpowered clusters, and a maximum of `6` is supported by the common-hub routing layout.
 
 When `--constrain-components-to-power-source-span` is enabled, every ordinary component and every signal/power route stays horizontally between the leftmost and rightmost active power-source contacts. The option is disabled by default. Narrow source spans may leave insufficient room for the requested component count, in which case generation returns an error rather than placing components outside the requested bounds.
 
@@ -145,9 +145,11 @@ Run `./pcb-cli --help` for the complete flag list and defaults reported by the p
 
 | Flag | Default | Description |
 | --- | ---: | --- |
-| `--component-count` | `38` | Number of ordinary components distributed among clusters, excluding active power contacts. |
-| `--cluster-count` | `6` | Number of clusters and active power feeds. |
+| `--component-count` | `38` | Number of ordinary components distributed among clusters, excluding power contacts. |
+| `--cluster-count` | `6` | Number of component clusters. |
 | `--min-components-per-cluster` | `1` | Minimum number of ordinary components in each cluster. |
+| `--min-power-sources-per-cluster` | `1` | Minimum active power feeds per cluster; 0 permits unpowered clusters. |
+| `--max-power-sources-per-cluster` | `1` | Maximum active power feeds per cluster; values up to 6 are supported. |
 | `--constrain-components-to-power-source-span` | `false` | Restrict components and all routes to the horizontal span between the leftmost and rightmost active power contacts. |
 | `--constrain-layout-to-power-source-trapezoid` | `false` | Restrict components and all routes to the trapezoid connecting the left/right extents of the top and bottom source rows. Requires both rows. |
 | `--pitch` | `0.50` | Center-to-center spacing of neighboring grid positions. |
@@ -192,7 +194,7 @@ The requested connection count is a target; the generator's routing constraints 
 | `--connector-inset` | `0.25` | Requested gap between each enabled source row and its nearest canvas edge. |
 | `--connector-count` | `10` | Deprecated alias for `--bottom-power-source-count`. |
 
-The two row counts may individually be zero, but their sum must be at least `cluster-count`. Each enabled row must fit on its corresponding canvas edge. In separated mode, each physical contact occupies every other lattice position.
+The two row counts may individually be zero. Their sum must be at least `cluster-count × min-power-sources-per-cluster`; contacts beyond the selected number remain visible but unused. When the minimum is zero, no physical power contacts are required even when the maximum is nonzero. Each enabled row must fit on its corresponding canvas edge. In separated mode, each physical contact occupies every other lattice position.
 
 ### Randomness and help
 
@@ -203,7 +205,7 @@ The two row counts may individually be zero, but their sum must be at least `clu
 
 ## Troubleshooting
 
-**The command rejects the options.** The generator validates dimensions, source-row capacity, cluster minimums, and geometric relationships before rendering. Check the constraints above and run `--help` to verify flag names and defaults.
+**The command rejects the options.** The generator validates dimensions, source-row capacity for the minimum feed count, cluster minimums, and geometric relationships before rendering. Check that the configured contact count is at least `cluster-count × min-power-sources-per-cluster`, and run `--help` to verify flag names and defaults.
 
 **Generation cannot fit the components inside the power-source span or trapezoid.** Disable the relevant constraint, increase the canvas width or source-row counts, or reduce the component count/cluster sizes. The trapezoid option also requires both power-source rows.
 

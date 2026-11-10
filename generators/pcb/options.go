@@ -61,6 +61,11 @@ type Options struct {
 	// MinComponentsPerCluster is the minimum number of components assigned to each cluster.
 	// A value of 1 permits single-component clusters.
 	MinComponentsPerCluster int
+	// MinPowerSourcesPerCluster and MaxPowerSourcesPerCluster bound the randomized
+	// number of active power feeds assigned to each cluster. Zero permits unpowered clusters.
+	// The current common-hub topology supports at most six independent feeds per cluster.
+	MinPowerSourcesPerCluster int
+	MaxPowerSourcesPerCluster int
 	// Connections is the target number of additional signal connections beyond the
 	// spanning-tree connections required to connect every multi-component cluster.
 	Connections int
@@ -94,8 +99,8 @@ type Options struct {
 	GridStrokeWidth float64
 
 	// TopPowerSourceCount and BottomPowerSourceCount are the numbers of physical
-	// contact positions in the top and bottom power-source rows. ClusterCount
-	// positions are selected to receive an accent-colored core and a power route.
+	// contact positions in the top and bottom power-source rows. Active contacts
+	// are assigned to clusters within the Min/MaxPowerSourcesPerCluster limits.
 	// In separated mode, neighboring contacts are two lattice cells apart.
 	TopPowerSourceCount    int
 	BottomPowerSourceCount int
@@ -106,6 +111,7 @@ type Options struct {
 	PowerSourceStyle PowerSourceStyle
 	// ConstrainComponentsToPowerSourceSpan restricts components and their routes to
 	// the horizontal interval between the leftmost and rightmost active power sources.
+	// If no feeds are active, configured physical contacts define the span.
 	ConstrainComponentsToPowerSourceSpan bool
 	// ConstrainLayoutToPowerSourceTrapezoid restricts components and all routes to
 	// the trapezoid bounded by the leftmost/rightmost contacts on the top and bottom rows.
@@ -137,6 +143,8 @@ func DefaultOptions() Options {
 		ComponentCount:                       38,
 		ClusterCount:                         6,
 		MinComponentsPerCluster:              1,
+		MinPowerSourcesPerCluster:             1,
+		MaxPowerSourcesPerCluster:             1,
 		Connections:                          18,
 		MaxParallel:                          3,
 		Pitch:                                0.50,
@@ -225,6 +233,15 @@ func normalizeOptions(o Options) (Options, error) {
 	if o.MinComponentsPerCluster < 1 {
 		return o, fmt.Errorf("minimum components per cluster must be at least 1")
 	}
+	if o.MinPowerSourcesPerCluster < 0 {
+		return o, fmt.Errorf("minimum power sources per cluster cannot be negative")
+	}
+	if o.MaxPowerSourcesPerCluster < o.MinPowerSourcesPerCluster {
+		return o, fmt.Errorf("maximum power sources per cluster (%d) cannot be less than the minimum (%d)", o.MaxPowerSourcesPerCluster, o.MinPowerSourcesPerCluster)
+	}
+	if o.MaxPowerSourcesPerCluster > 6 {
+		return o, fmt.Errorf("maximum power sources per cluster cannot exceed 6 with the current common-hub routing")
+	}
 	if o.ClusterCount > o.ComponentCount/o.MinComponentsPerCluster {
 		return o, fmt.Errorf("component count (%d) cannot satisfy %d clusters with a minimum of %d components each", o.ComponentCount, o.ClusterCount, o.MinComponentsPerCluster)
 	}
@@ -237,10 +254,12 @@ func normalizeOptions(o Options) (Options, error) {
 	if o.TopPowerSourceCount < 0 || o.BottomPowerSourceCount < 0 {
 		return o, fmt.Errorf("top and bottom power-source counts cannot be negative")
 	}
-	if o.TopPowerSourceCount+o.BottomPowerSourceCount < o.ClusterCount {
-		return o, fmt.Errorf("total power sources (%d top + %d bottom = %d) must be at least the cluster count (%d)",
-			o.TopPowerSourceCount, o.BottomPowerSourceCount,
-			o.TopPowerSourceCount+o.BottomPowerSourceCount, o.ClusterCount)
+	availablePowerSources := o.TopPowerSourceCount + o.BottomPowerSourceCount
+	minimumRequiredPowerSources := o.ClusterCount * o.MinPowerSourcesPerCluster
+	if availablePowerSources < minimumRequiredPowerSources {
+		return o, fmt.Errorf("total power-source contacts (%d top + %d bottom = %d) cannot satisfy %d clusters with a minimum of %d power sources each",
+			o.TopPowerSourceCount, o.BottomPowerSourceCount, availablePowerSources,
+			o.ClusterCount, o.MinPowerSourcesPerCluster)
 	}
 	if o.PowerSourceSpacing != PowerSourceSpacingAdjacent && o.PowerSourceSpacing != PowerSourceSpacingSeparated {
 		return o, fmt.Errorf("power-source spacing must be %q or %q", PowerSourceSpacingAdjacent, PowerSourceSpacingSeparated)
@@ -262,6 +281,9 @@ func normalizeOptions(o Options) (Options, error) {
 	topSources, bottomSources, err := powerSourcePositions(o)
 	if err != nil {
 		return o, err
+	}
+	if o.ConstrainComponentsToPowerSourceSpan && availablePowerSources == 0 {
+		return o, fmt.Errorf("power-source span constraint requires at least one configured power-source contact")
 	}
 	if o.ConstrainLayoutToPowerSourceTrapezoid {
 		if len(topSources) == 0 || len(bottomSources) == 0 {

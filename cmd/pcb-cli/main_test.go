@@ -10,6 +10,8 @@ import (
 func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 	opts, err := parseOptions([]string{
 		"--min-components-per-cluster=2",
+		"--min-power-sources-per-cluster=0",
+		"--max-power-sources-per-cluster=3",
 		"--top-power-source-count=9",
 		"--bottom-power-source-count=11",
 		"--power-source-spacing=adjacent",
@@ -23,6 +25,9 @@ func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 	}
 	if opts.Generator.MinComponentsPerCluster != 2 {
 		t.Errorf("minimum components per cluster = %d, want 2", opts.Generator.MinComponentsPerCluster)
+	}
+	if opts.Generator.MinPowerSourcesPerCluster != 0 || opts.Generator.MaxPowerSourcesPerCluster != 3 {
+		t.Errorf("power-source range = %d..%d, want 0..3", opts.Generator.MinPowerSourcesPerCluster, opts.Generator.MaxPowerSourcesPerCluster)
 	}
 	if opts.Generator.TopPowerSourceCount != 9 || opts.Generator.BottomPowerSourceCount != 11 {
 		t.Errorf("power-source counts = %d top, %d bottom; want 9 and 11", opts.Generator.TopPowerSourceCount, opts.Generator.BottomPowerSourceCount)
@@ -51,6 +56,21 @@ func TestParseOptionsPreservesBottomConnectorCompatibilityAlias(t *testing.T) {
 	}
 	if opts.Generator.ConnectorCount != 8 {
 		t.Fatalf("legacy connector-count flag produced alias value %d, want 8", opts.Generator.ConnectorCount)
+	}
+}
+
+func TestParseOptionsAllowsZeroFeedsPerCluster(t *testing.T) {
+	opts, err := parseOptions([]string{
+		"--top-power-source-count=0",
+		"--bottom-power-source-count=0",
+		"--min-power-sources-per-cluster=0",
+		"--max-power-sources-per-cluster=0",
+	}, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.Generator.MinPowerSourcesPerCluster != 0 || opts.Generator.MaxPowerSourcesPerCluster != 0 {
+		t.Fatalf("power-source range = %d..%d, want 0..0", opts.Generator.MinPowerSourcesPerCluster, opts.Generator.MaxPowerSourcesPerCluster)
 	}
 }
 

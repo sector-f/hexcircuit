@@ -39,6 +39,8 @@ type generateRequest struct {
 	ComponentCount                      int     `json:"componentCount"`
 	ClusterCount                        int     `json:"clusterCount"`
 	MinComponentsPerCluster             int     `json:"minComponentsPerCluster"`
+	MinPowerSourcesPerCluster            int     `json:"minPowerSourcesPerCluster"`
+	MaxPowerSourcesPerCluster            int     `json:"maxPowerSourcesPerCluster"`
 	ComponentRadius                     float64 `json:"componentRadius"`
 	ComponentStrokeWidth                float64 `json:"componentStrokeWidth"`
 	ComponentMiddleHexagonScale         float64 `json:"componentMiddleHexagonScale"`
@@ -177,10 +179,16 @@ func (r generateRequest) options() (pcb.Options, error) {
 	if r.MaxParallel < 1 || r.MaxParallel > 3 {
 		return pcb.Options{}, fmt.Errorf("maximum parallel tracks must be between 1 and 3")
 	}
+	if r.MinPowerSourcesPerCluster < 0 || r.MaxPowerSourcesPerCluster < r.MinPowerSourcesPerCluster || r.MaxPowerSourcesPerCluster > 6 {
+		return pcb.Options{}, fmt.Errorf("power sources per cluster must satisfy 0 <= minimum <= maximum <= 6")
+	}
 	if r.TopPowerSourceCount < 0 || r.TopPowerSourceCount > 100 ||
 		r.BottomPowerSourceCount < 0 || r.BottomPowerSourceCount > 100 ||
-		r.TopPowerSourceCount+r.BottomPowerSourceCount < r.ClusterCount {
-		return pcb.Options{}, fmt.Errorf("top and bottom power-source counts must be between 0 and 100 and add up to at least the cluster count")
+		r.TopPowerSourceCount+r.BottomPowerSourceCount < r.ClusterCount*r.MinPowerSourcesPerCluster {
+		return pcb.Options{}, fmt.Errorf("top and bottom contact counts must support the requested minimum power sources per cluster")
+	}
+	if r.ConstrainComponentsToPowerSourceSpan && r.TopPowerSourceCount+r.BottomPowerSourceCount == 0 {
+		return pcb.Options{}, fmt.Errorf("the active-source span constraint requires at least one configured power-source contact")
 	}
 	spacing := pcb.PowerSourceSpacing(r.PowerSourceSpacing)
 	if spacing != pcb.PowerSourceSpacingAdjacent && spacing != pcb.PowerSourceSpacingSeparated {
@@ -228,6 +236,8 @@ func (r generateRequest) options() (pcb.Options, error) {
 		ComponentCount:                       r.ComponentCount,
 		ClusterCount:                         r.ClusterCount,
 		MinComponentsPerCluster:              r.MinComponentsPerCluster,
+		MinPowerSourcesPerCluster:             r.MinPowerSourcesPerCluster,
+		MaxPowerSourcesPerCluster:             r.MaxPowerSourcesPerCluster,
 		Connections:                          r.Connections,
 		MaxParallel:                          r.MaxParallel,
 		Pitch:                                r.Pitch,

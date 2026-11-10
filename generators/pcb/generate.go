@@ -13,9 +13,11 @@ type clusterPlan struct {
 	ID          int
 	Hub         hexgrid.GridPosition
 	Components  []placedComponent
-	PowerSource hexgrid.GridPosition
-	PowerSide   powerSide
-	PowerPath   []hexgrid.GridPosition
+	PowerSource  hexgrid.GridPosition // First-feed alias retained for test/helper compatibility.
+	PowerSide    powerSide
+	PowerPath    []hexgrid.GridPosition
+	PowerSources []powerSource
+	PowerPaths   [][]hexgrid.GridPosition
 }
 
 type placedComponent struct {
@@ -101,24 +103,30 @@ func buildBoard(
 
 	reserved := make(map[hexgrid.GridPosition]bool)
 	for _, cluster := range clusters {
-		path := cluster.PowerPath
-		if len(path) < 2 {
-			return boardPlan{}, fmt.Errorf("cluster %d has no complete power route", cluster.ID+1)
+		for i, source := range cluster.PowerSources {
+			path := cluster.PowerPaths[i]
+			if len(path) < 2 {
+				return boardPlan{}, fmt.Errorf("cluster %d power feed %d has no complete route", cluster.ID+1, i+1)
+			}
+			plan.PowerRoutes = append(plan.PowerRoutes, append([]hexgrid.GridPosition(nil), path...))
+			plan.PowerTraces = append(plan.PowerTraces, hexgrid.GridTrace{
+				Start:        source.Position,
+				Path:         compressPath(path),
+				Lines:        randomLines(rng, o.MaxParallel),
+				HideTerminal: true,
+			})
+			for _, position := range path {
+				reserved[position] = true
+			}
+			plan.PowerCores = append(plan.PowerCores,
+				hexgrid.GridComponent{Position: source.Position, Style: hexgrid.ComponentStyleSingle, RadiusScale: powerCoreRadiusScale},
+			)
 		}
-		plan.PowerRoutes = append(plan.PowerRoutes, append([]hexgrid.GridPosition(nil), path...))
-		plan.PowerTraces = append(plan.PowerTraces, hexgrid.GridTrace{
-			Start:        cluster.PowerSource,
-			Path:         compressPath(path),
-			Lines:        randomLines(rng, o.MaxParallel),
-			HideTerminal: true,
-		})
-		for _, position := range path {
-			reserved[position] = true
+		if len(cluster.PowerSources) > 0 {
+			plan.PowerCores = append(plan.PowerCores,
+				hexgrid.GridComponent{Position: cluster.Hub, Style: hexgrid.ComponentStyleSingle, RadiusScale: powerCoreRadiusScale},
+			)
 		}
-		plan.PowerCores = append(plan.PowerCores,
-			hexgrid.GridComponent{Position: cluster.PowerSource, Style: hexgrid.ComponentStyleSingle, RadiusScale: powerCoreRadiusScale},
-			hexgrid.GridComponent{Position: cluster.Hub, Style: hexgrid.ComponentStyleSingle, RadiusScale: powerCoreRadiusScale},
-		)
 	}
 
 	blocked := allPositions
@@ -142,18 +150,16 @@ func buildBoard(
 		signalRoutes := routingCellsWithinPowerSourceCorridor(
 			routingCellsWithoutPowerSourceRows(o, topSources, bottomSources), topSources, bottomSources, o,
 		)
-		activeSources := make([]powerSource, 0, len(clusters))
+		activeSources := make([]powerSource, 0)
 		for _, cluster := range clusters {
-			activeSources = append(activeSources, powerSource{
-				Position: cluster.PowerSource,
-				Side:     cluster.PowerSide,
-			})
+			activeSources = append(activeSources, cluster.PowerSources...)
 		}
 		if o.ConstrainComponentsToPowerSourceSpan {
-			signalRoutes = routingCellsWithinPowerSourceSpan(signalRoutes, activeSources, o)
+			spanSources := powerSourceSpanAssignments(activeSources, toPowerSources(topSources, powerSideTop), toPowerSources(bottomSources, powerSideBottom))
+			signalRoutes = routingCellsWithinPowerSourceSpan(signalRoutes, spanSources, o)
 		}
 		if o.ConstrainLayoutToPowerSourceTrapezoid {
-			bounds, err := newPowerSourceTrapezoid(topSources,bottomSources,o)
+			bounds, err := newPowerSourceTrapezoid(topSources, bottomSources, o)
 			if err != nil {
 				return boardPlan{}, err
 			}

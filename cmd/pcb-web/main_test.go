@@ -15,7 +15,9 @@ func validRequest() generateRequest {
 	return generateRequest{
 		Width: o.Width, Height: o.Height, BaseColor: o.BaseColor, AccentColor: o.AccentColor,
 		Background: o.Background, ComponentCount: o.ComponentCount, ClusterCount: o.ClusterCount,
-		MinComponentsPerCluster: o.MinComponentsPerCluster, ComponentRadius: o.ComponentRadius,
+		MinComponentsPerCluster: o.MinComponentsPerCluster,
+		MinPowerSourcesPerCluster: o.MinPowerSourcesPerCluster, MaxPowerSourcesPerCluster: o.MaxPowerSourcesPerCluster,
+		ComponentRadius: o.ComponentRadius,
 		ComponentStrokeWidth: o.ComponentStrokeWidth,
 		ComponentMiddleHexagonScale: o.ComponentMiddleHexagonScale,
 		ComponentInnerHexagonScale: o.ComponentInnerHexagonScale,
@@ -49,6 +51,9 @@ func TestGenerateRequestMapsToPCBOptions(t *testing.T) {
 	if got.BaseColor != req.BaseColor || got.AccentColor != req.AccentColor {
 		t.Fatalf("colors = (%q, %q), want (%q, %q)", got.BaseColor, got.AccentColor, req.BaseColor, req.AccentColor)
 	}
+	if got.MinPowerSourcesPerCluster != 1 || got.MaxPowerSourcesPerCluster != 1 {
+		t.Fatalf("power-source range = %d..%d, want 1..1", got.MinPowerSourcesPerCluster, got.MaxPowerSourcesPerCluster)
+	}
 	if got.TopPowerSourceCount != 8 || got.BottomPowerSourceCount != 9 {
 		t.Fatalf("power source counts = (%d, %d), want (8, 9)", got.TopPowerSourceCount, got.BottomPowerSourceCount)
 	}
@@ -60,6 +65,25 @@ func TestGenerateRequestMapsToPCBOptions(t *testing.T) {
 	}
 	if !got.SeedSet || got.Seed != 42 {
 		t.Fatalf("seed = (%d, %v), want (42, true)", got.Seed, got.SeedSet)
+	}
+}
+
+func TestGenerateRequestAllowsUnpoweredClusters(t *testing.T) {
+	req := validRequest()
+	req.MinPowerSourcesPerCluster = 0
+	req.MaxPowerSourcesPerCluster = 0
+	req.TopPowerSourceCount = 0
+	req.BottomPowerSourceCount = 0
+
+	got, err := req.options()
+	if err != nil {
+		t.Fatalf("zero-source request should be valid: %v", err)
+	}
+	if got.MinPowerSourcesPerCluster != 0 || got.MaxPowerSourcesPerCluster != 0 ||
+		got.TopPowerSourceCount != 0 || got.BottomPowerSourceCount != 0 {
+		t.Fatalf("zero-source options were not preserved: min/max=%d/%d, rows=%d/%d",
+			got.MinPowerSourcesPerCluster, got.MaxPowerSourcesPerCluster,
+			got.TopPowerSourceCount, got.BottomPowerSourceCount)
 	}
 }
 
@@ -85,6 +109,8 @@ func TestGenerateRequestRejectsInvalidOptions(t *testing.T) {
 		{"unknown spacing", func(r *generateRequest) { r.PowerSourceSpacing = "wide" }},
 		{"unknown source style", func(r *generateRequest) { r.PowerSourceStyle = "triple" }},
 		{"too few source contacts", func(r *generateRequest) { r.TopPowerSourceCount = 1; r.BottomPowerSourceCount = 1 }},
+		{"invalid power-source range", func(r *generateRequest) { r.MinPowerSourcesPerCluster = 3; r.MaxPowerSourcesPerCluster = 2 }},
+		{"too many power feeds", func(r *generateRequest) { r.MaxPowerSourcesPerCluster = 7 }},
 		{"trapezoid without both rows", func(r *generateRequest) { r.ConstrainLayoutToPowerSourceTrapezoid = true; r.TopPowerSourceCount = 0 }},
 		{"invalid component scales", func(r *generateRequest) { r.ComponentInnerHexagonScale = 0.8 }},
 		{"invalid seed", func(r *generateRequest) { r.Seed = "seed" }},
@@ -113,7 +139,7 @@ func TestHandleIndexRendersPCBInterface(t *testing.T) {
 	if got := response.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
 		t.Fatalf("content type = %q, want HTML", got)
 	}
-	for _, want := range []string{"PCB Layout Generator", "constrainLayoutToPowerSourceTrapezoid", "powerSourceSpacing"} {
+	for _, want := range []string{"PCB Layout Generator", "constrainLayoutToPowerSourceTrapezoid", "powerSourceSpacing", "minPowerSourcesPerCluster", "maxPowerSourcesPerCluster"} {
 		if !bytes.Contains(response.Body.Bytes(), []byte(want)) {
 			t.Errorf("rendered HTML is missing %q", want)
 		}

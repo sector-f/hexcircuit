@@ -35,7 +35,7 @@ type powerSource struct {
 // contacts. A zero count disables that row.
 func powerSourcePositions(o Options) (top, bottom []hexgrid.GridPosition, err error) {
 	if o.TopPowerSourceCount == 0 && o.BottomPowerSourceCount == 0 {
-		return nil, nil, fmt.Errorf("at least one top or bottom power-source contact is required")
+		return nil, nil, nil
 	}
 	margin := math.Max(o.ComponentRadius+o.ComponentStrokeWidth/2, o.ConnectorInset)
 	cells := hexgrid.GridCells(o.Width, o.Height, o.Pitch, "pointy", margin)
@@ -125,7 +125,9 @@ func placeClusters(
 	var trapezoid *powerSourceTrapezoid
 	if o.ConstrainLayoutToPowerSourceTrapezoid {
 		bounds, err := newPowerSourceTrapezoid(topSources, bottomSources, o)
-		if err != nil { return nil, nil, err }
+		if err != nil {
+			return nil, nil, err
+		}
 		trapezoid = &bounds
 	}
 	candidates := make([]hexgrid.GridPosition, 0, len(allCells))
@@ -172,16 +174,25 @@ func placeClusters(
 	// Retry different source, center, and placement combinations when a set of
 	// non-crossing feeds or compact clusters cannot be constructed.
 	for attempt := 0; attempt < 192; attempt++ {
-		sources, err := choosePowerSourceAssignments(topSources, bottomSources, o.ClusterCount, rng)
+		sourceCounts := allocatePowerSourceCounts(
+			o.ClusterCount, o.MinPowerSourcesPerCluster, o.MaxPowerSourcesPerCluster,
+			len(topSources)+len(bottomSources), rng,
+		)
+		totalSources := 0
+		for _, count := range sourceCounts {
+			totalSources += count
+		}
+		sources, err := choosePowerSourceAssignments(topSources, bottomSources, totalSources, rng)
 		if err != nil {
 			return nil, nil, err
 		}
 
+		spanSources := powerSourceSpanAssignments(sources, toPowerSources(topSources, powerSideTop), toPowerSources(bottomSources, powerSideBottom))
 		attemptCandidates := candidates
 		attemptAllowedRoutes := baseAllowedRoutes
 		if o.ConstrainComponentsToPowerSourceSpan {
-			attemptCandidates = candidatesWithinPowerSourceSpan(attemptCandidates, sources, o)
-			attemptAllowedRoutes = routingCellsWithinPowerSourceSpan(attemptAllowedRoutes, sources, o)
+			attemptCandidates = candidatesWithinPowerSourceSpan(attemptCandidates, spanSources, o)
+			attemptAllowedRoutes = routingCellsWithinPowerSourceSpan(attemptAllowedRoutes, spanSources, o)
 			if len(attemptCandidates) < o.ComponentCount {
 				constrainedCandidatesFailed = true
 				continue
@@ -210,8 +221,8 @@ func placeClusters(
 		}
 		sortClustersByX(centerClusters, o)
 
-		// Match selected contacts to cluster hubs from left to right. The active
-		// contacts themselves are still randomized, including their choice of row.
+		// Assign the selected contacts to clusters in left-to-right order. Each
+		// cluster receives a contiguous group of zero or more source contacts.
 		sort.Slice(sources, func(i, j int) bool {
 			a := hexgrid.GridPositionToPoint(sources[i].Position, o.Width, o.Height, o.Pitch, "pointy")
 			b := hexgrid.GridPositionToPoint(sources[j].Position, o.Width, o.Height, o.Pitch, "pointy")
@@ -220,9 +231,12 @@ func placeClusters(
 			}
 			return sources[i].Side < sources[j].Side
 		})
+		sourceOffset := 0
 		for i := range centerClusters {
-			centerClusters[i].PowerSource = sources[i].Position
-			centerClusters[i].PowerSide = sources[i].Side
+			end := sourceOffset + sourceCounts[i]
+			centerClusters[i].PowerSources = append([]powerSource(nil), sources[sourceOffset:end]...)
+			centerClusters[i].PowerPaths = make([][]hexgrid.GridPosition, sourceCounts[i])
+			sourceOffset = end
 		}
 
 		blockedForPower := make(map[hexgrid.GridPosition]bool, len(topSources)+len(bottomSources)+len(centers))
@@ -236,17 +250,28 @@ func placeClusters(
 			blockedForPower[cluster.Hub] = true
 		}
 
-		// Route the longest feeds first. On an axial hex lattice, two grid-axis
-		// segments can intersect only at a lattice vertex; reserving every path
-		// vertex prevents power-feed crossings as well as shared segments.
-		routeOrder := make([]int, len(centerClusters))
-		for i := range routeOrder {
-			routeOrder[i] = i
+		// Route the longest feeds first. Independent feeds may share their
+		// destination hub, but no other lattice vertices or route segments.
+		type routeAssignment struct {
+			clusterIndex int
+			sourceIndex  int
+			source       powerSource
+		}
+		var routeOrder []routeAssignment
+		for clusterIndex, cluster := range centerClusters {
+			for sourceIndex, source := range cluster.PowerSources {
+				routeOrder = append(routeOrder, routeAssignment{
+					clusterIndex: clusterIndex,
+					sourceIndex:  sourceIndex,
+					source:       source,
+				})
+			}
 		}
 		sort.SliceStable(routeOrder, func(i, j int) bool {
-			a := centerClusters[routeOrder[i]]
-			b := centerClusters[routeOrder[j]]
-			return hexDistance(a.PowerSource, a.Hub) > hexDistance(b.PowerSource, b.Hub)
+			a := routeOrder[i]
+			b := routeOrder[j]
+			return hexDistance(a.source.Position, centerClusters[a.clusterIndex].Hub) >
+				hexDistance(b.source.Position, centerClusters[b.clusterIndex].Hub)
 		})
 		powerCorridors := make(map[hexgrid.GridPosition]bool)
 		powerAllowedRoutes := copyAllowedRoutes(attemptAllowedRoutes)
@@ -254,14 +279,17 @@ func placeClusters(
 			powerAllowedRoutes[source.Position] = true
 		}
 		routed := true
-		for _, clusterID := range routeOrder {
-			cluster := &centerClusters[clusterID]
-			path, ok := findRoute(cluster.PowerSource, cluster.Hub, powerAllowedRoutes, blockedForPower, powerCorridors, cluster.PowerSide, rng)
+		for _, assignment := range routeOrder {
+			cluster := &centerClusters[assignment.clusterIndex]
+			path, ok := findRoute(
+				assignment.source.Position, cluster.Hub,
+				powerAllowedRoutes, blockedForPower, powerCorridors, assignment.source.Side, rng,
+			)
 			if !ok || len(path) < 2 {
 				routed = false
 				break
 			}
-			cluster.PowerPath = path
+			cluster.PowerPaths[assignment.sourceIndex] = path
 			for _, position := range path {
 				powerCorridors[position] = true
 			}
@@ -290,9 +318,16 @@ func placeClusters(
 				failed = true
 				break
 			}
-			cluster.PowerSource = centerClusters[clusterID].PowerSource
-			cluster.PowerSide = centerClusters[clusterID].PowerSide
-			cluster.PowerPath = append([]hexgrid.GridPosition(nil), centerClusters[clusterID].PowerPath...)
+			cluster.PowerSources = append([]powerSource(nil), centerClusters[clusterID].PowerSources...)
+			cluster.PowerPaths = make([][]hexgrid.GridPosition, len(centerClusters[clusterID].PowerPaths))
+			for i, path := range centerClusters[clusterID].PowerPaths {
+				cluster.PowerPaths[i] = append([]hexgrid.GridPosition(nil), path...)
+			}
+			if len(cluster.PowerSources) > 0 {
+				cluster.PowerSource = cluster.PowerSources[0].Position
+				cluster.PowerSide = cluster.PowerSources[0].Side
+				cluster.PowerPath = append([]hexgrid.GridPosition(nil), cluster.PowerPaths[0]...)
+			}
 			clusters[clusterID] = cluster
 			placements = append(placements, cluster.Components...)
 			for _, component := range cluster.Components {
@@ -391,26 +426,26 @@ func candidatesWithinPowerSourceTrapezoid(
 
 func choosePowerSourceAssignments(
 	topSources, bottomSources []hexgrid.GridPosition,
-	clusterCount int,
+	sourceCount int,
 	rng *rand.Rand,
 ) ([]powerSource, error) {
 	topCapacity := len(topSources)
 	bottomCapacity := len(bottomSources)
-	minimumTop := max(0, clusterCount-bottomCapacity)
-	maximumTop := min(clusterCount, topCapacity)
-	// Prefer to use both edges when there are enough clusters and both rows exist.
-	if clusterCount > 1 && len(topSources) > 0 && len(bottomSources) > 0 {
+	minimumTop := max(0, sourceCount-bottomCapacity)
+	maximumTop := min(sourceCount, topCapacity)
+	// Prefer to use both edges when multiple active contacts are selected.
+	if sourceCount > 1 && len(topSources) > 0 && len(bottomSources) > 0 {
 		minimumTop = max(minimumTop, 1)
-		maximumTop = min(maximumTop, clusterCount-1)
+		maximumTop = min(maximumTop, sourceCount-1)
 	}
 	if minimumTop > maximumTop {
-		return nil, fmt.Errorf("cannot assign %d clusters to the available top and bottom power sources", clusterCount)
+		return nil, fmt.Errorf("cannot assign %d active power sources to the available top and bottom contacts", sourceCount)
 	}
 	topCount := minimumTop
 	if maximumTop > minimumTop {
 		topCount += rng.Intn(maximumTop - minimumTop + 1)
 	}
-	bottomCount := clusterCount - topCount
+	bottomCount := sourceCount - topCount
 
 	topIndices := choosePowerSourceIndices(len(topSources), topCount, PowerSourceSpacingAdjacent, rng)
 	bottomIndices := choosePowerSourceIndices(len(bottomSources), bottomCount, PowerSourceSpacingAdjacent, rng)
@@ -418,7 +453,7 @@ func choosePowerSourceAssignments(
 		return nil, fmt.Errorf("could not choose %d top and %d bottom power contacts", topCount, bottomCount)
 	}
 
-	selected := make([]powerSource, 0, clusterCount)
+	selected := make([]powerSource, 0, sourceCount)
 	for _, index := range topIndices {
 		selected = append(selected, powerSource{Position: topSources[index], Side: powerSideTop})
 	}
@@ -426,6 +461,54 @@ func choosePowerSourceAssignments(
 		selected = append(selected, powerSource{Position: bottomSources[index], Side: powerSideBottom})
 	}
 	return selected, nil
+}
+
+// allocatePowerSourceCounts chooses a per-cluster feed count within the configured
+// range, reducing randomly selected extras when the physical contact pool is smaller
+// than the initial choices. The minimum is preserved for every cluster.
+func allocatePowerSourceCounts(clusterCount, minimum, maximum, available int, rng *rand.Rand) []int {
+	counts := make([]int, clusterCount)
+	total := 0
+	for i := range counts {
+		counts[i] = minimum
+		if maximum > minimum {
+			counts[i] += rng.Intn(maximum-minimum+1)
+		}
+		total += counts[i]
+	}
+	for total > available {
+		var eligible []int
+		for i, count := range counts {
+			if count > minimum {
+				eligible = append(eligible, i)
+			}
+		}
+		if len(eligible) == 0 {
+			break
+		}
+		index := eligible[rng.Intn(len(eligible))]
+		counts[index]--
+		total--
+	}
+	return counts
+}
+
+// powerSourceSpanAssignments falls back to the configured physical row contacts
+// when no contacts are active, so the optional horizontal constraint remains useful
+// for layouts in which every cluster is intentionally unpowered.
+func powerSourceSpanAssignments(active, top, bottom []powerSource) []powerSource {
+	if len(active) > 0 {
+		return active
+	}
+	return append(append([]powerSource(nil), top...), bottom...)
+}
+
+func toPowerSources(positions []hexgrid.GridPosition, side powerSide) []powerSource {
+	sources := make([]powerSource, len(positions))
+	for i, position := range positions {
+		sources[i] = powerSource{Position: position, Side: side}
+	}
+	return sources
 }
 
 func allocateClusterSizes(componentCount, clusterCount, minimum int, rng *rand.Rand) []int {

@@ -1,6 +1,6 @@
 # `generators/pcb`
 
-The `pcb` package generates PCB-inspired SVG artwork on the shared hexagonal grid. It plans an explicit board topology before rendering: ordinary components are placed in compact clusters, signal traces connect components within each cluster, and every cluster receives one power feed from an active contact on the top or bottom edge.
+The `pcb` package generates PCB-inspired SVG artwork on the shared hexagonal grid. It plans an explicit board topology before rendering: ordinary components are placed in compact clusters, signal traces connect components within each cluster, and each cluster receives a randomized number of power feeds from active contacts on the top or bottom edge. A cluster may receive no power feeds.
 
 The package uses `github.com/sector-f/hexgrid` for grid geometry and SVG rendering. It does not model real electrical components, pin assignments, or manufacturable PCB layouts; it generates procedural artwork.
 
@@ -20,6 +20,8 @@ func main() {
 	options := pcb.DefaultOptions()
 	options.ShowBackgroundGrid = true
 	options.MinComponentsPerCluster = 1
+	options.MinPowerSourcesPerCluster = 0
+	options.MaxPowerSourcesPerCluster = 2
 	options.TopPowerSourceCount = 9
 	options.BottomPowerSourceCount = 10
 	options.PowerSourceSpacing = pcb.PowerSourceSpacingSeparated
@@ -40,15 +42,15 @@ func main() {
 }
 ```
 
-`Generate` returns the SVG document, the number of rendered base-layer components (ordinary cluster components plus all configured top- and bottom-row power-source contacts), the number of routed bundles (signal plus power), and an error. Every configured physical contact is rendered. Selected contacts receive an accent-colored power core and a power route; unselected contacts remain base-color-only. In separated mode, neighboring physical contacts are placed two lattice cells apart, leaving one empty lattice cell between them. The function does not perform file I/O. Set `SeedSet` to true to make output reproducible; otherwise each call uses a fresh seed.
+`Generate` returns the SVG document, the number of rendered base-layer components (ordinary cluster components plus all configured top- and bottom-row power-source contacts), the number of routed bundles (signal plus power), and an error. Every configured physical contact is rendered. The number of active contacts assigned to each cluster is selected between `MinPowerSourcesPerCluster` and `MaxPowerSourcesPerCluster`, inclusive. Defaults of `1..1` preserve the original one-feed-per-cluster behavior; a minimum of zero permits unpowered clusters. The total active contact count never exceeds the configured physical contacts, and validation rejects a minimum that cannot be satisfied. Selected contacts receive an accent-colored power core and a power route; unselected contacts remain base-color-only. In separated mode, neighboring physical contacts are placed two lattice cells apart, leaving one empty lattice cell between them. The function does not perform file I/O. Set `SeedSet` to true to make output reproducible; otherwise each call uses a fresh seed.
 
 ## Generation model
 
-1. **Power-source rows.** The generator defines potential contact positions along the top and/or bottom edge. `TopPowerSourceCount` and `BottomPowerSourceCount` control how many positions are available on each row. Exactly one contact per cluster is selected as an active source; active contacts receive an accent-colored power core and power route. Unselected contacts remain visible in the base color.
-2. **Source selection.** Active contacts are selected randomly from the combined top and bottom rows. With `PowerSourceSpacingSeparated`, neighboring physical contacts are placed two lattice cells apart; the intervening lattice cells are empty and are not contacts. `PowerSourceSpacingAdjacent` allows neighboring active contacts and renders all configured positions. After selection, contacts are matched to cluster hubs from left to right. This keeps the source-to-cluster pairing monotonic while leaving the choice of top versus bottom source independent of the cluster's vertical position.
-3. **Cluster placement.** The generator allocates the requested ordinary component count across clusters, respecting `MinComponentsPerCluster`. Cluster centers are distributed using farthest-point sampling. Additional components grow outward from each hub through adjacent lattice cells. Cluster footprints retain separation from neighboring clusters and reserved power routes. Ordinary components are excluded from the physical top/bottom source rows. When `ConstrainComponentsToPowerSourceSpan` is enabled, candidate positions and all signal/power routes are restricted to the horizontal interval between the leftmost and rightmost active source contacts.
+1. **Power-source rows.** The generator defines potential contact positions along the top and/or bottom edge. `TopPowerSourceCount` and `BottomPowerSourceCount` control how many positions are available on each row. Active contacts are selected within each cluster's configured minimum/maximum range. Unselected contacts remain visible in the base color; when both limits are zero, no physical source rows are required.
+2. **Source selection.** The generator randomly chooses an active feed count for each cluster, then selects that many unique contacts from the combined top and bottom rows. When the random total exceeds the available contacts, random extra feeds are removed until the selection fits; every cluster's minimum is preserved. With `PowerSourceSpacingSeparated`, neighboring physical contacts are placed two lattice cells apart; the intervening lattice cells are empty and are not contacts. `PowerSourceSpacingAdjacent` allows neighboring contacts. After selection, contacts are matched to cluster hubs from left to right and grouped by cluster. This keeps source-to-cluster pairing monotonic while leaving the choice of top versus bottom source independent of the cluster's vertical position.
+3. **Cluster placement.** The generator allocates the requested ordinary component count across clusters, respecting `MinComponentsPerCluster`. Cluster centers are distributed using farthest-point sampling. Additional components grow outward from each hub through adjacent lattice cells. Cluster footprints retain separation from neighboring clusters and reserved power routes. Ordinary components are excluded from the physical top/bottom source rows. When `ConstrainComponentsToPowerSourceSpan` is enabled, candidate positions and all signal/power routes are restricted to the horizontal interval between the leftmost and rightmost active source contacts. If no feeds are active, the configured physical contacts define the span.
 4. **Signal topology.** The placement parent relationships form a spanning tree, so every component in a multi-component cluster is connected. `Connections` requests additional local signal connections beyond these required tree edges. Optional links never connect different clusters, avoid power-route cells, and stay inside the same source-bounded routing region as the components.
-5. **Power routing.** Each power feed starts at its selected top or bottom contact. A top feed initially travels downward; a bottom feed initially travels upward. The A* router uses the axial hex lattice and reserves every cell used by a completed power route. Because grid-axis segments on this lattice can intersect only at lattice vertices, reserving all visited vertices prevents power-feed crossings. The router never falls back to a crossing path: if it cannot find a set of disjoint routes for a placement, it retries with another placement and eventually returns an error rather than rendering crossing power feeds. A top contact may power a cluster near the bottom, or a bottom contact may power a cluster near the top.
+5. **Power routing.** Each feed starts at its selected top or bottom contact and routes to its cluster hub. A top feed initially travels downward; a bottom feed initially travels upward. Multiple feeds may converge on the same hub, sharing only that endpoint; their other route vertices remain disjoint. The A* router uses the axial hex lattice and reserves every cell used by a completed power route. Because grid-axis segments on this lattice can intersect only at lattice vertices, reserving all visited vertices prevents power-feed crossings. If it cannot find non-crossing paths for a placement, the generator retries and eventually returns an error rather than rendering crossing power feeds. Clusters with no assigned feeds have no power routes or accent-colored cluster-hub core.
 6. **Rendering and color semantics.** Ordinary components and signal traces use `BaseColor`. `AccentColor` is used only for power traces and the small power-entry cores at active source contacts and cluster hubs. Every accent-colored element belongs to a power feed rooted at one of the two edge rows. The base-layer style of active source contacts is controlled by `PowerSourceStyle`.
 
 ## Options
@@ -59,8 +61,10 @@ All physical dimensions are in inches.
 |---|---|
 | `Width`, `Height` | SVG canvas dimensions |
 | `ComponentCount` | Number of ordinary clustered components, excluding all power-source row contacts |
-| `ClusterCount` | Number of component clusters and active power feeds |
+| `ClusterCount` | Number of component clusters |
 | `MinComponentsPerCluster` | Minimum cluster size; defaults to `1`, allowing singleton clusters |
+| `MinPowerSourcesPerCluster` | Minimum active feeds assigned to each cluster; defaults to `1`, and `0` allows unpowered clusters |
+| `MaxPowerSourcesPerCluster` | Maximum active feeds assigned to each cluster; defaults to `1`, with a supported limit of six |
 | `Connections` | Target number of additional intra-cluster signal connections beyond required spanning trees |
 | `TopPowerSourceCount` | Number of physical power-source contacts along the top row |
 | `BottomPowerSourceCount` | Number of physical power-source contacts along the bottom row |
@@ -78,12 +82,12 @@ The remaining options control grid pitch, component geometry, trace geometry, so
 
 Every configured physical contact is rendered in both modes. In separated mode, one empty lattice cell is left between neighboring contacts; in adjacent mode, contacts occupy neighboring lattice cells.
 
-`TopPowerSourceCount` and `BottomPowerSourceCount` may be zero individually, but their sum must be at least `ClusterCount`. Each enabled row must fit on its corresponding canvas edge. In separated mode, the combined rows must also have enough positions to leave an unused position between every pair of active sources on the same row; use adjacent mode when a denser source arrangement is required.
+`TopPowerSourceCount` and `BottomPowerSourceCount` may be zero individually, but their sum must be at least `ClusterCount × MinPowerSourcesPerCluster`. If the minimum is zero, both physical rows may be empty even when the maximum is nonzero; with no configured contacts, no feeds can be assigned. Each enabled row must fit on its corresponding canvas edge. In separated mode, physical contacts are spaced two lattice cells apart; in adjacent mode, they occupy neighboring cells.
 
 `ConstrainComponentsToPowerSourceSpan` uses the leftmost and rightmost **active** sources, not unselected contacts. When enabled, components and their signal/power routes stay within that horizontal span. If the selected source span is too narrow to fit the requested connected clusters, generation returns an error. Disabling the option allows the regular full-width component placement region.
 
 `ConstrainLayoutToPowerSourceTrapezoid` is an independent, opt-in constraint. It uses the leftmost and rightmost configured physical contacts on each source row, then linearly interpolates the left and right boundaries between those rows. It requires both the top and bottom source rows. Components, cluster growth, signal traces, and power feeds are restricted to the resulting trapezoid. When both layout constraints are enabled, their allowed regions are intersected.
 
-`MinComponentsPerCluster` must be at least one, and the requested ordinary component count must be sufficient to satisfy that minimum across all clusters.
+`MinComponentsPerCluster` must be at least one, and the requested ordinary component count must be sufficient to satisfy that minimum across all clusters. Power-source limits must satisfy `0 <= MinPowerSourcesPerCluster <= MaxPowerSourcesPerCluster <= 6`. Six is the geometric maximum around a hexagonal hub; component density and route clearance may make lower practical maxima necessary.
 
 `ConnectorCount` is retained as a deprecated compatibility alias for `BottomPowerSourceCount`. New code should use the explicit top and bottom count fields.

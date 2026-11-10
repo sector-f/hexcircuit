@@ -101,6 +101,9 @@ func TestDefaultOptionsUseSingleSeparatedPowerContacts(t *testing.T) {
 	if o.MinComponentsPerCluster != 1 {
 		t.Fatalf("default minimum components per cluster = %d, want 1", o.MinComponentsPerCluster)
 	}
+	if o.MinPowerSourcesPerCluster != 1 || o.MaxPowerSourcesPerCluster != 1 {
+		t.Fatalf("default power-source range = %d..%d, want 1..1", o.MinPowerSourcesPerCluster, o.MaxPowerSourcesPerCluster)
+	}
 	if o.PowerSourceSpacing != PowerSourceSpacingSeparated {
 		t.Fatalf("default power-source spacing = %q, want separated", o.PowerSourceSpacing)
 	}
@@ -130,6 +133,37 @@ func TestLegacyConnectorCountMapsToBottomRow(t *testing.T) {
 	}
 }
 
+func TestNormalizeOptionsAcceptsZeroPowerSourcesPerCluster(t *testing.T) {
+	o := DefaultOptions()
+	o.MinPowerSourcesPerCluster = 0
+	o.MaxPowerSourcesPerCluster = 0
+	o.TopPowerSourceCount = 0
+	o.BottomPowerSourceCount = 0
+	if _, err := normalizeOptions(o); err != nil {
+		t.Fatalf("zero-source configuration should be valid: %v", err)
+	}
+}
+
+func TestNormalizeOptionsRejectsInvalidPowerSourceRanges(t *testing.T) {
+	for _, edit := range []struct {
+		name string
+		fn   func(*Options)
+	}{
+		{"negative minimum", func(o *Options) { o.MinPowerSourcesPerCluster = -1 }},
+		{"maximum below minimum", func(o *Options) { o.MaxPowerSourcesPerCluster = 0 }},
+		{"more than six feeds", func(o *Options) { o.MaxPowerSourcesPerCluster = 7 }},
+		{"insufficient physical contacts", func(o *Options) { o.MinPowerSourcesPerCluster = 2; o.MaxPowerSourcesPerCluster = 2; o.TopPowerSourceCount = 2; o.BottomPowerSourceCount = 2 }},
+	} {
+		t.Run(edit.name, func(t *testing.T) {
+			o := DefaultOptions()
+			edit.fn(&o)
+			if _, err := normalizeOptions(o); err == nil {
+				t.Fatal("expected invalid power-source range to be rejected")
+			}
+		})
+	}
+}
+
 func TestNormalizeOptionsRejectsTooFewPowerSources(t *testing.T) {
 	o := DefaultOptions()
 	o.TopPowerSourceCount = 2
@@ -148,6 +182,125 @@ func TestNormalizeOptionsAllowsSeparatedPhysicalContactsToAllBeActive(t *testing
 	o.PowerSourceSpacing = PowerSourceSpacingAdjacent
 	if _, err := normalizeOptions(o); err != nil {
 		t.Fatalf("adjacent spacing should also accommodate four contacts: %v", err)
+	}
+}
+
+func TestAllocatePowerSourceCountsRespectsConfiguredBounds(t *testing.T) {
+	for seed := int64(0); seed < 32; seed++ {
+		counts := allocatePowerSourceCounts(8, 1, 3, 15, rand.New(rand.NewSource(seed)))
+		if len(counts) != 8 {
+			t.Fatalf("seed %d: got %d cluster counts, want 8", seed, len(counts))
+		}
+		total := 0
+		for _, count := range counts {
+			if count < 1 || count > 3 {
+				t.Fatalf("seed %d: cluster feed count %d outside [1, 3]", seed, count)
+			}
+			total += count
+		}
+		if total > 15 {
+			t.Fatalf("seed %d: selected %d contacts, exceeding available 15", seed, total)
+		}
+	}
+}
+
+func TestAllocatePowerSourceCountsAllowsZero(t *testing.T) {
+	for seed := int64(0); seed < 8; seed++ {
+		counts := allocatePowerSourceCounts(6, 0, 6, 0, rand.New(rand.NewSource(seed)))
+		for _, count := range counts {
+			if count != 0 {
+				t.Fatalf("seed %d: selected %d feeds with no available contacts", seed, count)
+			}
+		}
+	}
+}
+
+func TestBuildBoardAllowsUnpoweredClusters(t *testing.T) {
+	o := DefaultOptions()
+	o.ComponentCount = 12
+	o.ClusterCount = 3
+	o.MinPowerSourcesPerCluster = 0
+	o.MaxPowerSourcesPerCluster = 0
+	o.TopPowerSourceCount = 0
+	o.BottomPowerSourceCount = 0
+	o.Connections = 0
+	o.Seed, o.SeedSet = 17, true
+	top, bottom, err := powerSourcePositions(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := buildBoard(o, rand.New(rand.NewSource(17)), top, bottom)
+	if err != nil {
+		t.Fatalf("build board without power sources: %v", err)
+	}
+	if len(plan.Clusters) != o.ClusterCount {
+		t.Fatalf("got %d clusters, want %d", len(plan.Clusters), o.ClusterCount)
+	}
+	if len(plan.PowerTraces) != 0 || len(plan.PowerCores) != 0 || len(plan.PowerRoutes) != 0 {
+		t.Fatalf("unpowered board unexpectedly contains power geometry: %d traces, %d cores, %d routes",
+			len(plan.PowerTraces), len(plan.PowerCores), len(plan.PowerRoutes))
+	}
+	for _, cluster := range plan.Clusters {
+		if len(cluster.PowerSources) != 0 {
+			t.Fatalf("unpowered cluster %d has %d source assignments", cluster.ID, len(cluster.PowerSources))
+		}
+	}
+	if _, _, _, err := Generate(o); err != nil {
+		t.Fatalf("generate board without power sources: %v", err)
+	}
+}
+
+func TestBuildBoardSupportsMultipleFeedsPerCluster(t *testing.T) {
+	o := DefaultOptions()
+	o.Width = 14
+	o.Height = 10
+	o.ComponentCount = 8
+	o.ClusterCount = 2
+	o.MinPowerSourcesPerCluster = 2
+	o.MaxPowerSourcesPerCluster = 2
+	o.MaxParallel = 1
+	o.Connections = 0
+	o.Seed, o.SeedSet = 52, true
+	top, bottom, err := powerSourcePositions(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := buildBoard(o, rand.New(rand.NewSource(52)), top, bottom)
+	if err != nil {
+		t.Fatalf("build board with two feeds per cluster: %v", err)
+	}
+	if len(plan.PowerTraces) != 4 || len(plan.PowerRoutes) != 4 {
+		t.Fatalf("got %d power traces and %d routes, want 4 each", len(plan.PowerTraces), len(plan.PowerRoutes))
+	}
+	if len(plan.PowerCores) != 6 {
+		t.Fatalf("got %d power cores, want 4 source cores and 2 shared cluster hubs", len(plan.PowerCores))
+	}
+	usedSources := make(map[hexgrid.GridPosition]bool)
+	usedRouteCells := make(map[hexgrid.GridPosition]hexgrid.GridPosition)
+	for _, cluster := range plan.Clusters {
+		if len(cluster.PowerSources) != 2 || len(cluster.PowerPaths) != 2 {
+			t.Fatalf("cluster %d has %d sources and %d paths, want 2 each", cluster.ID, len(cluster.PowerSources), len(cluster.PowerPaths))
+		}
+		for i, source := range cluster.PowerSources {
+			if usedSources[source.Position] {
+				t.Errorf("source %v assigned to more than one feed", source.Position)
+			}
+			usedSources[source.Position] = true
+			path := cluster.PowerPaths[i]
+			if len(path) < 2 || path[0] != source.Position || path[len(path)-1] != cluster.Hub {
+				t.Errorf("cluster %d feed %d does not run from source %v to hub %v", cluster.ID, i, source.Position, cluster.Hub)
+				continue
+			}
+			for _, position := range path {
+				if previousHub, exists := usedRouteCells[position]; exists && (position != cluster.Hub || position != previousHub) {
+					t.Errorf("power routes share non-hub cell %v", position)
+				}
+				usedRouteCells[position] = cluster.Hub
+			}
+		}
+	}
+	if _, _, _, err := Generate(o); err != nil {
+		t.Fatalf("render board with multiple feeds per cluster: %v", err)
 	}
 }
 
