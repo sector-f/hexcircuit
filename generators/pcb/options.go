@@ -104,9 +104,13 @@ type Options struct {
 	PowerSourceSpacing PowerSourceSpacing
 	// PowerSourceStyle controls the base-layer style of every contact in both rows.
 	PowerSourceStyle PowerSourceStyle
-	// ConstrainComponentsToPowerSourceSpan restricts every ordinary component to
+	// ConstrainComponentsToPowerSourceSpan restricts components and their routes to
 	// the horizontal interval between the leftmost and rightmost active power sources.
 	ConstrainComponentsToPowerSourceSpan bool
+	// ConstrainLayoutToPowerSourceTrapezoid restricts components and all routes to
+	// the trapezoid bounded by the leftmost/rightmost contacts on the top and bottom rows.
+	// Both power-source rows must be enabled when this option is true.
+	ConstrainLayoutToPowerSourceTrapezoid bool
 	// ConnectorInset is the requested gap between each power-source row and its
 	// nearest canvas edge. Lattice snapping and component clearance may leave a larger gap.
 	ConnectorInset float64
@@ -152,8 +156,9 @@ func DefaultOptions() Options {
 		ConnectorCount:                       defaultBottomPowerSourceCount,
 		PowerSourceSpacing:                   PowerSourceSpacingSeparated,
 		PowerSourceStyle:                     PowerSourceStyleSingle,
-		ConstrainComponentsToPowerSourceSpan: false,
-		ConnectorInset:                       0.25,
+		ConstrainComponentsToPowerSourceSpan:  false,
+		ConstrainLayoutToPowerSourceTrapezoid: false,
+		ConnectorInset:                        0.25,
 	}
 }
 
@@ -254,8 +259,13 @@ func normalizeOptions(o Options) (Options, error) {
 	if maximumBundleReach >= powerCoreApothem {
 		return o, fmt.Errorf("trace bundle does not fit inside power-entry cores; reduce trace spacing, node radius, or maximum parallel tracks")
 	}
-	if _, _, err := powerSourcePositions(o); err != nil {
-		return o, err
+	topSources, bottomSources, err := powerSourcePositions(o)
+	if err != nil { return o, err }
+	if o.ConstrainLayoutToPowerSourceTrapezoid {
+		if len(topSources) == 0 || len(bottomSources) == 0 {
+			return o, fmt.Errorf("trapezoid layout constraint requires both top and bottom power-source rows")
+		}
+		if _, err := newPowerSourceTrapezoid(topSources, bottomSources, o); err != nil { return o, err }
 	}
 	return o, nil
 }

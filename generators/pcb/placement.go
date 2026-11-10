@@ -118,18 +118,24 @@ func placeClusters(
 		bottomY = hexgrid.GridPositionToPoint(bottomSources[0], o.Width, o.Height, o.Pitch, "pointy").Y
 	}
 
-	// These candidates are bounded vertically by the power rows. When the
-	// optional horizontal constraint is enabled, a per-attempt filter narrows
-	// them to the span of the active (selected) power sources.
+	// Source rows are reserved exclusively for power contacts. The vertical
+	// clearance keeps components away from the row; this explicit check prevents
+	// regressions if the clearance changes later.
+	sourceRows := powerSourceRowIDs(topSources, bottomSources)
+	var trapezoid *powerSourceTrapezoid
+	if o.ConstrainLayoutToPowerSourceTrapezoid {
+		bounds, err := newPowerSourceTrapezoid(topSources, bottomSources, o)
+		if err != nil { return nil, nil, err }
+		trapezoid = &bounds
+	}
 	candidates := make([]hexgrid.GridPosition, 0, len(allCells))
 	for _, cell := range allCells {
-		if len(topSources) > 0 && cell.Center.Y < topY+1.6*o.Pitch {
-			continue
-		}
-		if len(bottomSources) > 0 && cell.Center.Y > bottomY-1.6*o.Pitch {
-			continue
-		}
-		candidates = append(candidates, hexgrid.GridPosition{Q: cell.Q, R: cell.R})
+		if sourceRows[cell.R] { continue }
+		if len(topSources) > 0 && cell.Center.Y < topY+1.6*o.Pitch { continue }
+		if len(bottomSources) > 0 && cell.Center.Y > bottomY-1.6*o.Pitch { continue }
+		position := hexgrid.GridPosition{Q: cell.Q, R: cell.R}
+		if trapezoid != nil && !trapezoid.contains(position, o) { continue }
+		candidates = append(candidates, position)
 	}
 	sort.Slice(candidates, func(i, j int) bool {
 		if candidates[i].Q != candidates[j].Q {
@@ -147,7 +153,12 @@ func placeClusters(
 		order[i] = i
 	}
 	sort.SliceStable(order, func(i, j int) bool { return sizes[order[i]] > sizes[order[j]] })
-	allowedRoutes := routingCells(o)
+	// Ordinary traces may never enter or leave the vertical corridor bounded by
+	// the source rows. Power feeds get a copy with their source contact re-enabled
+	// as the start, then leave that row on their first step.
+	baseAllowedRoutes := routingCellsWithinPowerSourceCorridor(
+		routingCellsWithoutPowerSourceRows(o, topSources, bottomSources), topSources, bottomSources, o,
+	)
 	constrainedCandidatesFailed := false
 
 	// Retry different source, center, and placement combinations when a set of
@@ -159,12 +170,16 @@ func placeClusters(
 		}
 
 		attemptCandidates := candidates
+		attemptAllowedRoutes := baseAllowedRoutes
 		if o.ConstrainComponentsToPowerSourceSpan {
-			attemptCandidates = candidatesWithinPowerSourceSpan(candidates, sources, o)
-			if len(attemptCandidates) < o.ComponentCount {
-				constrainedCandidatesFailed = true
-				continue
-			}
+			attemptCandidates = candidatesWithinPowerSourceSpan(attemptCandidates, sources, o)
+			attemptAllowedRoutes = routingCellsWithinPowerSourceSpan(attemptAllowedRoutes, sources, o)
+			if len(attemptCandidates) < o.ComponentCount { constrainedCandidatesFailed = true; continue }
+		}
+		if trapezoid != nil {
+			attemptCandidates = candidatesWithinPowerSourceTrapezoid(attemptCandidates, *trapezoid, o)
+			attemptAllowedRoutes = routingCellsWithinPowerSourceTrapezoid(attemptAllowedRoutes, *trapezoid, o)
+			if len(attemptCandidates) < o.ComponentCount { constrainedCandidatesFailed = true; continue }
 		}
 		eligible := make(map[hexgrid.GridPosition]bool, len(attemptCandidates))
 		for _, position := range attemptCandidates {
@@ -220,10 +235,12 @@ func placeClusters(
 			return hexDistance(a.PowerSource, a.Hub) > hexDistance(b.PowerSource, b.Hub)
 		})
 		powerCorridors := make(map[hexgrid.GridPosition]bool)
+		powerAllowedRoutes := copyAllowedRoutes(attemptAllowedRoutes)
+		for _, source := range sources { powerAllowedRoutes[source.Position] = true }
 		routed := true
 		for _, clusterID := range routeOrder {
 			cluster := &centerClusters[clusterID]
-			path, ok := findRoute(cluster.PowerSource, cluster.Hub, allowedRoutes, blockedForPower, powerCorridors, cluster.PowerSide, rng)
+			path, ok := findRoute(cluster.PowerSource, cluster.Hub, powerAllowedRoutes, blockedForPower, powerCorridors, cluster.PowerSide, rng)
 			if !ok || len(path) < 2 {
 				routed = false
 				break
@@ -302,6 +319,39 @@ func candidatesWithinPowerSourceSpan(
 			filtered = append(filtered, candidate)
 		}
 	}
+	return filtered
+}
+
+
+type powerSourceTrapezoid struct {
+	topY, bottomY float64
+	topLeft, topRight float64
+	bottomLeft, bottomRight float64
+}
+
+func newPowerSourceTrapezoid(topSources, bottomSources []hexgrid.GridPosition, o Options) (powerSourceTrapezoid, error) {
+	if len(topSources) == 0 || len(bottomSources) == 0 { return powerSourceTrapezoid{}, fmt.Errorf("power-source trapezoid requires both top and bottom source rows") }
+	tl := hexgrid.GridPositionToPoint(topSources[0], o.Width, o.Height, o.Pitch, "pointy")
+	tr := hexgrid.GridPositionToPoint(topSources[len(topSources)-1], o.Width, o.Height, o.Pitch, "pointy")
+	bl := hexgrid.GridPositionToPoint(bottomSources[0], o.Width, o.Height, o.Pitch, "pointy")
+	br := hexgrid.GridPositionToPoint(bottomSources[len(bottomSources)-1], o.Width, o.Height, o.Pitch, "pointy")
+	if bl.Y <= tl.Y { return powerSourceTrapezoid{}, fmt.Errorf("cannot construct power-source trapezoid: bottom row must be below the top row") }
+	return powerSourceTrapezoid{topY:tl.Y,bottomY:bl.Y,topLeft:tl.X,topRight:tr.X,bottomLeft:bl.X,bottomRight:br.X},nil
+}
+
+func (b powerSourceTrapezoid) contains(position hexgrid.GridPosition, o Options) bool {
+	point := hexgrid.GridPositionToPoint(position, o.Width, o.Height, o.Pitch, "pointy")
+	const epsilon = 1e-9
+	if point.Y < b.topY-epsilon || point.Y > b.bottomY+epsilon { return false }
+	t := (point.Y-b.topY)/(b.bottomY-b.topY)
+	left := b.topLeft+(b.bottomLeft-b.topLeft)*t
+	right := b.topRight+(b.bottomRight-b.topRight)*t
+	return point.X >= left-epsilon && point.X <= right+epsilon
+}
+
+func candidatesWithinPowerSourceTrapezoid(candidates []hexgrid.GridPosition, bounds powerSourceTrapezoid, o Options) []hexgrid.GridPosition {
+	filtered := make([]hexgrid.GridPosition,0,len(candidates))
+	for _, candidate := range candidates { if bounds.contains(candidate,o) { filtered=append(filtered,candidate) } }
 	return filtered
 }
 

@@ -50,6 +50,62 @@ func routingCells(o Options) map[hexgrid.GridPosition]bool {
 // vertex it visits, so subsequent power routes cannot share a vertex or cross
 // an existing route. The sourceSide argument restricts the first step so a top
 // source exits downward and a bottom source exits upward.
+
+func powerSourceRowIDs(topSources, bottomSources []hexgrid.GridPosition) map[int]bool {
+	rows:=make(map[int]bool,2)
+	if len(topSources)>0 { rows[topSources[0].R]=true }
+	if len(bottomSources)>0 { rows[bottomSources[0].R]=true }
+	return rows
+}
+
+func routingCellsWithoutPowerSourceRows(o Options, topSources, bottomSources []hexgrid.GridPosition) map[hexgrid.GridPosition]bool {
+	allowed:=routingCells(o)
+	rows:=powerSourceRowIDs(topSources,bottomSources)
+	for position:=range allowed { if rows[position.R] { delete(allowed,position) } }
+	return allowed
+}
+
+func routingCellsWithinPowerSourceCorridor(allowed map[hexgrid.GridPosition]bool, topSources, bottomSources []hexgrid.GridPosition, o Options) map[hexgrid.GridPosition]bool {
+	topY,bottomY:=math.Inf(-1),math.Inf(1)
+	if len(topSources)>0 { topY=hexgrid.GridPositionToPoint(topSources[0],o.Width,o.Height,o.Pitch,"pointy").Y }
+	if len(bottomSources)>0 { bottomY=hexgrid.GridPositionToPoint(bottomSources[0],o.Width,o.Height,o.Pitch,"pointy").Y }
+	filtered:=make(map[hexgrid.GridPosition]bool,len(allowed))
+	const epsilon=1e-9
+	for position:=range allowed {
+		y:=hexgrid.GridPositionToPoint(position,o.Width,o.Height,o.Pitch,"pointy").Y
+		if y>topY+epsilon&&y<bottomY-epsilon { filtered[position]=true }
+	}
+	return filtered
+}
+
+func copyAllowedRoutes(allowed map[hexgrid.GridPosition]bool) map[hexgrid.GridPosition]bool {
+	copied:=make(map[hexgrid.GridPosition]bool,len(allowed))
+	for position:=range allowed { copied[position]=true }
+	return copied
+}
+
+func routingCellsWithinPowerSourceSpan(allowed map[hexgrid.GridPosition]bool,sources []powerSource,o Options) map[hexgrid.GridPosition]bool {
+	minimumX,maximumX:=math.Inf(1),math.Inf(-1)
+	for _,source:=range sources {
+		x:=hexgrid.GridPositionToPoint(source.Position,o.Width,o.Height,o.Pitch,"pointy").X
+		minimumX,maximumX=math.Min(minimumX,x),math.Max(maximumX,x)
+	}
+	filtered:=make(map[hexgrid.GridPosition]bool,len(allowed))
+	if math.IsInf(minimumX,0)||math.IsInf(maximumX,0) { return filtered }
+	const epsilon=1e-9
+	for position:=range allowed {
+		x:=hexgrid.GridPositionToPoint(position,o.Width,o.Height,o.Pitch,"pointy").X
+		if x>=minimumX-epsilon&&x<=maximumX+epsilon { filtered[position]=true }
+	}
+	return filtered
+}
+
+func routingCellsWithinPowerSourceTrapezoid(allowed map[hexgrid.GridPosition]bool,bounds powerSourceTrapezoid,o Options) map[hexgrid.GridPosition]bool {
+	filtered:=make(map[hexgrid.GridPosition]bool,len(allowed))
+	for position:=range allowed { if bounds.contains(position,o) { filtered[position]=true } }
+	return filtered
+}
+
 func findRoute(
 	start, goal hexgrid.GridPosition,
 	allowed, blocked, reserved map[hexgrid.GridPosition]bool,

@@ -15,6 +15,7 @@ func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 		"--power-source-spacing=adjacent",
 		"--power-source-style=double",
 		"--constrain-components-to-power-source-span",
+		"--constrain-layout-to-power-source-trapezoid",
 		"--seed=42",
 	}, io.Discard)
 	if err != nil {
@@ -34,6 +35,9 @@ func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 	}
 	if !opts.Generator.ConstrainComponentsToPowerSourceSpan {
 		t.Error("component-span constraint was not enabled")
+	}
+	if !opts.Generator.ConstrainLayoutToPowerSourceTrapezoid {
+		t.Error("power-source trapezoid constraint was not enabled")
 	}
 	if !opts.Generator.SeedSet || opts.Generator.Seed != 42 {
 		t.Errorf("seed state = (%d, %v), want (42, true)", opts.Generator.Seed, opts.Generator.SeedSet)

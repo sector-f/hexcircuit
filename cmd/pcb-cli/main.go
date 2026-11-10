@@ -75,7 +75,8 @@ func parseOptions(arguments []string, stderr io.Writer) (CLIOptions, error) {
 	flags.StringVar(&spacing, "power-source-spacing", spacing, "Spacing between active contacts: 'separated' leaves an empty position between them; 'adjacent' permits neighbors.")
 	style := string(opts.Generator.PowerSourceStyle)
 	flags.StringVar(&style, "power-source-style", style, "Base-layer style for rendered power contacts: 'single' or 'double'.")
-	flags.BoolVar(&opts.Generator.ConstrainComponentsToPowerSourceSpan, "constrain-components-to-power-source-span", opts.Generator.ConstrainComponentsToPowerSourceSpan, "Keep ordinary components horizontally between the leftmost and rightmost active power sources.")
+	flags.BoolVar(&opts.Generator.ConstrainComponentsToPowerSourceSpan, "constrain-components-to-power-source-span", opts.Generator.ConstrainComponentsToPowerSourceSpan, "Keep ordinary components and their traces horizontally between the leftmost and rightmost active power sources.")
+	flags.BoolVar(&opts.Generator.ConstrainLayoutToPowerSourceTrapezoid, "constrain-layout-to-power-source-trapezoid", opts.Generator.ConstrainLayoutToPowerSourceTrapezoid, "Keep components and all routes inside the trapezoid bounded by the top and bottom power-source rows.")
 	flags.Float64Var(&opts.Generator.ConnectorInset, "connector-inset", opts.Generator.ConnectorInset, "Requested gap between each enabled power-source row and its nearest canvas edge, in inches.")
 
 	seedText := "random"
