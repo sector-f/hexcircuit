@@ -279,7 +279,7 @@ func TestPositiveFinite(t *testing.T) {
 	}
 }
 
-func TestGenerateRequestDefaultsDecorativeTraceLengthsWhenOmitted(t *testing.T) {
+func TestGenerateRequestDefaultsDecorativeTraceSettingsWhenOmitted(t *testing.T) {
 	req := validRequest()
 	req.DecorativeTraceMinLength = 0
 	req.DecorativeTraceMaxLength = 0

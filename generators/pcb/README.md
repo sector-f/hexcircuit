@@ -69,7 +69,7 @@ All physical dimensions are in inches.
 | `MinPowerSourcesPerCluster` | Minimum active feeds assigned to each cluster; defaults to `1`, and `0` allows unpowered clusters |
 | `MaxPowerSourcesPerCluster` | Maximum active feeds assigned to each cluster; defaults to `1`, with a supported limit of six |
 | `Connections` | Target number of additional intra-cluster signal connections beyond required spanning trees |
-| `DecorativeTraceCount` | Best-effort target number of decorative decorative traces; defaults to `0` (disabled) |
+| `DecorativeTraceCount` | Best-effort target number of decorative traces; defaults to `0` (disabled) |
 | `DecorativeTraceMinLength`, `DecorativeTraceMaxLength` | Inclusive trace-length range in grid steps; defaults to `4`–`10` |
 | `DecorativeTraceMaxBends` | Maximum number of direction changes per trace; defaults to `3` |
 | `InterClusterTraces` | Enables opportunistic accent-colored routes between components in different clusters; disabled by default |

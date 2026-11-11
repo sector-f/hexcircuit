@@ -12,7 +12,7 @@ const (
 	defaultHeight                 = 8.0
 	defaultBottomPowerSourceCount = 10
 	maxGenerationAttempts         = 20
-	maxDecorativeTraceCount             = 1000
+	maxDecorativeTraceCount       = 1000
 	powerCoreRadiusScale          = 0.36
 )
 
