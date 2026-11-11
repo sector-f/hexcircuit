@@ -56,9 +56,7 @@ func addDecorativeTestPoints(
 					}
 				}
 				rng.Shuffle(len(directions)-1, func(i, j int) {
-					i++
-					j++
-					directions[i], directions[j] = directions[j], directions[i]
+					directions[i+1], directions[j+1] = directions[j+1], directions[i+1]
 				})
 			} else {
 				rng.Shuffle(len(directions), func(i, j int) {
@@ -81,7 +79,7 @@ func addDecorativeTestPoints(
 				}
 
 				length := o.TestPointMinLength + rng.Intn(len(clearPath)-o.TestPointMinLength+1)
-				path := append([]hexgrid.GridPosition(nil), clearPath[:length]...)
+				path := clearPath[:length]
 				byCluster[clusterIndex] = append(byCluster[clusterIndex], testPointCandidate{
 					start: component.Position,
 					path: path,
@@ -126,9 +124,9 @@ func addDecorativeTestPoints(
 				}
 
 				traces = append(traces, hexgrid.GridTrace{
-					Start: candidate.start,
-					Path: []hexgrid.GridPosition{candidate.path[len(candidate.path)-1]},
-					Lines: 1,
+					Start:        candidate.start,
+					Path:         []hexgrid.GridPosition{candidate.path[len(candidate.path)-1]},
+					Lines:        1,
 					HideTerminal: false,
 				})
 				usedStarts[candidate.start] = true
