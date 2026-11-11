@@ -223,9 +223,10 @@
           <div class="hint">Complete board-generation attempts. After placement/routing exhaustion, the generator retries with a seed derived from the current seed.</div>
           <div class="field full check-field"><input id="interClusterTraces" type="checkbox"><label for="interClusterTraces">Generate occasional inter-cluster traces (accent color)</label></div>
           <div class="hint">The generator attempts a small randomized set of links between clusters. It is normal for no inter-cluster traces to appear when no non-crossing route is available.</div>
-          <div class="field"><label for="testPointCount">Decorative test points</label><input id="testPointCount" type="number" min="0" max="1000" step="1" value="0" required></div>
-          <div class="field"><label for="testPointMinLength">Test-point minimum length (cells)</label><input id="testPointMinLength" type="number" min="2" max="100" step="1" value="2" required></div>
-          <div class="field"><label for="testPointMaxLength">Test-point maximum length (cells)</label><input id="testPointMaxLength" type="number" min="2" max="100" step="1" value="4" required></div>
+          <div class="field"><label for="decorativeTraceCount">Decorative decorative traces</label><input id="decorativeTraceCount" type="number" min="0" max="1000" step="1" value="0" required></div>
+          <div class="field"><label for="decorativeTraceMinLength">Minimum length (cells)</label><input id="decorativeTraceMinLength" type="number" min="3" max="100" step="1" value="4" required></div>
+          <div class="field"><label for="decorativeTraceMaxLength">Maximum length (cells)</label><input id="decorativeTraceMaxLength" type="number" min="3" max="100" step="1" value="10" required></div>
+          <div class="field"><label for="decorativeTraceMaxBends">Maximum bends</label><input id="decorativeTraceMaxBends" type="number" min="1" max="10" step="1" value="3" required></div>
           <div class="hint">Best-effort count of short, straight, base-color stubs from cluster leaf components to hollow pads. Stubs are spread across clusters; unavailable paths are skipped. Set the count to zero to disable.</div>
           <div class="field"><label for="maxParallel">Max parallel tracks</label><input id="maxParallel" type="number" min="1" max="3" step="1" value="3" required></div>
           <div class="field"><label for="traceStrokeWidth">Trace width (in)</label><input id="traceStrokeWidth" type="number" min="0.001" step="0.001" value="0.009" required></div>
@@ -337,9 +338,10 @@
           componentMiddleHexagonScale: number('componentMiddleHexagonScale'),
           componentInnerHexagonScale: number('componentInnerHexagonScale'),
           connections: number('connections'),
-          testPointCount: number('testPointCount'),
-          testPointMinLength: number('testPointMinLength'),
-          testPointMaxLength: number('testPointMaxLength'),
+          decorativeTraceCount: number('decorativeTraceCount'),
+          decorativeTraceMinLength: number('decorativeTraceMinLength'),
+          decorativeTraceMaxLength: number('decorativeTraceMaxLength'),
+          decorativeTraceMaxBends: number('decorativeTraceMaxBends'),
           routeAttempts: number('routeAttempts'),
           generationAttempts: number('generationAttempts'),
           interClusterTraces: checked('interClusterTraces'),

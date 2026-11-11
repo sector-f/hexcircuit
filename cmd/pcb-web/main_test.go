@@ -23,8 +23,8 @@ func validRequest() generateRequest {
 		ComponentStrokeWidth: o.ComponentStrokeWidth,
 		ComponentMiddleHexagonScale: o.ComponentMiddleHexagonScale,
 		ComponentInnerHexagonScale: o.ComponentInnerHexagonScale,
-		Connections: o.Connections, TestPointCount: o.TestPointCount,
-		TestPointMinLength: o.TestPointMinLength, TestPointMaxLength: o.TestPointMaxLength,
+		Connections: o.Connections, DecorativeTraceCount: o.DecorativeTraceCount,
+		DecorativeTraceMinLength: o.DecorativeTraceMinLength, DecorativeTraceMaxLength: o.DecorativeTraceMaxLength,
 		InterClusterTraces: o.InterClusterTraces, MaxParallel: o.MaxParallel,
 		RouteAttempts: o.RouteAttempts, GenerationAttempts: o.GenerationAttempts, Pitch: o.Pitch,
 		TraceStrokeWidth: o.TraceStrokeWidth, TraceSpacing: o.TraceSpacing, NodeRadius: o.NodeRadius,
@@ -50,9 +50,10 @@ func TestGenerateRequestMapsToPCBOptions(t *testing.T) {
 	req.ConstrainComponentsToPowerSourceSpan = true
 	req.ConstrainLayoutToPowerSourceTrapezoid = true
 	req.InterClusterTraces = true
-	req.TestPointCount = 5
-	req.TestPointMinLength = 3
-	req.TestPointMaxLength = 6
+	req.DecorativeTraceCount = 5
+	req.DecorativeTraceMinLength = 3
+	req.DecorativeTraceMaxLength = 6
+	req.DecorativeTraceMaxBends = 2
 	req.RouteAttempts = 7
 	req.GenerationAttempts = 6
 	req.BaseGlow = true
@@ -95,10 +96,10 @@ func TestGenerateRequestMapsToPCBOptions(t *testing.T) {
 	if !got.InterClusterTraces {
 		t.Fatal("inter-cluster trace option was not mapped")
 	}
-	if got.TestPointCount != req.TestPointCount || got.TestPointMinLength != req.TestPointMinLength || got.TestPointMaxLength != req.TestPointMaxLength {
-		t.Fatalf("test-point options = (%d, %d, %d), want (%d, %d, %d)",
-			got.TestPointCount, got.TestPointMinLength, got.TestPointMaxLength,
-			req.TestPointCount, req.TestPointMinLength, req.TestPointMaxLength)
+	if got.DecorativeTraceCount != req.DecorativeTraceCount || got.DecorativeTraceMinLength != req.DecorativeTraceMinLength || got.DecorativeTraceMaxLength != req.DecorativeTraceMaxLength || got.DecorativeTraceMaxBends != req.DecorativeTraceMaxBends {
+		t.Fatalf("decorative-trace options = (%d, %d, %d), want (%d, %d, %d)",
+			got.DecorativeTraceCount, got.DecorativeTraceMinLength, got.DecorativeTraceMaxLength,
+			req.DecorativeTraceCount, req.DecorativeTraceMinLength, req.DecorativeTraceMaxLength)
 	}
 	if got.RouteAttempts != 7 { t.Fatalf("route attempts = %d, want 7", got.RouteAttempts) }
 	if got.GenerationAttempts != 6 { t.Fatalf("generation attempts = %d, want 6", got.GenerationAttempts) }
@@ -199,12 +200,13 @@ func TestGenerateRequestRejectsInvalidOptions(t *testing.T) {
 		{"too many route attempts", func(r *generateRequest) { r.RouteAttempts = 1001 }},
 		{"negative generation attempts", func(r *generateRequest) { r.GenerationAttempts = -1 }},
 		{"too many generation attempts", func(r *generateRequest) { r.GenerationAttempts = 21 }},
-		{"negative test-point count", func(r *generateRequest) { r.TestPointCount = -1 }},
-		{"test-point count too large", func(r *generateRequest) { r.TestPointCount = 1001 }},
-		{"test-point count too large", func(r *generateRequest) { r.TestPointCount = 1001 }},
-		{"test-point minimum too short", func(r *generateRequest) { r.TestPointMinLength = 1 }},
-		{"test-point maximum below minimum", func(r *generateRequest) { r.TestPointMinLength = 4; r.TestPointMaxLength = 3 }},
-		{"test-point maximum too large", func(r *generateRequest) { r.TestPointMaxLength = 101 }},
+		{"negative decorative-trace count", func(r *generateRequest) { r.DecorativeTraceCount = -1 }},
+		{"decorative-trace count too large", func(r *generateRequest) { r.DecorativeTraceCount = 1001 }},
+		{"decorative-trace count too large", func(r *generateRequest) { r.DecorativeTraceCount = 1001 }},
+		{"decorative-trace minimum too short", func(r *generateRequest) { r.DecorativeTraceMinLength = 2 }},
+		{"decorative-trace max bends too large", func(r *generateRequest) { r.DecorativeTraceMaxBends = 11 }},
+		{"decorative-trace maximum below minimum", func(r *generateRequest) { r.DecorativeTraceMinLength = 4; r.DecorativeTraceMaxLength = 3 }},
+		{"decorative-trace maximum too large", func(r *generateRequest) { r.DecorativeTraceMaxLength = 101 }},
 		{"invalid seed", func(r *generateRequest) { r.Seed = "seed" }},
 		{"negative base glow blur radius", func(r *generateRequest) { r.BaseGlowBlurRadius = -0.1 }},
 		{"base glow opacity above one", func(r *generateRequest) { r.BaseGlowOpacity = 1.1 }},
@@ -235,7 +237,7 @@ func TestHandleIndexRendersPCBInterface(t *testing.T) {
 	if got := response.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
 		t.Fatalf("content type = %q, want HTML", got)
 	}
-	for _, want := range []string{"PCB Layout Generator", "constrainLayoutToPowerSourceTrapezoid", "powerSourceSpacing", "minPowerSourcesPerCluster", "maxPowerSourcesPerCluster", "interClusterTraces", "testPointCount", "testPointMinLength", "testPointMaxLength", "gridColor", "routeAttempts", "generationAttempts", "baseGlowEnabled", "baseGlowBlurRadius", "baseGlowOpacity", "accentGlowEnabled", "accentGlowBlurRadius", "accentGlowOpacity"} {
+	for _, want := range []string{"PCB Layout Generator", "constrainLayoutToPowerSourceTrapezoid", "powerSourceSpacing", "minPowerSourcesPerCluster", "maxPowerSourcesPerCluster", "interClusterTraces", "decorativeTraceCount", "decorativeTraceMinLength", "decorativeTraceMaxLength", "decorativeTraceMaxBends", "gridColor", "routeAttempts", "generationAttempts", "baseGlowEnabled", "baseGlowBlurRadius", "baseGlowOpacity", "accentGlowEnabled", "accentGlowBlurRadius", "accentGlowOpacity"} {
 		if !bytes.Contains(response.Body.Bytes(), []byte(want)) {
 			t.Errorf("rendered HTML is missing %q", want)
 		}
@@ -278,18 +280,19 @@ func TestPositiveFinite(t *testing.T) {
 	}
 }
 
-func TestGenerateRequestDefaultsTestPointLengthsWhenOmitted(t *testing.T) {
+func TestGenerateRequestDefaultsDecorativeTraceLengthsWhenOmitted(t *testing.T) {
 	req := validRequest()
-	req.TestPointMinLength = 0
-	req.TestPointMaxLength = 0
+	req.DecorativeTraceMinLength = 0
+	req.DecorativeTraceMaxLength = 0
+	req.DecorativeTraceMaxBends = 0
 	got, err := req.options()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defaults := pcb.DefaultOptions()
-	if got.TestPointMinLength != defaults.TestPointMinLength || got.TestPointMaxLength != defaults.TestPointMaxLength {
-		t.Fatalf("test-point length defaults = (%d, %d), want (%d, %d)",
-			got.TestPointMinLength, got.TestPointMaxLength,
-			defaults.TestPointMinLength, defaults.TestPointMaxLength)
+	if got.DecorativeTraceMinLength != defaults.DecorativeTraceMinLength || got.DecorativeTraceMaxLength != defaults.DecorativeTraceMaxLength {
+		t.Fatalf("decorative-trace length defaults = (%d, %d), want (%d, %d)",
+			got.DecorativeTraceMinLength, got.DecorativeTraceMaxLength,
+			defaults.DecorativeTraceMinLength, defaults.DecorativeTraceMaxLength)
 	}
 }

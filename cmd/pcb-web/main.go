@@ -53,9 +53,10 @@ type generateRequest struct {
 	ComponentMiddleHexagonScale         float64 `json:"componentMiddleHexagonScale"`
 	ComponentInnerHexagonScale          float64 `json:"componentInnerHexagonScale"`
 	Connections                         int     `json:"connections"`
-	TestPointCount                      int     `json:"testPointCount"`
-	TestPointMinLength                  int     `json:"testPointMinLength"`
-	TestPointMaxLength                  int     `json:"testPointMaxLength"`
+	DecorativeTraceCount                      int     `json:"decorativeTraceCount"`
+	DecorativeTraceMinLength                  int     `json:"decorativeTraceMinLength"`
+	DecorativeTraceMaxLength                  int     `json:"decorativeTraceMaxLength"`
+	DecorativeTraceMaxBends                   int     `json:"decorativeTraceMaxBends"`
 	InterClusterTraces                  bool    `json:"interClusterTraces"`
 	MaxParallel                         int     `json:"maxParallel"`
 	RouteAttempts                       int     `json:"routeAttempts"`
@@ -193,8 +194,8 @@ func (r generateRequest) options() (pcb.Options, error) {
 	if r.Connections < 0 || r.Connections > 1000 {
 		return pcb.Options{}, fmt.Errorf("extra connection count must be between 0 and 1000")
 	}
-	if r.TestPointCount < 0 || r.TestPointCount > 1000 {
-		return pcb.Options{}, fmt.Errorf("test-point count must be between 0 and 1000")
+	if r.DecorativeTraceCount < 0 || r.DecorativeTraceCount > 1000 {
+		return pcb.Options{}, fmt.Errorf("decorative-trace count must be between 0 and 1000")
 	}
 	if r.MaxParallel < 1 || r.MaxParallel > 3 {
 		return pcb.Options{}, fmt.Errorf("maximum parallel tracks must be between 1 and 3")
@@ -206,12 +207,19 @@ func (r generateRequest) options() (pcb.Options, error) {
 	if generationAttempts == 0 { generationAttempts = pcb.DefaultOptions().GenerationAttempts }
 	if generationAttempts < 1 || generationAttempts > 20 { return pcb.Options{}, fmt.Errorf("generation attempts must be between 1 and 20") }
 	defaults := pcb.DefaultOptions()
-	testPointMinLength := r.TestPointMinLength
-	if testPointMinLength == 0 { testPointMinLength = defaults.TestPointMinLength }
-	testPointMaxLength := r.TestPointMaxLength
-	if testPointMaxLength == 0 { testPointMaxLength = defaults.TestPointMaxLength }
-	if testPointMinLength < 2 || testPointMaxLength < testPointMinLength || testPointMaxLength > 100 {
-		return pcb.Options{}, fmt.Errorf("test-point lengths must satisfy 2 <= minimum <= maximum <= 100 grid steps")
+	decorativeTraceMinLength := r.DecorativeTraceMinLength
+	if decorativeTraceMinLength == 0 { decorativeTraceMinLength = defaults.DecorativeTraceMinLength }
+	decorativeTraceMaxLength := r.DecorativeTraceMaxLength
+	if decorativeTraceMaxLength == 0 { decorativeTraceMaxLength = defaults.DecorativeTraceMaxLength }
+	if decorativeTraceMinLength < 3 || decorativeTraceMaxLength < decorativeTraceMinLength || decorativeTraceMaxLength > 100 {
+		return pcb.Options{}, fmt.Errorf("decorative-trace lengths must satisfy 3 <= minimum <= maximum <= 100 grid steps")
+	}
+	decorativeTraceMaxBends := r.DecorativeTraceMaxBends
+	if decorativeTraceMaxBends == 0 {
+		decorativeTraceMaxBends = defaults.DecorativeTraceMaxBends
+	}
+	if decorativeTraceMaxBends < 1 || decorativeTraceMaxBends > 10 {
+		return pcb.Options{}, fmt.Errorf("decorative-trace maximum bends must be between 1 and 10")
 	}
 	baseGlowBlurRadius := r.BaseGlowBlurRadius
 	if baseGlowBlurRadius == 0 { baseGlowBlurRadius = defaults.BaseGlowBlurRadius }
@@ -294,9 +302,10 @@ func (r generateRequest) options() (pcb.Options, error) {
 		MinPowerSourcesPerCluster:             r.MinPowerSourcesPerCluster,
 		MaxPowerSourcesPerCluster:             r.MaxPowerSourcesPerCluster,
 		Connections:                          r.Connections,
-		TestPointCount:                       r.TestPointCount,
-		TestPointMinLength:                   testPointMinLength,
-		TestPointMaxLength:                   testPointMaxLength,
+		DecorativeTraceCount:                       r.DecorativeTraceCount,
+		DecorativeTraceMinLength:                   decorativeTraceMinLength,
+		DecorativeTraceMaxLength:                   decorativeTraceMaxLength,
+		DecorativeTraceMaxBends:                    decorativeTraceMaxBends,
 		InterClusterTraces:                   r.InterClusterTraces,
 		MaxParallel:                          r.MaxParallel,
 		RouteAttempts:                        routeAttempts,
