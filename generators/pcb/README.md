@@ -93,6 +93,8 @@ All physical dimensions are in inches.
 | `ShowBackgroundGrid` | Enables the optional low-contrast hexagonal background grid |
 | `Seed`, `SeedSet` | Reproducible generation settings; fallback seeds are derived from the first seed if generation retries |
 
+Test-point stubs are placed on leaf components of the cluster placement trees. For each leaf, the generator considers straight exits along the six axial directions, preferring to continue outward from the leaf's parent edge. It skips paths that leave the allowed board area or encounter components or reserved routes. Valid stubs are distributed round-robin across clusters and each start component receives at most one stub. The requested count is best-effort; unavailable positions do not cause board generation to fail. Their hollow endpoint pads use the existing `NodeRadius` setting and inherit base-color glow.
+
 The remaining options control grid pitch, component geometry, trace geometry, source-row inset, canvas background, and partial background-grid clipping. See `Options` for their full documentation.
 
 Every configured physical contact is rendered in both modes. In separated mode, one empty lattice cell is left between neighboring contacts; in adjacent mode, contacts occupy neighboring lattice cells.

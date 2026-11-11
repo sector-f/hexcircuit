@@ -1514,8 +1514,8 @@ func TestNormalizeOptionsRejectsInvalidTestPointSettings(t *testing.T) {
 
 func TestBuildBoardAddsDecorativeTestPoints(t *testing.T) {
 	o := DefaultOptions()
-	o.ComponentCount = 30
-	o.ClusterCount = 6
+	o.ComponentCount = 12
+	o.ClusterCount = 3
 	o.MinPowerSourcesPerCluster = 0
 	o.MaxPowerSourcesPerCluster = 0
 	o.TopPowerSourceCount = 0
@@ -1542,7 +1542,15 @@ func TestBuildBoardAddsDecorativeTestPoints(t *testing.T) {
 			t.Errorf("unexpected test-point trace: %+v", trace)
 		}
 	}
-	if _, err := renderBoard(o, plan); err != nil {
-		t.Fatalf("render board with test points: %v", err)
+	svg, _, traceCount, err := Generate(o)
+	if err != nil {
+		t.Fatalf("generate board with test points: %v", err)
+	}
+	if svg == "" {
+		t.Fatal("generation returned an empty SVG")
+	}
+	wantTraceCount := len(plan.SignalTraces) + len(plan.PowerTraces) + len(plan.InterClusterTraces) + len(plan.TestPointTraces)
+	if traceCount != wantTraceCount {
+		t.Fatalf("Generate trace count = %d, want %d including test points", traceCount, wantTraceCount)
 	}
 }

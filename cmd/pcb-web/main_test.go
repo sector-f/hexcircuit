@@ -201,6 +201,7 @@ func TestGenerateRequestRejectsInvalidOptions(t *testing.T) {
 		{"too many generation attempts", func(r *generateRequest) { r.GenerationAttempts = 21 }},
 		{"negative test-point count", func(r *generateRequest) { r.TestPointCount = -1 }},
 		{"test-point count too large", func(r *generateRequest) { r.TestPointCount = 1001 }},
+		{"test-point count too large", func(r *generateRequest) { r.TestPointCount = 1001 }},
 		{"test-point minimum too short", func(r *generateRequest) { r.TestPointMinLength = 1 }},
 		{"test-point maximum below minimum", func(r *generateRequest) { r.TestPointMinLength = 4; r.TestPointMaxLength = 3 }},
 		{"test-point maximum too large", func(r *generateRequest) { r.TestPointMaxLength = 101 }},
