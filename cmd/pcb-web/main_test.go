@@ -136,6 +136,28 @@ func TestGenerateRequestDefaultsRouteAttemptsWhenOmitted(t *testing.T) {
 	if got.RouteAttempts != pcb.DefaultOptions().RouteAttempts { t.Fatalf("route attempts = %d, want %d", got.RouteAttempts, pcb.DefaultOptions().RouteAttempts) }
 }
 
+func TestGenerateRequestDefaultsGlowParametersWhenOmitted(t *testing.T) {
+	req := validRequest()
+	req.BaseGlowBlurRadius = 0
+	req.BaseGlowOpacity = 0
+	req.AccentGlowBlurRadius = 0
+	req.AccentGlowOpacity = 0
+
+	got, err := req.options()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defaults := pcb.DefaultOptions()
+	if got.BaseGlowBlurRadius != defaults.BaseGlowBlurRadius ||
+		got.BaseGlowOpacity != defaults.BaseGlowOpacity ||
+		got.AccentGlowBlurRadius != defaults.AccentGlowBlurRadius ||
+		got.AccentGlowOpacity != defaults.AccentGlowOpacity {
+		t.Fatalf("glow defaults = (%v, %v, %v, %v), want (%v, %v, %v, %v)",
+			got.BaseGlowBlurRadius, got.BaseGlowOpacity, got.AccentGlowBlurRadius, got.AccentGlowOpacity,
+			defaults.BaseGlowBlurRadius, defaults.BaseGlowOpacity, defaults.AccentGlowBlurRadius, defaults.AccentGlowOpacity)
+	}
+}
+
 func TestGenerateRequestAllowsRandomSeed(t *testing.T) {
 	req := validRequest()
 	req.SeedSet = false
