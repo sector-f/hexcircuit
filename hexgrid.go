@@ -29,9 +29,9 @@ type ComponentStyle = geometry.ComponentStyle
 // Keep the style constants available from the high-level package as well. Their
 // values and type are exactly the corresponding geometry package constants.
 const (
-	ComponentStyleSingle = geometry.ComponentStyleSingle
-	ComponentStyleDouble = geometry.ComponentStyleDouble
-	ComponentStyleTriple = geometry.ComponentStyleTriple
+	ComponentStyleSingle ComponentStyle = geometry.ComponentStyleSingle
+	ComponentStyleDouble ComponentStyle = geometry.ComponentStyleDouble
+	ComponentStyleTriple ComponentStyle = geometry.ComponentStyleTriple
 )
 
 // Grid describes the visible hexagonal lattice. Dimensions are in inches.

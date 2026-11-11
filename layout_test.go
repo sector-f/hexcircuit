@@ -120,6 +120,23 @@ func TestGridCellsRetainPhysicalCentersWithConventionalCoordinates(t *testing.T)
 	}
 }
 
+func TestComponentStyleConstantsMatchGeometryPackage(t *testing.T) {
+	tests := []struct {
+		name string
+		grid ComponentStyle
+		geometry ComponentStyle
+	}{
+		{"single", ComponentStyleSingle, geometry.ComponentStyleSingle},
+		{"double", ComponentStyleDouble, geometry.ComponentStyleDouble},
+		{"triple", ComponentStyleTriple, geometry.ComponentStyleTriple},
+	}
+	for _, test := range tests {
+		if test.grid != test.geometry {
+			t.Errorf("%s component style = %d, geometry package value = %d", test.name, test.grid, test.geometry)
+		}
+	}
+}
+
 func TestComponentStyleHexagonCounts(t *testing.T) {
 	for _, test := range []struct {
 		style ComponentStyle
