@@ -120,6 +120,13 @@ type Scene struct {
 	GridColor     string
 	Background    string
 
+	// GlowEnabled applies a soft neon bloom to traces, component outlines, and terminal pads.
+	GlowEnabled bool
+	// GlowBlurRadius is the Gaussian blur standard deviation, in inches.
+	GlowBlurRadius float64
+	// GlowOpacity controls the opacity of the blurred glow (0-1).
+	GlowOpacity float64
+
 	Grid       Grid
 	Components []Component
 	Traces     []Trace
@@ -353,14 +360,18 @@ func Render(scene Scene) string {
 	canvas.Gend()
 
 	// Layer 2: shorten trace ends so each trace stops at the edge of its terminal pad.
-	canvas.Group(
+	traceGroup := []string{
 		`id="traces"`,
 		`fill="none"`,
 		fmt.Sprintf(`stroke="%s"`, html.EscapeString(scene.Color)),
 		fmt.Sprintf(`stroke-width="%d"`, userUnits(scene.TraceStrokeWidth)),
 		`stroke-linecap="round"`,
 		`stroke-linejoin="round"`,
-	)
+	}
+	if scene.GlowEnabled {
+		traceGroup = append(traceGroup, `filter="url(#hexgrid-neon-glow)"`)
+	}
+	canvas.Group(traceGroup...)
 	for _, trace := range scene.Traces {
 		points := trace.Points
 		if !trace.HideTerminal {
@@ -371,13 +382,17 @@ func Render(scene Scene) string {
 	canvas.Gend()
 
 	// Layer 3: component outlines and explicitly selected internal details.
-	canvas.Group(
+	componentGroup := []string{
 		`id="components"`,
 		`fill="none"`,
 		fmt.Sprintf(`stroke="%s"`, html.EscapeString(scene.Color)),
 		fmt.Sprintf(`stroke-width="%d"`, userUnits(scene.ComponentStrokeWidth)),
 		`stroke-linejoin="round"`,
-	)
+	}
+	if scene.GlowEnabled {
+		componentGroup = append(componentGroup, `filter="url(#hexgrid-neon-glow)"`)
+	}
+	canvas.Group(componentGroup...)
 	for _, component := range scene.Components {
 		drawPolygon(canvas, HexVertices(component.X, component.Y, component.Radius, scene.Orientation), "")
 		innerScales := componentInnerScales(scene, component)
@@ -407,19 +422,53 @@ func Render(scene Scene) string {
 	canvas.Gend()
 
 	// Layer 4: hollow terminal pads are drawn last to keep their outlines visible.
-	canvas.Group(
+	terminalGroup := []string{
 		`id="terminal-pads"`,
 		`fill="none"`,
 		fmt.Sprintf(`stroke="%s"`, html.EscapeString(scene.Color)),
 		fmt.Sprintf(`stroke-width="%d"`, userUnits(scene.TraceStrokeWidth)),
-	)
+	}
+	if scene.GlowEnabled {
+		terminalGroup = append(terminalGroup, `filter="url(#hexgrid-neon-glow)"`)
+	}
+	canvas.Group(terminalGroup...)
 	for _, terminal := range scene.Terminals {
 		canvas.Circle(userUnits(terminal.X), userUnits(terminal.Y), userUnits(terminal.Radius))
 	}
 	canvas.Gend()
 
 	canvas.End()
-	return out.String()
+	svg := out.String()
+	if scene.GlowEnabled {
+		svg = addNeonGlowFilter(svg, scene)
+	}
+	return svg
+}
+
+// addNeonGlowFilter inserts one SVG filter definition before the rendered scene's
+// layers. The filter region extends beyond the canvas so blur is not clipped early.
+func addNeonGlowFilter(svg string, scene Scene) string {
+	rootStart := strings.Index(svg, "<svg")
+	if rootStart < 0 {
+		return svg
+	}
+	rootEnd := strings.Index(svg[rootStart:], ">")
+	if rootEnd < 0 {
+		return svg
+	}
+	margin := scene.GlowBlurRadius * unitsPerInch * 4
+	stdDeviation := scene.GlowBlurRadius * unitsPerInch
+	format := func(value float64) string {
+		return strconv.FormatFloat(value, 'f', 3, 64)
+	}
+	defs := fmt.Sprintf(
+		`<defs><filter id="hexgrid-neon-glow" x="%s" y="%s" width="%s" height="%s" filterUnits="userSpaceOnUse" primitiveUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceGraphic" stdDeviation="%s" result="blur"/><feComponentTransfer in="blur" result="glow"><feFuncA type="linear" slope="%s"/></feComponentTransfer><feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`,
+		format(-margin), format(-margin),
+		format(scene.Width*unitsPerInch+2*margin), format(scene.Height*unitsPerInch+2*margin),
+		format(stdDeviation), format(scene.GlowOpacity),
+	)
+	insertAt := rootStart + rootEnd + 1
+	return svg[:insertAt] + defs + svg[insertAt:]
 }
 
 func componentInnerScales(scene Scene, component Component) []float64 {

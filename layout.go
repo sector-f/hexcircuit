@@ -70,6 +70,13 @@ type Options struct {
 	GridColor     string
 	Background    string
 
+	// GlowEnabled adds a soft neon bloom to foreground traces, components, and terminal pads.
+	GlowEnabled bool
+	// GlowBlurRadius is the Gaussian blur standard deviation, in inches.
+	GlowBlurRadius float64
+	// GlowOpacity controls the opacity of the blurred glow (0-1).
+	GlowOpacity float64
+
 	Grid Grid
 
 	ComponentRadius             float64
@@ -92,6 +99,8 @@ func DefaultOptions() Options {
 		Orientation:                 "pointy",
 		Color:                       "#C7834A",
 		Background:                  "none",
+		GlowBlurRadius:              0.05,
+		GlowOpacity:                 0.55,
 		Grid:                        Grid{Pitch: 0.62, Radius: 0.33255, StrokeWidth: 0.004},
 		ComponentRadius:             0.40,
 		ComponentStrokeWidth:        0.012,
@@ -129,6 +138,9 @@ func BuildScene(layout GridScene) (Scene, error) {
 		Color:                       o.Color,
 		GridColor:                   o.GridColor,
 		Background:                  o.Background,
+		GlowEnabled:                 o.GlowEnabled,
+		GlowBlurRadius:              o.GlowBlurRadius,
+		GlowOpacity:                 o.GlowOpacity,
 		Grid:                        o.Grid,
 		ComponentStrokeWidth:        o.ComponentStrokeWidth,
 		ComponentMiddleHexagonScale: o.ComponentMiddleHexagonScale,
@@ -300,6 +312,15 @@ func validateOptions(o Options) error {
 	}
 	if !isFinite(o.Grid.StrokeWidth) || o.Grid.StrokeWidth < 0 {
 		return fmt.Errorf("grid stroke width must be finite and greater than or equal to zero")
+	}
+	if !isFinite(o.GlowBlurRadius) || o.GlowBlurRadius < 0 {
+		return fmt.Errorf("glow blur radius must be finite and greater than or equal to zero")
+	}
+	if !isFinite(o.GlowOpacity) || o.GlowOpacity < 0 || o.GlowOpacity > 1 {
+		return fmt.Errorf("glow opacity must be between 0 and 1")
+	}
+	if o.GlowEnabled && (o.GlowBlurRadius == 0 || o.GlowOpacity == 0) {
+		return fmt.Errorf("enabled glow requires a positive blur radius and opacity")
 	}
 	if o.Orientation != "pointy" && o.Orientation != "flat" {
 		return fmt.Errorf("orientation must be either %q or %q", "pointy", "flat")

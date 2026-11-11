@@ -370,3 +370,72 @@ func TestGridColorFallsBackToSceneColor(t *testing.T) {
 		t.Fatal("background grid did not fall back to Scene.Color")
 	}
 }
+
+
+func TestGlowSettingsAreDisabledByDefault(t *testing.T) {
+	options := DefaultOptions()
+	if options.GlowEnabled {
+		t.Fatal("glow should be disabled by default")
+	}
+	if options.GlowBlurRadius <= 0 || options.GlowOpacity <= 0 {
+		t.Fatalf("default glow settings must be usable when enabled: radius=%v opacity=%v", options.GlowBlurRadius, options.GlowOpacity)
+	}
+	svg, err := RenderGrid(GridScene{Options: options})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(svg, "hexgrid-neon-glow") || strings.Contains(svg, "<filter") {
+		t.Fatal("disabled glow unexpectedly emitted an SVG filter")
+	}
+}
+
+func TestGlowRendersOnlyOnForegroundLayers(t *testing.T) {
+	options := DefaultOptions()
+	options.GlowEnabled = true
+	options.GlowBlurRadius = 0.06
+	options.GlowOpacity = 0.4
+
+	svg, err := RenderGrid(GridScene{Options: options})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(svg, `id="hexgrid-neon-glow"`) {
+		t.Fatal("enabled glow did not emit its SVG filter")
+	}
+	for _, group := range []string{"traces", "components", "terminal-pads"} {
+		if !strings.Contains(svg, `id="`+group+`" filter="url(#hexgrid-neon-glow)"`) {
+			t.Errorf("%s group is missing its glow filter", group)
+		}
+	}
+	for _, group := range []string{"background-grid", "component-labels"} {
+		if strings.Contains(svg, `id="`+group+`" filter="url(#hexgrid-neon-glow)"`) {
+			t.Errorf("%s should remain crisp and should not use the glow filter", group)
+		}
+	}
+	if !strings.Contains(svg, `stdDeviation="60.000"`) || !strings.Contains(svg, `slope="0.400"`) {
+		t.Fatal("glow filter does not contain the configured blur radius and opacity")
+	}
+}
+
+func TestBuildSceneRejectsInvalidGlowSettings(t *testing.T) {
+	tests := []struct {
+		name string
+		edit func(*Options)
+	}{
+		{"negative blur radius", func(o *Options) { o.GlowBlurRadius = -0.01 }},
+		{"NaN blur radius", func(o *Options) { o.GlowBlurRadius = math.NaN() }},
+		{"opacity below zero", func(o *Options) { o.GlowOpacity = -0.1 }},
+		{"opacity above one", func(o *Options) { o.GlowOpacity = 1.1 }},
+		{"enabled glow with zero blur", func(o *Options) { o.GlowEnabled = true; o.GlowBlurRadius = 0 }},
+		{"enabled glow with zero opacity", func(o *Options) { o.GlowEnabled = true; o.GlowOpacity = 0 }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			options := DefaultOptions()
+			test.edit(&options)
+			if _, err := BuildScene(GridScene{Options: options}); err == nil {
+				t.Fatal("expected invalid glow settings to be rejected")
+			}
+		})
+	}
+}
