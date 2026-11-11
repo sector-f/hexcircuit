@@ -23,22 +23,6 @@ func orientationBaseAngle(orientation string) float64 {
 func cross(a, b Point) float64 { return a.X*b.Y - a.Y*b.X }
 func sub(a, b Point) Point { return Point{X:a.X-b.X, Y:a.Y-b.Y} }
 
-type GridPosition struct {
-	Q, R int
-}
-
-// ComponentStyle selects how many concentric hexagons make up a component.
-// The outer hexagon always uses Options.ComponentRadius; inner hexagons use the
-// configurable scale factors in Options.
-type ComponentStyle = geometry.ComponentStyle
-
-type Grid = geometry.Grid
-type Point = geometry.Point
-type TextMetrics = geometry.TextMetrics
-type Rect = geometry.Rect
-type Label = geometry.Label
-type LabelRequest = geometry.LabelRequest
-
 // GridComponent places a component on one lattice cell. RadiusScale multiplies
 // Options.ComponentRadius; a zero value means 1 (the configured base radius).
 type GridComponent struct {
@@ -486,10 +470,6 @@ func offsetPolyline(points []Point, offset float64) []Point {
 func addPoint(a, b Point) Point { return Point{X: a.X + b.X, Y: a.Y + b.Y} }
 func scalePoint(point Point, scale float64) Point {
 	return Point{X: point.X * scale, Y: point.Y * scale}
-}
-
-func isFinite(value float64) bool {
-	return !math.IsNaN(value) && !math.IsInf(value, 0)
 }
 
 func absInt(value int) int {

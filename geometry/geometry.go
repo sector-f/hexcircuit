@@ -55,12 +55,6 @@ type Grid struct {
 	OmitPartial bool
 }
 
-// Cell is one axial grid cell and its position in model-space inches.
-type Cell struct {
-	Q, R   int
-	Center Point
-}
-
 // ComponentStyle selects how many concentric hexagons make up a component.
 type ComponentStyle uint8
 
@@ -368,8 +362,7 @@ func Render(scene Scene) string {
 		fmt.Sprintf(`stroke-width="%d"`, userUnits(scene.Grid.StrokeWidth)),
 		`stroke-linejoin="round"`,
 	)
-	for _, cell := range GridCells(scene.Width, scene.Height, scene.Grid.Pitch, scene.Orientation, -scene.Grid.Radius) {
-		center := cell.Center
+	for _, center := range gridCellCenters(scene.Width, scene.Height, scene.Grid.Pitch, scene.Orientation, -scene.Grid.Radius) {
 		if scene.Grid.OmitPartial && !hexagonFullyInsideCanvas(
 			center.X, center.Y, scene.Grid.Radius, scene.Grid.StrokeWidth,
 			scene.Width, scene.Height, scene.Orientation,
@@ -591,31 +584,29 @@ func SegmentsIntersect(a, b, c, d Point) bool {
 	return t >= -epsilon && t <= 1+epsilon && u >= -epsilon && u <= 1+epsilon
 }
 
-// GridCells returns lattice cells whose centers fall within the canvas rectangle inset
-// by margin. A negative margin deliberately includes off-canvas cells so the grid can
-// continue seamlessly to the image edges. Cells are returned in a stable scan order.
-func GridCells(width, height, pitch float64, orientation string, margin float64) []Cell {
-	// A non-positive or non-finite pitch means there is no enumerable lattice.
-	// Treat it as an empty grid rather than allowing a division by zero to create
-	// an effectively unbounded search range.
+// gridCellCenters returns the physical centers of background-grid cells. The
+// renderer needs only inch-based points; axial positions remain in the parent package.
+// Iteration order and floating-point operation order match the historical grid scan.
+func gridCellCenters(width, height, pitch float64, orientation string, margin float64) []Point {
 	if pitch <= 0 || math.IsNaN(pitch) || math.IsInf(pitch, 0) ||
 		width < 0 || height < 0 || math.IsNaN(width) || math.IsNaN(height) ||
 		math.IsInf(width, 0) || math.IsInf(height, 0) {
 		return nil
 	}
 	limit := int(math.Ceil((width+height)/pitch)) + 3
-	result := make([]Cell, 0)
+	result := make([]Point, 0)
+	baseAngle := orientationBaseAngle(orientation)
+	theta1 := baseAngle + math.Pi/3
+	cosBase, sinBase := math.Cos(baseAngle), math.Sin(baseAngle)
+	cosNext, sinNext := math.Cos(theta1), math.Sin(theta1)
 	for q := -limit; q <= limit; q++ {
 		for r := -limit; r <= limit; r++ {
-			position := GridPosition{Q: q, R: r}
-			if orientation != "flat" {
-				// Keep the established scan order (and therefore SVG element order)
-				// while returning coordinates in the conventional pointy-top basis.
-				position = GridPosition{Q: q + r, R: -q}
+			center := Point{
+				X: width/2 + pitch*(float64(q)*cosBase+float64(r)*cosNext),
+				Y: height/2 + pitch*(float64(q)*sinBase+float64(r)*sinNext),
 			}
-			center := GridPositionToPoint(position, width, height, pitch, orientation)
 			if margin <= center.X && center.X <= width-margin && margin <= center.Y && center.Y <= height-margin {
-				result = append(result, Cell{Q: position.Q, R: position.R, Center: center})
+				result = append(result, center)
 			}
 		}
 	}

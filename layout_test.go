@@ -108,7 +108,7 @@ func TestGridPositionToPointUsesFlatTopAxialBasis(t *testing.T) {
 
 func TestGridCellsRetainPhysicalCentersWithConventionalCoordinates(t *testing.T) {
 	const width, height, pitch = 6.0, 4.0, 0.5
-	cells := geometry.GridCells(width, height, pitch, "pointy", 0)
+	cells := GridCells(width, height, pitch, "pointy", 0)
 	if len(cells) == 0 {
 		t.Fatal("GridCells() returned no cells")
 	}
