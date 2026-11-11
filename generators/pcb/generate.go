@@ -311,9 +311,9 @@ func renderBoard(o Options, plan boardPlan) (string, error) {
 	base.Color = o.BaseColor
 	base.GridColor = o.GridColor
 	base.Background = o.Background
-	base.GlowEnabled = o.GlowEnabled
-	base.GlowBlurRadius = o.GlowBlurRadius
-	base.GlowOpacity = o.GlowOpacity
+	base.GlowEnabled = o.BaseGlow
+	base.GlowBlurRadius = o.BaseGlowBlurRadius
+	base.GlowOpacity = o.BaseGlowOpacity
 	base.Grid = hexgrid.Grid{
 		Pitch:       o.Pitch,
 		Radius:      o.GridRadius,
@@ -343,6 +343,9 @@ func renderBoard(o Options, plan boardPlan) (string, error) {
 	if len(plan.PowerTraces) > 0 {
 		accent := base
 		accent.Color = o.AccentColor
+		accent.GlowEnabled = o.AccentGlow
+		accent.GlowBlurRadius = o.AccentGlowBlurRadius
+		accent.GlowOpacity = o.AccentGlowOpacity
 		accent.Background = "none"
 		accent.Grid.StrokeWidth = 0
 		accentSVG, err := hexgrid.RenderGrid(hexgrid.GridScene{
@@ -361,6 +364,9 @@ func renderBoard(o Options, plan boardPlan) (string, error) {
 	if len(plan.InterClusterTraces) > 0 {
 		interCluster := base
 		interCluster.Color = o.AccentColor
+		interCluster.GlowEnabled = o.AccentGlow
+		interCluster.GlowBlurRadius = o.AccentGlowBlurRadius
+		interCluster.GlowOpacity = o.AccentGlowOpacity
 		interCluster.Background = "none"
 		interCluster.Grid.StrokeWidth = 0
 		interClusterSVG, err := hexgrid.RenderGrid(hexgrid.GridScene{

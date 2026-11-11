@@ -53,12 +53,18 @@ type Options struct {
 	GridColor   string
 	AccentColor string
 
-	// GlowEnabled adds a neon bloom to foreground traces, component outlines, and terminal pads.
-	GlowEnabled bool
-	// GlowBlurRadius is the Gaussian blur standard deviation, in inches.
-	GlowBlurRadius float64
-	// GlowOpacity controls the blurred glow opacity (0-1).
-	GlowOpacity float64
+	// BaseGlow adds a neon bloom to components and signal traces rendered in BaseColor.
+	BaseGlow bool
+	// BaseGlowBlurRadius is the base-color glow's Gaussian blur standard deviation, in inches.
+	BaseGlowBlurRadius float64
+	// BaseGlowOpacity controls the base-color glow opacity (0-1).
+	BaseGlowOpacity float64
+	// AccentGlow adds a neon bloom to power and inter-cluster traces rendered in AccentColor.
+	AccentGlow bool
+	// AccentGlowBlurRadius is the accent-color glow's Gaussian blur standard deviation, in inches.
+	AccentGlowBlurRadius float64
+	// AccentGlowOpacity controls the accent-color glow opacity (0-1).
+	AccentGlowOpacity float64
 
 	// Background is the canvas fill; "none" or "transparent" leaves it transparent.
 	Background string
@@ -156,8 +162,10 @@ func DefaultOptions() Options {
 		Height:                               defaultHeight,
 		BaseColor:                            "#396CF8",
 		AccentColor:                          "#FF6A00",
-		GlowBlurRadius:                       0.05,
-		GlowOpacity:                          0.55,
+		BaseGlowBlurRadius:                   0.05,
+		BaseGlowOpacity:                      0.55,
+		AccentGlowBlurRadius:                 0.05,
+		AccentGlowOpacity:                    0.55,
 		Background:                           "none",
 		ComponentCount:                       38,
 		ClusterCount:                         6,
@@ -240,14 +248,24 @@ func normalizeOptions(o Options) (Options, error) {
 	if !isFinite(o.GridStrokeWidth) || o.GridStrokeWidth < 0 {
 		return o, fmt.Errorf("grid stroke width must be finite and greater than or equal to zero")
 	}
-	if !isFinite(o.GlowBlurRadius) || o.GlowBlurRadius < 0 {
-		return o, fmt.Errorf("glow blur radius must be finite and greater than or equal to zero")
-	}
-	if !isFinite(o.GlowOpacity) || o.GlowOpacity < 0 || o.GlowOpacity > 1 {
-		return o, fmt.Errorf("glow opacity must be between 0 and 1")
-	}
-	if o.GlowEnabled && (o.GlowBlurRadius == 0 || o.GlowOpacity == 0) {
-		return o, fmt.Errorf("enabled glow requires a positive blur radius and opacity")
+	for _, glow := range []struct {
+		name   string
+		enabled bool
+		radius float64
+		opacity float64
+	}{
+		{"base", o.BaseGlow, o.BaseGlowBlurRadius, o.BaseGlowOpacity},
+		{"accent", o.AccentGlow, o.AccentGlowBlurRadius, o.AccentGlowOpacity},
+	} {
+		if !isFinite(glow.radius) || glow.radius < 0 {
+			return o, fmt.Errorf("%s glow blur radius must be finite and greater than or equal to zero", glow.name)
+		}
+		if !isFinite(glow.opacity) || glow.opacity < 0 || glow.opacity > 1 {
+			return o, fmt.Errorf("%s glow opacity must be between 0 and 1", glow.name)
+		}
+		if glow.enabled && (glow.radius == 0 || glow.opacity == 0) {
+			return o, fmt.Errorf("enabled %s glow requires a positive blur radius and opacity", glow.name)
+		}
 	}
 	if !isFinite(o.TraceSpacing) || o.TraceSpacing <= 0 {
 		return o, fmt.Errorf("trace spacing must be finite and greater than zero")

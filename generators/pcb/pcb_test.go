@@ -1363,35 +1363,59 @@ func makeSymmetryTestPowerSourceRow(r, length int, y float64) []hexgrid.Cell {
 
 func TestGlowOptionsDefaultDisabledAndValidate(t *testing.T) {
 	options := DefaultOptions()
-	if options.GlowEnabled { t.Fatal("PCB glow should be disabled by default") }
-	if options.GlowBlurRadius <= 0 || options.GlowOpacity <= 0 {
-		t.Fatalf("default glow settings must be usable: radius=%v opacity=%v", options.GlowBlurRadius, options.GlowOpacity)
+	if options.BaseGlow || options.AccentGlow {
+		t.Fatal("base and accent glow should both be disabled by default")
 	}
-	zeroGlow := DefaultOptions()
-	zeroGlow.GlowBlurRadius = 0
-	zeroGlow.GlowOpacity = 0
-	if _, err := normalizeOptions(zeroGlow); err != nil {
-		t.Fatalf("zero-valued glow settings should be valid while glow is disabled: %v", err)
-	}
-	for _, test := range []struct{name string; edit func(*Options)}{
-		{"negative blur radius", func(o *Options) { o.GlowBlurRadius = -0.01 }},
-		{"NaN blur radius", func(o *Options) { o.GlowBlurRadius = math.NaN() }},
-		{"opacity above one", func(o *Options) { o.GlowOpacity = 1.1 }},
-		{"enabled glow with zero opacity", func(o *Options) { o.GlowEnabled = true; o.GlowOpacity = 0 }},
-		{"enabled glow with zero blur radius", func(o *Options) { o.GlowEnabled = true; o.GlowBlurRadius = 0 }},
+	for _, settings := range []struct{name string; radius, opacity float64}{
+		{"base", options.BaseGlowBlurRadius, options.BaseGlowOpacity},
+		{"accent", options.AccentGlowBlurRadius, options.AccentGlowOpacity},
 	} {
+		if settings.radius <= 0 || settings.opacity <= 0 {
+			t.Fatalf("default %s glow settings must be usable: radius=%v opacity=%v", settings.name, settings.radius, settings.opacity)
+		}
+	}
+
+	zeroGlow := DefaultOptions()
+	zeroGlow.BaseGlowBlurRadius, zeroGlow.BaseGlowOpacity = 0, 0
+	zeroGlow.AccentGlowBlurRadius, zeroGlow.AccentGlowOpacity = 0, 0
+	if _, err := normalizeOptions(zeroGlow); err != nil {
+		t.Fatalf("zero-valued glow settings should be valid while both glows are disabled: %v", err)
+	}
+
+	tests := []struct {
+		name string
+		edit func(*Options)
+	}{
+		{"negative base blur radius", func(o *Options) { o.BaseGlowBlurRadius = -0.01 }},
+		{"NaN base blur radius", func(o *Options) { o.BaseGlowBlurRadius = math.NaN() }},
+		{"base opacity above one", func(o *Options) { o.BaseGlowOpacity = 1.1 }},
+		{"enabled base glow with zero opacity", func(o *Options) { o.BaseGlow = true; o.BaseGlowOpacity = 0 }},
+		{"enabled base glow with zero blur radius", func(o *Options) { o.BaseGlow = true; o.BaseGlowBlurRadius = 0 }},
+		{"negative accent blur radius", func(o *Options) { o.AccentGlowBlurRadius = -0.01 }},
+		{"NaN accent blur radius", func(o *Options) { o.AccentGlowBlurRadius = math.NaN() }},
+		{"accent opacity above one", func(o *Options) { o.AccentGlowOpacity = 1.1 }},
+		{"enabled accent glow with zero opacity", func(o *Options) { o.AccentGlow = true; o.AccentGlowOpacity = 0 }},
+		{"enabled accent glow with zero blur radius", func(o *Options) { o.AccentGlow = true; o.AccentGlowBlurRadius = 0 }},
+	}
+	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			o := DefaultOptions(); test.edit(&o)
-			if _, err := normalizeOptions(o); err == nil { t.Fatal("expected invalid glow settings to be rejected") }
+			o := DefaultOptions()
+			test.edit(&o)
+			if _, err := normalizeOptions(o); err == nil {
+				t.Fatal("expected invalid glow settings to be rejected")
+			}
 		})
 	}
 }
 
-func TestRenderBoardNamespacesNeonGlowFiltersAcrossLayers(t *testing.T) {
+func TestRenderBoardUsesIndependentBaseAndAccentGlowSettings(t *testing.T) {
 	o := DefaultOptions()
-	o.GlowEnabled = true
-	o.GlowBlurRadius = 0.06
-	o.GlowOpacity = 0.5
+	o.BaseGlow = true
+	o.BaseGlowBlurRadius = 0.03
+	o.BaseGlowOpacity = 0.2
+	o.AccentGlow = true
+	o.AccentGlowBlurRadius = 0.08
+	o.AccentGlowOpacity = 0.7
 	plan := boardPlan{
 		Components: []hexgrid.GridComponent{{Position: hexgrid.GridPosition{Q: 0, R: 0}, Style: hexgrid.ComponentStyleSingle}},
 		SignalTraces: []hexgrid.GridTrace{{Start: hexgrid.GridPosition{Q: 0, R: 0}, Path: []hexgrid.GridPosition{{Q: 1, R: 0}}, Lines: 1}},
@@ -1401,14 +1425,56 @@ func TestRenderBoardNamespacesNeonGlowFiltersAcrossLayers(t *testing.T) {
 		InterClusterTraces: []hexgrid.GridTrace{{Start: hexgrid.GridPosition{Q: 0, R: -2}, Path: []hexgrid.GridPosition{{Q: 1, R: -2}}, Lines: 1}},
 	}
 	svg, err := renderBoard(o, plan)
-	if err != nil { t.Fatal(err) }
-	for _, id := range []string{"hexgrid-neon-glow", "power-hexgrid-neon-glow", "inter-cluster-hexgrid-neon-glow"} {
-		if !strings.Contains(svg, `id="`+id+`"`) { t.Errorf("combined SVG is missing filter definition %q", id) }
+	if err != nil {
+		t.Fatal(err)
 	}
-	if strings.Count(svg, `id="hexgrid-neon-glow"`) != 1 ||
-		!strings.Contains(svg, `filter="url(#power-hexgrid-neon-glow)"`) ||
+	for _, id := range []string{"hexgrid-neon-glow", "power-hexgrid-neon-glow", "inter-cluster-hexgrid-neon-glow"} {
+		if !strings.Contains(svg, `id="`+id+`"`) {
+			t.Errorf("combined SVG is missing filter definition %q", id)
+		}
+	}
+	if !strings.Contains(svg, `stdDeviation="30.000"`) || !strings.Contains(svg, `slope="0.200"`) {
+		t.Fatal("base layer does not use its configured glow radius and opacity")
+	}
+	if !strings.Contains(svg, `stdDeviation="80.000"`) || !strings.Contains(svg, `slope="0.700"`) {
+		t.Fatal("accent layers do not use their configured glow radius and opacity")
+	}
+	if !strings.Contains(svg, `filter="url(#power-hexgrid-neon-glow)"`) ||
 		!strings.Contains(svg, `filter="url(#inter-cluster-hexgrid-neon-glow)"`) {
-		t.Fatal("combined SVG contains duplicate or unresolved glow filter references")
+		t.Fatal("accent layer groups contain unresolved glow filter references")
+	}
+}
+
+func TestRenderBoardCanGlowOnlyOneColorLayer(t *testing.T) {
+	plan := boardPlan{
+		Components: []hexgrid.GridComponent{{Position: hexgrid.GridPosition{Q: 0, R: 0}, Style: hexgrid.ComponentStyleSingle}},
+		SignalTraces: []hexgrid.GridTrace{{Start: hexgrid.GridPosition{Q: 0, R: 0}, Path: []hexgrid.GridPosition{{Q: 1, R: 0}}, Lines: 1}},
+		PowerCores: []hexgrid.GridComponent{{Position: hexgrid.GridPosition{Q: 0, R: 2}, Style: hexgrid.ComponentStyleSingle}},
+		PowerTraces: []hexgrid.GridTrace{{Start: hexgrid.GridPosition{Q: 0, R: 2}, Path: []hexgrid.GridPosition{{Q: 1, R: 2}}, Lines: 1}},
+	}
+	tests := []struct {
+		name string
+		base, accent bool
+		wantBase, wantAccent bool
+	}{
+		{"base only", true, false, true, false},
+		{"accent only", false, true, false, true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			o := DefaultOptions()
+			o.BaseGlow = test.base
+			o.AccentGlow = test.accent
+			svg, err := renderBoard(o, plan)
+			if err != nil {
+				t.Fatal(err)
+			}
+			baseHasFilter := strings.Contains(svg, `id="hexgrid-neon-glow"`)
+			accentHasFilter := strings.Contains(svg, `id="power-hexgrid-neon-glow"`)
+			if baseHasFilter != test.wantBase || accentHasFilter != test.wantAccent {
+				t.Fatalf("filter presence = (base %v, accent %v), want (%v, %v)", baseHasFilter, accentHasFilter, test.wantBase, test.wantAccent)
+			}
+		})
 	}
 }
 
@@ -1416,6 +1482,10 @@ func TestRenderBoardDoesNotEmitGlowByDefault(t *testing.T) {
 	o := DefaultOptions()
 	plan := boardPlan{Components: []hexgrid.GridComponent{{Position: hexgrid.GridPosition{Q: 0, R: 0}, Style: hexgrid.ComponentStyleSingle}}}
 	svg, err := renderBoard(o, plan)
-	if err != nil { t.Fatal(err) }
-	if strings.Contains(svg, "hexgrid-neon-glow") { t.Fatal("default PCB rendering unexpectedly contains neon glow filters") }
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(svg, "hexgrid-neon-glow") {
+		t.Fatal("default PCB rendering unexpectedly contains neon glow filters")
+	}
 }
