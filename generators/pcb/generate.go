@@ -38,11 +38,11 @@ type boardPlan struct {
 	// InterclusterComponents contains the endpoint cores rendered with inter-cluster traces.
 	InterclusterComponents []hexgrid.GridComponent
 	// InterClusterTraces remains separate from the power layer so its style can evolve independently.
-	InterClusterTraces []hexgrid.GridTrace
+	InterClusterTraces     []hexgrid.GridTrace
 	// TestPointTraces are short base-color stubs ending at hollow terminal pads.
-	TestPointTraces []hexgrid.GridTrace
-	PowerRoutes     [][]hexgrid.GridPosition // Full cell paths, retained for no-crossing tests.
-	Clusters        []clusterPlan
+	TestPointTraces        []hexgrid.GridTrace
+	PowerRoutes            [][]hexgrid.GridPosition // Full cell paths, retained for no-crossing tests.
+	Clusters               []clusterPlan
 }
 
 // Generate constructs and renders a PCB-inspired illustration.
