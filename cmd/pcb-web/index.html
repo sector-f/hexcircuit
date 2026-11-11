@@ -229,13 +229,20 @@
           <div class="field"><label for="nodeRadius">Terminal radius (in)</label><input id="nodeRadius" type="number" min="0.001" step="0.001" value="0.014" required></div>
         </div>
 
-        <div class="section-title">Neon glow</div>
+        <div class="section-title">Base-color glow</div>
         <div class="fields">
-          <div class="field full check-field"><input id="glowEnabled" type="checkbox"><label for="glowEnabled">Enable neon glow on foreground linework</label></div>
-          <div class="field"><label for="glowBlurRadius">Glow blur radius (in)</label><input id="glowBlurRadius" type="number" min="0.001" max="0.5" step="0.005" value="0.05" required></div>
-          <div class="field"><label for="glowOpacity">Glow opacity</label><input id="glowOpacity" type="number" min="0.01" max="1" step="0.05" value="0.55" required></div>
+          <div class="field full check-field"><input id="baseGlowEnabled" type="checkbox"><label for="baseGlowEnabled">Enable glow on base-color components and signal traces</label></div>
+          <div class="field"><label for="baseGlowBlurRadius">Base glow blur radius (in)</label><input id="baseGlowBlurRadius" type="number" min="0.001" max="0.5" step="0.005" value="0.05" required></div>
+          <div class="field"><label for="baseGlowOpacity">Base glow opacity</label><input id="baseGlowOpacity" type="number" min="0.01" max="1" step="0.05" value="0.55" required></div>
         </div>
-        <div class="hint">Glow is applied to traces, component outlines, and terminal pads. The background grid and labels remain crisp.</div>
+
+        <div class="section-title">Accent-color glow</div>
+        <div class="fields">
+          <div class="field full check-field"><input id="accentGlowEnabled" type="checkbox"><label for="accentGlowEnabled">Enable glow on accent-color power and inter-cluster traces</label></div>
+          <div class="field"><label for="accentGlowBlurRadius">Accent glow blur radius (in)</label><input id="accentGlowBlurRadius" type="number" min="0.001" max="0.5" step="0.005" value="0.05" required></div>
+          <div class="field"><label for="accentGlowOpacity">Accent glow opacity</label><input id="accentGlowOpacity" type="number" min="0.01" max="1" step="0.05" value="0.55" required></div>
+        </div>
+        <div class="hint">Each color layer has independent glow settings. The background grid and labels remain crisp.</div>
 
         <div class="section-title">Background grid</div>
         <div class="fields">
@@ -309,9 +316,12 @@
           baseColor: value('baseColor'),
           gridColor: value('gridColor'),
           accentColor: value('accentColor'),
-          glowEnabled: checked('glowEnabled'),
-          glowBlurRadius: number('glowBlurRadius'),
-          glowOpacity: number('glowOpacity'),
+          baseGlow: checked('baseGlowEnabled'),
+          baseGlowBlurRadius: number('baseGlowBlurRadius'),
+          baseGlowOpacity: number('baseGlowOpacity'),
+          accentGlow: checked('accentGlowEnabled'),
+          accentGlowBlurRadius: number('accentGlowBlurRadius'),
+          accentGlowOpacity: number('accentGlowOpacity'),
           background,
           componentCount: number('componentCount'),
           clusterCount: number('clusterCount'),
