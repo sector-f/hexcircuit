@@ -1490,29 +1490,29 @@ func TestRenderBoardDoesNotEmitGlowByDefault(t *testing.T) {
 	}
 }
 
-func TestNormalizeOptionsRejectsInvalidTestPointSettings(t *testing.T) {
+func TestNormalizeOptionsRejectsInvalidDecorativeTraceSettings(t *testing.T) {
 	tests := []struct {
 		name string
 		edit func(*Options)
 	}{
-		{"negative count", func(o *Options) { o.TestPointCount = -1 }},
-		{"count too large", func(o *Options) { o.TestPointCount = maxTestPointCount + 1 }},
-		{"minimum below two", func(o *Options) { o.TestPointMinLength = 1 }},
-		{"maximum below minimum", func(o *Options) { o.TestPointMaxLength = o.TestPointMinLength - 1 }},
-		{"maximum over 100", func(o *Options) { o.TestPointMaxLength = 101 }},
+		{"negative count", func(o *Options) { o.DecorativeTraceCount = -1 }},
+		{"count too large", func(o *Options) { o.DecorativeTraceCount = maxDecorativeTraceCount + 1 }},
+		{"minimum below two", func(o *Options) { o.DecorativeTraceMinLength = 1 }},
+		{"maximum below minimum", func(o *Options) { o.DecorativeTraceMaxLength = o.DecorativeTraceMinLength - 1 }},
+		{"maximum over 100", func(o *Options) { o.DecorativeTraceMaxLength = 101 }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			o := DefaultOptions()
 			tt.edit(&o)
 			if _, err := normalizeOptions(o); err == nil {
-				t.Fatal("expected invalid test-point settings to be rejected")
+				t.Fatal("expected invalid decorative-trace settings to be rejected")
 			}
 		})
 	}
 }
 
-func TestBuildBoardAddsDecorativeTestPoints(t *testing.T) {
+func TestBuildBoardAddsDecorativeDecorativeTraces(t *testing.T) {
 	o := DefaultOptions()
 	o.ComponentCount = 12
 	o.ClusterCount = 3
@@ -1521,7 +1521,7 @@ func TestBuildBoardAddsDecorativeTestPoints(t *testing.T) {
 	o.TopPowerSourceCount = 0
 	o.BottomPowerSourceCount = 0
 	o.Connections = 0
-	o.TestPointCount = 3
+	o.DecorativeTraceCount = 3
 	o.Seed, o.SeedSet = 381, true
 	top, bottom, err := powerSourcePositions(o)
 	if err != nil {
@@ -1531,26 +1531,26 @@ func TestBuildBoardAddsDecorativeTestPoints(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(plan.TestPointTraces) == 0 {
-		t.Fatal("test-point option did not produce any decorative stubs")
+	if len(plan.DecorativeTraces) == 0 {
+		t.Fatal("decorative-trace option did not produce any decorative stubs")
 	}
-	if len(plan.TestPointTraces) > o.TestPointCount {
-		t.Fatalf("got %d test points, exceeding target %d", len(plan.TestPointTraces), o.TestPointCount)
+	if len(plan.DecorativeTraces) > o.DecorativeTraceCount {
+		t.Fatalf("got %d decorative traces, exceeding target %d", len(plan.DecorativeTraces), o.DecorativeTraceCount)
 	}
-	for _, trace := range plan.TestPointTraces {
+	for _, trace := range plan.DecorativeTraces {
 		if trace.HideTerminal || trace.Lines != 1 || len(trace.Path) != 1 {
-			t.Errorf("unexpected test-point trace: %+v", trace)
+			t.Errorf("unexpected decorative-trace trace: %+v", trace)
 		}
 	}
 	svg, _, traceCount, err := Generate(o)
 	if err != nil {
-		t.Fatalf("generate board with test points: %v", err)
+		t.Fatalf("generate board with decorative traces: %v", err)
 	}
 	if svg == "" {
 		t.Fatal("generation returned an empty SVG")
 	}
-	wantTraceCount := len(plan.SignalTraces) + len(plan.PowerTraces) + len(plan.InterClusterTraces) + len(plan.TestPointTraces)
+	wantTraceCount := len(plan.SignalTraces) + len(plan.PowerTraces) + len(plan.InterClusterTraces) + len(plan.DecorativeTraces)
 	if traceCount != wantTraceCount {
-		t.Fatalf("Generate trace count = %d, want %d including test points", traceCount, wantTraceCount)
+		t.Fatalf("Generate trace count = %d, want %d including decorative traces", traceCount, wantTraceCount)
 	}
 }

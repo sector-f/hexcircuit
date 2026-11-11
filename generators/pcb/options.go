@@ -12,7 +12,7 @@ const (
 	defaultHeight                 = 8.0
 	defaultBottomPowerSourceCount = 10
 	maxGenerationAttempts         = 20
-	maxTestPointCount             = 1000
+	maxDecorativeTraceCount             = 1000
 	powerCoreRadiusScale          = 0.36
 )
 
@@ -85,12 +85,14 @@ type Options struct {
 	// Connections is the target number of additional signal connections beyond the
 	// spanning-tree connections required to connect every multi-component cluster.
 	Connections int
-	// TestPointCount is the best-effort target number of decorative test-point stubs.
-	// Zero disables test points.
-	TestPointCount int
-	// TestPointMinLength and TestPointMaxLength bound stub length in grid steps.
-	TestPointMinLength int
-	TestPointMaxLength int
+	// DecorativeTraceCount is the best-effort target number of decorative decorative-trace stubs.
+	// Zero disables decorative traces.
+	DecorativeTraceCount int
+	// DecorativeTraceMinLength and DecorativeTraceMaxLength bound trace length in grid steps.
+	DecorativeTraceMinLength int
+	DecorativeTraceMaxLength int
+	// DecorativeTraceMaxBends is the maximum number of direction changes per trace.
+	DecorativeTraceMaxBends int
 	// InterClusterTraces enables a randomized number of accent-colored traces
 	// connecting components in different clusters. Generation may produce none.
 	InterClusterTraces bool
@@ -180,9 +182,10 @@ func DefaultOptions() Options {
 		MinPowerSourcesPerCluster:             1,
 		MaxPowerSourcesPerCluster:             1,
 		Connections:                          18,
-		TestPointCount:                       0,
-		TestPointMinLength:                   2,
-		TestPointMaxLength:                   4,
+		DecorativeTraceCount:                       0,
+		DecorativeTraceMinLength:                   4,
+		DecorativeTraceMaxLength:                   10,
+		DecorativeTraceMaxBends:                    3,
 		InterClusterTraces:                   false,
 		MaxParallel:                          3,
 		RouteAttempts:                        12,
@@ -308,11 +311,14 @@ func normalizeOptions(o Options) (Options, error) {
 	if o.Connections < 0 {
 		return o, fmt.Errorf("additional connection count cannot be negative")
 	}
-	if o.TestPointCount < 0 || o.TestPointCount > maxTestPointCount {
-		return o, fmt.Errorf("test-point count must be between 0 and %d", maxTestPointCount)
+	if o.DecorativeTraceCount < 0 || o.DecorativeTraceCount > maxDecorativeTraceCount {
+		return o, fmt.Errorf("decorative-trace count must be between 0 and %d", maxDecorativeTraceCount)
 	}
-	if o.TestPointMinLength < 2 || o.TestPointMaxLength < o.TestPointMinLength || o.TestPointMaxLength > 100 {
-		return o, fmt.Errorf("test-point lengths must satisfy 2 <= minimum <= maximum <= 100 grid steps")
+	if o.DecorativeTraceMinLength < 3 || o.DecorativeTraceMaxLength < o.DecorativeTraceMinLength || o.DecorativeTraceMaxLength > 100 {
+		return o, fmt.Errorf("decorative-trace lengths must satisfy 3 <= minimum <= maximum <= 100 grid steps")
+	}
+	if o.DecorativeTraceMaxBends < 1 || o.DecorativeTraceMaxBends > 10 {
+		return o, fmt.Errorf("decorative-trace maximum bends must be between 1 and 10")
 	}
 	if o.MaxParallel < 1 || o.MaxParallel > 3 {
 		return o, fmt.Errorf("maximum parallel track count must be between 1 and 3")
