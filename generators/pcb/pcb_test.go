@@ -1359,3 +1359,56 @@ func makeSymmetryTestPowerSourceRow(r, length int, y float64) []hexgrid.Cell {
 	}
 	return cells
 }
+
+
+func TestGlowOptionsDefaultDisabledAndValidate(t *testing.T) {
+	options := DefaultOptions()
+	if options.GlowEnabled { t.Fatal("PCB glow should be disabled by default") }
+	if options.GlowBlurRadius <= 0 || options.GlowOpacity <= 0 {
+		t.Fatalf("default glow settings must be usable: radius=%v opacity=%v", options.GlowBlurRadius, options.GlowOpacity)
+	}
+	for _, test := range []struct{name string; edit func(*Options)}{
+		{"negative blur radius", func(o *Options) { o.GlowBlurRadius = -0.01 }},
+		{"NaN blur radius", func(o *Options) { o.GlowBlurRadius = math.NaN() }},
+		{"opacity above one", func(o *Options) { o.GlowOpacity = 1.1 }},
+		{"enabled glow with zero opacity", func(o *Options) { o.GlowEnabled = true; o.GlowOpacity = 0 }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			o := DefaultOptions(); test.edit(&o)
+			if _, err := normalizeOptions(o); err == nil { t.Fatal("expected invalid glow settings to be rejected") }
+		})
+	}
+}
+
+func TestRenderBoardNamespacesNeonGlowFiltersAcrossLayers(t *testing.T) {
+	o := DefaultOptions()
+	o.GlowEnabled = true
+	o.GlowBlurRadius = 0.06
+	o.GlowOpacity = 0.5
+	plan := boardPlan{
+		Components: []hexgrid.GridComponent{{Position: hexgrid.GridPosition{Q: 0, R: 0}, Style: hexgrid.ComponentStyleSingle}},
+		SignalTraces: []hexgrid.GridTrace{{Start: hexgrid.GridPosition{Q: 0, R: 0}, Path: []hexgrid.GridPosition{{Q: 1, R: 0}}, Lines: 1}},
+		PowerCores: []hexgrid.GridComponent{{Position: hexgrid.GridPosition{Q: 0, R: 2}, Style: hexgrid.ComponentStyleSingle}},
+		PowerTraces: []hexgrid.GridTrace{{Start: hexgrid.GridPosition{Q: 0, R: 2}, Path: []hexgrid.GridPosition{{Q: 1, R: 2}}, Lines: 1}},
+		InterclusterComponents: []hexgrid.GridComponent{{Position: hexgrid.GridPosition{Q: 0, R: -2}, Style: hexgrid.ComponentStyleSingle}},
+		InterClusterTraces: []hexgrid.GridTrace{{Start: hexgrid.GridPosition{Q: 0, R: -2}, Path: []hexgrid.GridPosition{{Q: 1, R: -2}}, Lines: 1}},
+	}
+	svg, err := renderBoard(o, plan)
+	if err != nil { t.Fatal(err) }
+	for _, id := range []string{"hexgrid-neon-glow", "power-hexgrid-neon-glow", "inter-cluster-hexgrid-neon-glow"} {
+		if !strings.Contains(svg, `id="`+id+`"`) { t.Errorf("combined SVG is missing filter definition %q", id) }
+	}
+	if strings.Count(svg, `id="hexgrid-neon-glow"`) != 1 ||
+		!strings.Contains(svg, `filter="url(#power-hexgrid-neon-glow)"`) ||
+		!strings.Contains(svg, `filter="url(#inter-cluster-hexgrid-neon-glow)"`) {
+		t.Fatal("combined SVG contains duplicate or unresolved glow filter references")
+	}
+}
+
+func TestRenderBoardDoesNotEmitGlowByDefault(t *testing.T) {
+	o := DefaultOptions()
+	plan := boardPlan{Components: []hexgrid.GridComponent{{Position: hexgrid.GridPosition{Q: 0, R: 0}, Style: hexgrid.ComponentStyleSingle}}}
+	svg, err := renderBoard(o, plan)
+	if err != nil { t.Fatal(err) }
+	if strings.Contains(svg, "hexgrid-neon-glow") { t.Fatal("default PCB rendering unexpectedly contains neon glow filters") }
+}

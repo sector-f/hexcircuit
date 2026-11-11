@@ -311,6 +311,9 @@ func renderBoard(o Options, plan boardPlan) (string, error) {
 	base.Color = o.BaseColor
 	base.GridColor = o.GridColor
 	base.Background = o.Background
+	base.GlowEnabled = o.GlowEnabled
+	base.GlowBlurRadius = o.GlowBlurRadius
+	base.GlowOpacity = o.GlowOpacity
 	base.Grid = hexgrid.Grid{
 		Pitch:       o.Pitch,
 		Radius:      o.GridRadius,
@@ -409,5 +412,7 @@ func appendSVGLayerNamed(baseSVG, overlaySVG, prefix string) (string, error) {
 	} {
 		overlayBody = strings.ReplaceAll(overlayBody, `id="`+id+`"`, `id="`+prefix+`-`+id+`"`)
 	}
+	overlayBody = strings.ReplaceAll(overlayBody, `id="hexgrid-neon-glow"`, `id="`+prefix+`-hexgrid-neon-glow"`)
+	overlayBody = strings.ReplaceAll(overlayBody, "url(#hexgrid-neon-glow)", "url(#"+prefix+"-hexgrid-neon-glow)")
 	return baseSVG[:baseInsert] + overlayBody + baseSVG[baseInsert:], nil
 }
