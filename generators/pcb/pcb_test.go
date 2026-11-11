@@ -1496,6 +1496,7 @@ func TestNormalizeOptionsRejectsInvalidTestPointSettings(t *testing.T) {
 		edit func(*Options)
 	}{
 		{"negative count", func(o *Options) { o.TestPointCount = -1 }},
+		{"count too large", func(o *Options) { o.TestPointCount = maxTestPointCount + 1 }},
 		{"minimum below two", func(o *Options) { o.TestPointMinLength = 1 }},
 		{"maximum below minimum", func(o *Options) { o.TestPointMaxLength = o.TestPointMinLength - 1 }},
 		{"maximum over 100", func(o *Options) { o.TestPointMaxLength = 101 }},

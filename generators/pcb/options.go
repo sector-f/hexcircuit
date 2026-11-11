@@ -12,6 +12,7 @@ const (
 	defaultHeight                 = 8.0
 	defaultBottomPowerSourceCount = 10
 	maxGenerationAttempts         = 20
+	maxTestPointCount             = 1000
 	powerCoreRadiusScale          = 0.36
 )
 
@@ -307,8 +308,8 @@ func normalizeOptions(o Options) (Options, error) {
 	if o.Connections < 0 {
 		return o, fmt.Errorf("additional connection count cannot be negative")
 	}
-	if o.TestPointCount < 0 {
-		return o, fmt.Errorf("test-point count cannot be negative")
+	if o.TestPointCount < 0 || o.TestPointCount > maxTestPointCount {
+		return o, fmt.Errorf("test-point count must be between 0 and %d", maxTestPointCount)
 	}
 	if o.TestPointMinLength < 2 || o.TestPointMaxLength < o.TestPointMinLength || o.TestPointMaxLength > 100 {
 		return o, fmt.Errorf("test-point lengths must satisfy 2 <= minimum <= maximum <= 100 grid steps")
