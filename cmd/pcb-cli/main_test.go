@@ -22,9 +22,12 @@ func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 		"--route-attempts=7",
 		"--generation-attempts=6",
 		"--grid-color=#abcdef",
-		"--glow",
-		"--glow-blur-radius=0.07",
-		"--glow-opacity=0.4",
+		"--base-glow",
+		"--base-glow-blur-radius=0.03",
+		"--base-glow-opacity=0.2",
+		"--accent-glow",
+		"--accent-glow-blur-radius=0.08",
+		"--accent-glow-opacity=0.7",
 		"--seed=42",
 	}, io.Discard)
 	if err != nil {
@@ -42,9 +45,13 @@ func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 	if opts.Generator.GridColor != "#abcdef" {
 		t.Errorf("grid color = %q, want #abcdef", opts.Generator.GridColor)
 	}
-	if !opts.Generator.GlowEnabled || opts.Generator.GlowBlurRadius != 0.07 || opts.Generator.GlowOpacity != 0.4 {
-		t.Errorf("glow settings = (%v, %v, %v), want (true, 0.07, 0.4)",
-			opts.Generator.GlowEnabled, opts.Generator.GlowBlurRadius, opts.Generator.GlowOpacity)
+	if !opts.Generator.BaseGlow || opts.Generator.BaseGlowBlurRadius != 0.03 || opts.Generator.BaseGlowOpacity != 0.2 {
+		t.Errorf("base glow settings = (%v, %v, %v), want (true, 0.03, 0.2)",
+			opts.Generator.BaseGlow, opts.Generator.BaseGlowBlurRadius, opts.Generator.BaseGlowOpacity)
+	}
+	if !opts.Generator.AccentGlow || opts.Generator.AccentGlowBlurRadius != 0.08 || opts.Generator.AccentGlowOpacity != 0.7 {
+		t.Errorf("accent glow settings = (%v, %v, %v), want (true, 0.08, 0.7)",
+			opts.Generator.AccentGlow, opts.Generator.AccentGlowBlurRadius, opts.Generator.AccentGlowOpacity)
 	}
 	if opts.Generator.PowerSourceSpacing != pcb.PowerSourceSpacingAdjacent {
 		t.Errorf("power-source spacing = %q, want adjacent", opts.Generator.PowerSourceSpacing)
