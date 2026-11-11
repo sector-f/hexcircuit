@@ -1,3 +1,5 @@
+![PCB example image](example.svg)
+
 # `generators/pcb`
 
 The `pcb` package generates PCB-inspired SVG artwork on the shared hexagonal grid. It plans an explicit board topology before rendering: ordinary components are placed in compact clusters, signal traces connect components within each cluster, and each cluster receives a randomized number of power feeds from active contacts on the top or bottom edge. Each feed independently selects a destination component within its assigned cluster. A cluster may receive no power feeds. An optional inter-cluster trace layer can add occasional accent-colored connections between separate clusters.

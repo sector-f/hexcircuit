@@ -1,3 +1,5 @@
+![PCB example image](example.svg)
+
 # pcb-cli
 
 `pcb-cli` is the command-line wrapper for [`generators/pcb`](../../generators/pcb). It generates randomized PCB-inspired artwork as an SVG file. The composition uses compact component clusters, connected local signal traces, and power feeds originating from contacts along the top and/or bottom edge.
