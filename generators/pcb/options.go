@@ -85,7 +85,7 @@ type Options struct {
 	// Connections is the target number of additional signal connections beyond the
 	// spanning-tree connections required to connect every multi-component cluster.
 	Connections int
-	// DecorativeTraceCount is the best-effort target number of decorative trace stubs.
+	// DecorativeTraceCount is the best-effort target number of decorative traces.
 	// Zero disables decorative traces.
 	DecorativeTraceCount int
 	// DecorativeTraceMinLength and DecorativeTraceMaxLength bound trace length in grid steps.

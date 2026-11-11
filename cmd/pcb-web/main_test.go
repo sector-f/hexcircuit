@@ -289,9 +289,9 @@ func TestGenerateRequestDefaultsDecorativeTraceLengthsWhenOmitted(t *testing.T) 
 		t.Fatal(err)
 	}
 	defaults := pcb.DefaultOptions()
-	if got.DecorativeTraceMinLength != defaults.DecorativeTraceMinLength || got.DecorativeTraceMaxLength != defaults.DecorativeTraceMaxLength {
-		t.Fatalf("decorative-trace length defaults = (%d, %d), want (%d, %d)",
-			got.DecorativeTraceMinLength, got.DecorativeTraceMaxLength,
-			defaults.DecorativeTraceMinLength, defaults.DecorativeTraceMaxLength)
+	if got.DecorativeTraceMinLength != defaults.DecorativeTraceMinLength || got.DecorativeTraceMaxLength != defaults.DecorativeTraceMaxLength || got.DecorativeTraceMaxBends != defaults.DecorativeTraceMaxBends {
+		t.Fatalf("decorative-trace defaults = (%d, %d, %d), want (%d, %d, %d)",
+			got.DecorativeTraceMinLength, got.DecorativeTraceMaxLength, got.DecorativeTraceMaxBends,
+			defaults.DecorativeTraceMinLength, defaults.DecorativeTraceMaxLength, defaults.DecorativeTraceMaxBends)
 	}
 }

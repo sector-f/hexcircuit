@@ -118,7 +118,7 @@ Selected power-source contacts receive an accent-colored core and a power feed. 
 
 `--inter-cluster-traces` optionally enables a randomized number of accent-colored traces between components in different clusters. The generator may produce no such traces for a given seed or layout.
 
-`--decorative-trace-count` requests decorative base-color stubs from leaf components to hollow terminal pads. Stubs are follow straight segments along the six hex-grid axes, joined by bends, and are distributed across clusters before any cluster receives additional stubs. The requested count is best-effort; paths blocked by components, other routes, or the canvas boundary are skipped. Use `--decorative-trace-min-length` and `--decorative-trace-max-length` to configure the inclusive length range in grid steps. These are decorative decorative endpoints, not electrical vias in the current single-layer model.
+`--decorative-trace-count` requests decorative base-color stubs from leaf components to hollow terminal pads. Traces follow straight segments along the six hex-grid axes, joined by randomized bends, and are distributed across clusters before any cluster receives additional traces. The requested count is best-effort; paths blocked by components, other routes, or the canvas boundary are skipped. Use `--decorative-trace-min-length` and `--decorative-trace-max-length` to configure the inclusive length range in grid steps, and `--decorative-trace-max-bends` to cap the number of bends. Parallel-line count is randomized up to `--max-parallel`. These are free-ended decorative traces, not electrical connections to another layer.
 
 `--component-count` controls the number of ordinary components distributed among clusters. It excludes power-source row contacts. `--cluster-count` determines the number of clusters. `--min-components-per-cluster` sets the minimum number of ordinary components in every cluster; the default of `1` permits singleton clusters. `--min-power-sources-per-cluster` and `--max-power-sources-per-cluster` set the inclusive range of active power feeds per cluster. Both default to `1`; a minimum of `0` permits unpowered clusters, and a maximum of `6` is currently supported.
 
@@ -181,7 +181,7 @@ The inner and middle scales must satisfy `0 < inner < middle < 1`. The pitch mus
 | Flag | Default | Description |
 | --- | ---: | --- |
 | `--connections` | `18` | Target number of additional intra-cluster signal connections beyond mandatory spanning-tree connections. |
-| `--decorative-trace-count` | `0` | Best-effort count of decorative decorative-trace stubs; zero disables them. |
+| `--decorative-trace-count` | `0` | Best-effort count of decorative traces; zero disables them. |
 | `--decorative-trace-min-length` | `4` | Minimum decorative trace length in grid steps. |
 | `--decorative-trace-max-length` | `10` | Maximum decorative trace length in grid steps. |
 | `--decorative-trace-max-bends` | `3` | Maximum number of direction changes per decorative trace. |
