@@ -402,13 +402,24 @@ func TestGlowRendersOnlyOnForegroundLayers(t *testing.T) {
 	if !strings.Contains(svg, `id="hexgrid-neon-glow"`) {
 		t.Fatal("enabled glow did not emit its SVG filter")
 	}
+	groupTag := func(group string) string {
+		start := strings.Index(svg, `<g id="`+group+`"`)
+		if start < 0 {
+			return ""
+		}
+		end := strings.Index(svg[start:], ">")
+		if end < 0 {
+			return ""
+		}
+		return svg[start : start+end+1]
+	}
 	for _, group := range []string{"traces", "components", "terminal-pads"} {
-		if !strings.Contains(svg, `id="`+group+`" filter="url(#hexgrid-neon-glow)"`) {
-			t.Errorf("%s group is missing its glow filter", group)
+		if tag := groupTag(group); !strings.Contains(tag, `filter="url(#hexgrid-neon-glow)"`) {
+			t.Errorf("%s group is missing its glow filter: %s", group, tag)
 		}
 	}
 	for _, group := range []string{"background-grid", "component-labels"} {
-		if strings.Contains(svg, `id="`+group+`" filter="url(#hexgrid-neon-glow)"`) {
+		if tag := groupTag(group); strings.Contains(tag, `filter="url(#hexgrid-neon-glow)"`) {
 			t.Errorf("%s should remain crisp and should not use the glow filter", group)
 		}
 	}
