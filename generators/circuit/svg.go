@@ -256,7 +256,6 @@ func Generate(options Options) (string, int, int, error) {
 	})
 }
 
-
 // generateWithSeedAttempts retries only failures explicitly marked as dependent
 // on randomized placement. Attempt zero uses the master seed unchanged.
 func generateWithSeedAttempts(

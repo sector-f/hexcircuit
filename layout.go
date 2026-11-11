@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	sqrt3 = 1.7320508075688772935
-	epsilon = 1e-9
+	sqrt3         = 1.7320508075688772935
+	epsilon       = 1e-9
 	vectorEpsilon = 1e-12
 )
 
@@ -21,7 +21,7 @@ func orientationBaseAngle(orientation string) float64 {
 }
 
 func cross(a, b Point) float64 { return a.X*b.Y - a.Y*b.X }
-func sub(a, b Point) Point { return Point{X:a.X-b.X, Y:a.Y-b.Y} }
+func sub(a, b Point) Point     { return Point{X: a.X - b.X, Y: a.Y - b.Y} }
 
 // GridComponent places a component on one lattice cell. RadiusScale multiplies
 // Options.ComponentRadius; a zero value means 1 (the configured base radius).

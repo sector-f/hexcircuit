@@ -1150,7 +1150,6 @@ func makePositions(count, r int) []hexgrid.GridPosition {
 	return positions
 }
 
-
 func TestGenerateUsesSeparateGridColor(t *testing.T) {
 	o := DefaultOptions()
 	o.ShowBackgroundGrid = true
@@ -1171,7 +1170,6 @@ func TestGenerateUsesSeparateGridColor(t *testing.T) {
 		t.Fatal("PCB background grid does not use GridColor")
 	}
 }
-
 
 func TestDefaultGenerationAttempts(t *testing.T) {
 	if got := DefaultOptions().GenerationAttempts; got != 4 {
@@ -1247,13 +1245,18 @@ func TestBuildBoardWithSeedAttemptsReportsExhaustion(t *testing.T) {
 }
 
 func TestDefaultRouteAttempts(t *testing.T) {
-	if got := DefaultOptions().RouteAttempts; got != 12 { t.Fatalf("default route attempts = %d, want 12", got) }
+	if got := DefaultOptions().RouteAttempts; got != 12 {
+		t.Fatalf("default route attempts = %d, want 12", got)
+	}
 }
 
 func TestNormalizeOptionsRejectsInvalidRouteAttempts(t *testing.T) {
 	for _, attempts := range []int{0, -1} {
-		o := DefaultOptions(); o.RouteAttempts = attempts
-		if _, err := normalizeOptions(o); err == nil { t.Errorf("route attempts %d should be rejected", attempts) }
+		o := DefaultOptions()
+		o.RouteAttempts = attempts
+		if _, err := normalizeOptions(o); err == nil {
+			t.Errorf("route attempts %d should be rejected", attempts)
+		}
 	}
 }
 
@@ -1265,26 +1268,29 @@ func TestRoutePowerFeedsRetriesCompleteFeedSet(t *testing.T) {
 	}
 	clusters := []clusterPlan{{PowerPaths: make([][]hexgrid.GridPosition, 1)}}
 	allowed := map[hexgrid.GridPosition]bool{}
-	for q := 0; q <= 3; q++ { allowed[hexgrid.GridPosition{Q: q, R: 0}] = true }
+	for q := 0; q <= 3; q++ {
+		allowed[hexgrid.GridPosition{Q: q, R: 0}] = true
+	}
 	blocked := map[hexgrid.GridPosition]bool{
 		{Q: 0, R: 0}: true, {Q: 3, R: 0}: true,
 	}
 	if !routePowerFeeds(3, rand.New(rand.NewSource(1)), order, clusters, allowed, blocked) {
 		t.Fatal("expected a valid feed route")
 	}
-	if len(clusters[0].PowerPaths[0]) < 2 { t.Fatalf("stored route = %v", clusters[0].PowerPaths[0]) }
+	if len(clusters[0].PowerPaths[0]) < 2 {
+		t.Fatalf("stored route = %v", clusters[0].PowerPaths[0])
+	}
 }
-
 
 func TestPowerSourceRowsPreserveHorizontalSymmetry(t *testing.T) {
 	tests := []struct {
-		name     string
-		rows     map[int][]hexgrid.Cell
-		count    int
-		top      bool
-		spacing  PowerSourceSpacing
-		wantR    int
-		wantQ    []int
+		name    string
+		rows    map[int][]hexgrid.Cell
+		count   int
+		top     bool
+		spacing PowerSourceSpacing
+		wantR   int
+		wantQ   []int
 	}{
 		{
 			name: "keeps symmetric outer row",
@@ -1360,13 +1366,15 @@ func makeSymmetryTestPowerSourceRow(r, length int, y float64) []hexgrid.Cell {
 	return cells
 }
 
-
 func TestGlowOptionsDefaultDisabledAndValidate(t *testing.T) {
 	options := DefaultOptions()
 	if options.BaseGlow || options.AccentGlow {
 		t.Fatal("base and accent glow should both be disabled by default")
 	}
-	for _, settings := range []struct{name string; radius, opacity float64}{
+	for _, settings := range []struct {
+		name            string
+		radius, opacity float64
+	}{
 		{"base", options.BaseGlowBlurRadius, options.BaseGlowOpacity},
 		{"accent", options.AccentGlowBlurRadius, options.AccentGlowOpacity},
 	} {
@@ -1417,12 +1425,12 @@ func TestRenderBoardUsesIndependentBaseAndAccentGlowSettings(t *testing.T) {
 	o.AccentGlowBlurRadius = 0.08
 	o.AccentGlowOpacity = 0.7
 	plan := boardPlan{
-		Components: []hexgrid.GridComponent{{Position: hexgrid.GridPosition{Q: 0, R: 0}, Style: hexgrid.ComponentStyleSingle}},
-		SignalTraces: []hexgrid.GridTrace{{Start: hexgrid.GridPosition{Q: 0, R: 0}, Path: []hexgrid.GridPosition{{Q: 1, R: 0}}, Lines: 1}},
-		PowerCores: []hexgrid.GridComponent{{Position: hexgrid.GridPosition{Q: 0, R: 2}, Style: hexgrid.ComponentStyleSingle}},
-		PowerTraces: []hexgrid.GridTrace{{Start: hexgrid.GridPosition{Q: 0, R: 2}, Path: []hexgrid.GridPosition{{Q: 1, R: 2}}, Lines: 1}},
+		Components:             []hexgrid.GridComponent{{Position: hexgrid.GridPosition{Q: 0, R: 0}, Style: hexgrid.ComponentStyleSingle}},
+		SignalTraces:           []hexgrid.GridTrace{{Start: hexgrid.GridPosition{Q: 0, R: 0}, Path: []hexgrid.GridPosition{{Q: 1, R: 0}}, Lines: 1}},
+		PowerCores:             []hexgrid.GridComponent{{Position: hexgrid.GridPosition{Q: 0, R: 2}, Style: hexgrid.ComponentStyleSingle}},
+		PowerTraces:            []hexgrid.GridTrace{{Start: hexgrid.GridPosition{Q: 0, R: 2}, Path: []hexgrid.GridPosition{{Q: 1, R: 2}}, Lines: 1}},
 		InterclusterComponents: []hexgrid.GridComponent{{Position: hexgrid.GridPosition{Q: 0, R: -2}, Style: hexgrid.ComponentStyleSingle}},
-		InterClusterTraces: []hexgrid.GridTrace{{Start: hexgrid.GridPosition{Q: 0, R: -2}, Path: []hexgrid.GridPosition{{Q: 1, R: -2}}, Lines: 1}},
+		InterClusterTraces:     []hexgrid.GridTrace{{Start: hexgrid.GridPosition{Q: 0, R: -2}, Path: []hexgrid.GridPosition{{Q: 1, R: -2}}, Lines: 1}},
 	}
 	svg, err := renderBoard(o, plan)
 	if err != nil {
@@ -1447,14 +1455,14 @@ func TestRenderBoardUsesIndependentBaseAndAccentGlowSettings(t *testing.T) {
 
 func TestRenderBoardCanGlowOnlyOneColorLayer(t *testing.T) {
 	plan := boardPlan{
-		Components: []hexgrid.GridComponent{{Position: hexgrid.GridPosition{Q: 0, R: 0}, Style: hexgrid.ComponentStyleSingle}},
+		Components:   []hexgrid.GridComponent{{Position: hexgrid.GridPosition{Q: 0, R: 0}, Style: hexgrid.ComponentStyleSingle}},
 		SignalTraces: []hexgrid.GridTrace{{Start: hexgrid.GridPosition{Q: 0, R: 0}, Path: []hexgrid.GridPosition{{Q: 1, R: 0}}, Lines: 1}},
-		PowerCores: []hexgrid.GridComponent{{Position: hexgrid.GridPosition{Q: 0, R: 2}, Style: hexgrid.ComponentStyleSingle}},
-		PowerTraces: []hexgrid.GridTrace{{Start: hexgrid.GridPosition{Q: 0, R: 2}, Path: []hexgrid.GridPosition{{Q: 1, R: 2}}, Lines: 1}},
+		PowerCores:   []hexgrid.GridComponent{{Position: hexgrid.GridPosition{Q: 0, R: 2}, Style: hexgrid.ComponentStyleSingle}},
+		PowerTraces:  []hexgrid.GridTrace{{Start: hexgrid.GridPosition{Q: 0, R: 2}, Path: []hexgrid.GridPosition{{Q: 1, R: 2}}, Lines: 1}},
 	}
 	tests := []struct {
-		name string
-		base, accent bool
+		name                 string
+		base, accent         bool
 		wantBase, wantAccent bool
 	}{
 		{"base only", true, false, true, false},

@@ -72,8 +72,12 @@ func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 	if !opts.Generator.InterClusterTraces {
 		t.Error("inter-cluster traces were not enabled")
 	}
-	if opts.Generator.RouteAttempts != 7 { t.Errorf("route attempts = %d, want 7", opts.Generator.RouteAttempts) }
-	if opts.Generator.GenerationAttempts != 6 { t.Errorf("generation attempts = %d, want 6", opts.Generator.GenerationAttempts) }
+	if opts.Generator.RouteAttempts != 7 {
+		t.Errorf("route attempts = %d, want 7", opts.Generator.RouteAttempts)
+	}
+	if opts.Generator.GenerationAttempts != 6 {
+		t.Errorf("generation attempts = %d, want 6", opts.Generator.GenerationAttempts)
+	}
 	if opts.Generator.DecorativeTraceCount != 7 || opts.Generator.DecorativeTraceMinLength != 3 || opts.Generator.DecorativeTraceMaxLength != 5 || opts.Generator.DecorativeTraceMaxBends != 2 {
 		t.Errorf("decorative-trace options = (%d, %d, %d, %d), want (7, 3, 5, 2)",
 			opts.Generator.DecorativeTraceCount, opts.Generator.DecorativeTraceMinLength, opts.Generator.DecorativeTraceMaxLength, opts.Generator.DecorativeTraceMaxBends)

@@ -17,13 +17,13 @@ func validRequest() generateRequest {
 		BaseGlow: o.BaseGlow, BaseGlowBlurRadius: o.BaseGlowBlurRadius, BaseGlowOpacity: o.BaseGlowOpacity,
 		AccentGlow: o.AccentGlow, AccentGlowBlurRadius: o.AccentGlowBlurRadius, AccentGlowOpacity: o.AccentGlowOpacity,
 		Background: o.Background, ComponentCount: o.ComponentCount, ClusterCount: o.ClusterCount,
-		MinComponentsPerCluster: o.MinComponentsPerCluster,
+		MinComponentsPerCluster:   o.MinComponentsPerCluster,
 		MinPowerSourcesPerCluster: o.MinPowerSourcesPerCluster, MaxPowerSourcesPerCluster: o.MaxPowerSourcesPerCluster,
-		ComponentRadius: o.ComponentRadius,
-		ComponentStrokeWidth: o.ComponentStrokeWidth,
+		ComponentRadius:             o.ComponentRadius,
+		ComponentStrokeWidth:        o.ComponentStrokeWidth,
 		ComponentMiddleHexagonScale: o.ComponentMiddleHexagonScale,
-		ComponentInnerHexagonScale: o.ComponentInnerHexagonScale,
-		Connections: o.Connections, DecorativeTraceCount: o.DecorativeTraceCount,
+		ComponentInnerHexagonScale:  o.ComponentInnerHexagonScale,
+		Connections:                 o.Connections, DecorativeTraceCount: o.DecorativeTraceCount,
 		DecorativeTraceMinLength: o.DecorativeTraceMinLength, DecorativeTraceMaxLength: o.DecorativeTraceMaxLength,
 		InterClusterTraces: o.InterClusterTraces, MaxParallel: o.MaxParallel,
 		RouteAttempts: o.RouteAttempts, GenerationAttempts: o.GenerationAttempts, Pitch: o.Pitch,
@@ -32,9 +32,9 @@ func validRequest() generateRequest {
 		GridRadius: o.GridRadius, GridStrokeWidth: o.GridStrokeWidth,
 		TopPowerSourceCount: o.TopPowerSourceCount, BottomPowerSourceCount: o.BottomPowerSourceCount,
 		PowerSourceSpacing: string(o.PowerSourceSpacing), PowerSourceStyle: string(o.PowerSourceStyle),
-		ConstrainComponentsToPowerSourceSpan: o.ConstrainComponentsToPowerSourceSpan,
+		ConstrainComponentsToPowerSourceSpan:  o.ConstrainComponentsToPowerSourceSpan,
 		ConstrainLayoutToPowerSourceTrapezoid: o.ConstrainLayoutToPowerSourceTrapezoid,
-		ConnectorInset: o.ConnectorInset, Seed: "42", SeedSet: true,
+		ConnectorInset:                        o.ConnectorInset, Seed: "42", SeedSet: true,
 	}
 }
 
@@ -101,8 +101,12 @@ func TestGenerateRequestMapsToPCBOptions(t *testing.T) {
 			got.DecorativeTraceCount, got.DecorativeTraceMinLength, got.DecorativeTraceMaxLength,
 			req.DecorativeTraceCount, req.DecorativeTraceMinLength, req.DecorativeTraceMaxLength)
 	}
-	if got.RouteAttempts != 7 { t.Fatalf("route attempts = %d, want 7", got.RouteAttempts) }
-	if got.GenerationAttempts != 6 { t.Fatalf("generation attempts = %d, want 6", got.GenerationAttempts) }
+	if got.RouteAttempts != 7 {
+		t.Fatalf("route attempts = %d, want 7", got.RouteAttempts)
+	}
+	if got.GenerationAttempts != 6 {
+		t.Fatalf("generation attempts = %d, want 6", got.GenerationAttempts)
+	}
 	if !got.SeedSet || got.Seed != 42 {
 		t.Fatalf("seed = (%d, %v), want (42, true)", got.Seed, got.SeedSet)
 	}
@@ -143,8 +147,12 @@ func TestGenerateRequestDefaultsRouteAttemptsWhenOmitted(t *testing.T) {
 	req := validRequest()
 	req.RouteAttempts = 0
 	got, err := req.options()
-	if err != nil { t.Fatal(err) }
-	if got.RouteAttempts != pcb.DefaultOptions().RouteAttempts { t.Fatalf("route attempts = %d, want %d", got.RouteAttempts, pcb.DefaultOptions().RouteAttempts) }
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.RouteAttempts != pcb.DefaultOptions().RouteAttempts {
+		t.Fatalf("route attempts = %d, want %d", got.RouteAttempts, pcb.DefaultOptions().RouteAttempts)
+	}
 }
 
 func TestGenerateRequestDefaultsGlowParametersWhenOmitted(t *testing.T) {
@@ -222,7 +230,6 @@ func TestGenerateRequestRejectsInvalidOptions(t *testing.T) {
 		})
 	}
 }
-
 
 func TestHandleIndexRendersPCBInterface(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/", nil)

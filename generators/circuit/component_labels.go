@@ -187,8 +187,8 @@ func (f *labelFont) measure(text string) labelMetrics {
 }
 
 type labelComponentGeometry struct {
-	Index int
-	X, Y float64
+	Index  int
+	X, Y   float64
 	Radius float64
 }
 
@@ -206,9 +206,9 @@ func componentGeometryForLabel(scene hexgrid.Scene, index int) labelComponentGeo
 		scene.Options.Orientation,
 	)
 	return labelComponentGeometry{
-		Index: index,
-		X: center.X,
-		Y: center.Y,
+		Index:  index,
+		X:      center.X,
+		Y:      center.Y,
 		Radius: scene.Options.ComponentRadius * radiusScale,
 	}
 }

@@ -46,7 +46,6 @@ func routingCells(o Options) map[hexgrid.GridPosition]bool {
 	return allowed
 }
 
-
 func powerSourceRowIDs(topSources, bottomSources []hexgrid.GridPosition) map[int]bool {
 	rows := make(map[int]bool, 2)
 	if len(topSources) > 0 {

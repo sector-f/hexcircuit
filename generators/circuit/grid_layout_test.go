@@ -105,8 +105,8 @@ func TestAssignComponentDetailsUsesTripleGridStyle(t *testing.T) {
 	scene := hexgrid.Scene{
 		Options: hexgrid.Options{ComponentRadius: 0.4},
 		Components: []hexgrid.GridComponent{{
-			Position: hexgrid.GridPosition{},
-			Style: hexgrid.ComponentStyleSingle,
+			Position:    hexgrid.GridPosition{},
+			Style:       hexgrid.ComponentStyleSingle,
 			RadiusScale: 1,
 		}},
 	}

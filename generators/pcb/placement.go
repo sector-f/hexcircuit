@@ -33,9 +33,9 @@ type powerSource struct {
 
 type powerRouteAssignment struct {
 	clusterIndex int
-	sourceIndex int
-	source powerSource
-	target hexgrid.GridPosition
+	sourceIndex  int
+	source       powerSource
+	target       hexgrid.GridPosition
 }
 
 // powerSourcePositions returns centered top and bottom rows of potential power
@@ -408,12 +408,21 @@ func routePowerFeeds(attempts int, rng *rand.Rand, order []powerRouteAssignment,
 		failed := false
 		for i, assignment := range order {
 			path, ok := findRoute(assignment.source.Position, assignment.target, allowed, blocked, reserved, assignment.source.Side, rng)
-			if !ok || len(path) < 2 { failed = true; break }
+			if !ok || len(path) < 2 {
+				failed = true
+				break
+			}
 			paths[i] = path
-			for _, position := range path { reserved[position] = true }
+			for _, position := range path {
+				reserved[position] = true
+			}
 		}
-		if failed { continue }
-		for i, assignment := range order { clusters[assignment.clusterIndex].PowerPaths[assignment.sourceIndex] = paths[i] }
+		if failed {
+			continue
+		}
+		for i, assignment := range order {
+			clusters[assignment.clusterIndex].PowerPaths[assignment.sourceIndex] = paths[i]
+		}
 		return true
 	}
 	return false
@@ -447,7 +456,6 @@ func candidatesWithinPowerSourceSpan(
 	}
 	return filtered
 }
-
 
 type powerSourceTrapezoid struct {
 	topY, bottomY           float64
@@ -547,7 +555,7 @@ func allocatePowerSourceCounts(clusterCount, minimum, maximum, available int, rn
 	for i := range counts {
 		counts[i] = minimum
 		if maximum > minimum {
-			counts[i] += rng.Intn(maximum-minimum+1)
+			counts[i] += rng.Intn(maximum - minimum + 1)
 		}
 		total += counts[i]
 	}

@@ -31,53 +31,53 @@ var (
 )
 
 type generateRequest struct {
-	Width                               float64 `json:"width"`
-	Height                              float64 `json:"height"`
-	BaseColor                           string  `json:"baseColor"`
-	GridColor                           string  `json:"gridColor"`
-	AccentColor                         string  `json:"accentColor"`
-	BaseGlow                            bool    `json:"baseGlow"`
-	BaseGlowBlurRadius                  float64 `json:"baseGlowBlurRadius"`
-	BaseGlowOpacity                     float64 `json:"baseGlowOpacity"`
-	AccentGlow                          bool    `json:"accentGlow"`
-	AccentGlowBlurRadius                float64 `json:"accentGlowBlurRadius"`
-	AccentGlowOpacity                   float64 `json:"accentGlowOpacity"`
-	Background                          string  `json:"background"`
-	ComponentCount                      int     `json:"componentCount"`
-	ClusterCount                        int     `json:"clusterCount"`
-	MinComponentsPerCluster             int     `json:"minComponentsPerCluster"`
-	MinPowerSourcesPerCluster            int     `json:"minPowerSourcesPerCluster"`
-	MaxPowerSourcesPerCluster            int     `json:"maxPowerSourcesPerCluster"`
-	ComponentRadius                     float64 `json:"componentRadius"`
-	ComponentStrokeWidth                float64 `json:"componentStrokeWidth"`
-	ComponentMiddleHexagonScale         float64 `json:"componentMiddleHexagonScale"`
-	ComponentInnerHexagonScale          float64 `json:"componentInnerHexagonScale"`
-	Connections                         int     `json:"connections"`
-	DecorativeTraceCount                      int     `json:"decorativeTraceCount"`
-	DecorativeTraceMinLength                  int     `json:"decorativeTraceMinLength"`
-	DecorativeTraceMaxLength                  int     `json:"decorativeTraceMaxLength"`
-	DecorativeTraceMaxBends                   int     `json:"decorativeTraceMaxBends"`
-	InterClusterTraces                  bool    `json:"interClusterTraces"`
-	MaxParallel                         int     `json:"maxParallel"`
-	RouteAttempts                       int     `json:"routeAttempts"`
-	GenerationAttempts                  int     `json:"generationAttempts"`
-	Pitch                               float64 `json:"pitch"`
-	TraceStrokeWidth                    float64 `json:"traceStrokeWidth"`
-	TraceSpacing                        float64 `json:"traceSpacing"`
-	NodeRadius                          float64 `json:"nodeRadius"`
-	ShowBackgroundGrid                  bool    `json:"showBackgroundGrid"`
-	OmitPartialGridHexagons             bool    `json:"omitPartialGridHexagons"`
-	GridRadius                          float64 `json:"gridRadius"`
-	GridStrokeWidth                     float64 `json:"gridStrokeWidth"`
-	TopPowerSourceCount                 int     `json:"topPowerSourceCount"`
-	BottomPowerSourceCount              int     `json:"bottomPowerSourceCount"`
-	PowerSourceSpacing                  string  `json:"powerSourceSpacing"`
-	PowerSourceStyle                    string  `json:"powerSourceStyle"`
-	ConstrainComponentsToPowerSourceSpan bool   `json:"constrainComponentsToPowerSourceSpan"`
-	ConstrainLayoutToPowerSourceTrapezoid bool  `json:"constrainLayoutToPowerSourceTrapezoid"`
-	ConnectorInset                      float64 `json:"connectorInset"`
-	Seed                                string  `json:"seed"`
-	SeedSet                             bool    `json:"seedSet"`
+	Width                                 float64 `json:"width"`
+	Height                                float64 `json:"height"`
+	BaseColor                             string  `json:"baseColor"`
+	GridColor                             string  `json:"gridColor"`
+	AccentColor                           string  `json:"accentColor"`
+	BaseGlow                              bool    `json:"baseGlow"`
+	BaseGlowBlurRadius                    float64 `json:"baseGlowBlurRadius"`
+	BaseGlowOpacity                       float64 `json:"baseGlowOpacity"`
+	AccentGlow                            bool    `json:"accentGlow"`
+	AccentGlowBlurRadius                  float64 `json:"accentGlowBlurRadius"`
+	AccentGlowOpacity                     float64 `json:"accentGlowOpacity"`
+	Background                            string  `json:"background"`
+	ComponentCount                        int     `json:"componentCount"`
+	ClusterCount                          int     `json:"clusterCount"`
+	MinComponentsPerCluster               int     `json:"minComponentsPerCluster"`
+	MinPowerSourcesPerCluster             int     `json:"minPowerSourcesPerCluster"`
+	MaxPowerSourcesPerCluster             int     `json:"maxPowerSourcesPerCluster"`
+	ComponentRadius                       float64 `json:"componentRadius"`
+	ComponentStrokeWidth                  float64 `json:"componentStrokeWidth"`
+	ComponentMiddleHexagonScale           float64 `json:"componentMiddleHexagonScale"`
+	ComponentInnerHexagonScale            float64 `json:"componentInnerHexagonScale"`
+	Connections                           int     `json:"connections"`
+	DecorativeTraceCount                  int     `json:"decorativeTraceCount"`
+	DecorativeTraceMinLength              int     `json:"decorativeTraceMinLength"`
+	DecorativeTraceMaxLength              int     `json:"decorativeTraceMaxLength"`
+	DecorativeTraceMaxBends               int     `json:"decorativeTraceMaxBends"`
+	InterClusterTraces                    bool    `json:"interClusterTraces"`
+	MaxParallel                           int     `json:"maxParallel"`
+	RouteAttempts                         int     `json:"routeAttempts"`
+	GenerationAttempts                    int     `json:"generationAttempts"`
+	Pitch                                 float64 `json:"pitch"`
+	TraceStrokeWidth                      float64 `json:"traceStrokeWidth"`
+	TraceSpacing                          float64 `json:"traceSpacing"`
+	NodeRadius                            float64 `json:"nodeRadius"`
+	ShowBackgroundGrid                    bool    `json:"showBackgroundGrid"`
+	OmitPartialGridHexagons               bool    `json:"omitPartialGridHexagons"`
+	GridRadius                            float64 `json:"gridRadius"`
+	GridStrokeWidth                       float64 `json:"gridStrokeWidth"`
+	TopPowerSourceCount                   int     `json:"topPowerSourceCount"`
+	BottomPowerSourceCount                int     `json:"bottomPowerSourceCount"`
+	PowerSourceSpacing                    string  `json:"powerSourceSpacing"`
+	PowerSourceStyle                      string  `json:"powerSourceStyle"`
+	ConstrainComponentsToPowerSourceSpan  bool    `json:"constrainComponentsToPowerSourceSpan"`
+	ConstrainLayoutToPowerSourceTrapezoid bool    `json:"constrainLayoutToPowerSourceTrapezoid"`
+	ConnectorInset                        float64 `json:"connectorInset"`
+	Seed                                  string  `json:"seed"`
+	SeedSet                               bool    `json:"seedSet"`
 }
 
 type generateResponse struct {
@@ -201,16 +201,28 @@ func (r generateRequest) options() (pcb.Options, error) {
 		return pcb.Options{}, fmt.Errorf("maximum parallel tracks must be between 1 and 3")
 	}
 	routeAttempts := r.RouteAttempts
-	if routeAttempts == 0 { routeAttempts = pcb.DefaultOptions().RouteAttempts }
-	if routeAttempts < 1 || routeAttempts > 1000 { return pcb.Options{}, fmt.Errorf("route attempts must be between 1 and 1000") }
+	if routeAttempts == 0 {
+		routeAttempts = pcb.DefaultOptions().RouteAttempts
+	}
+	if routeAttempts < 1 || routeAttempts > 1000 {
+		return pcb.Options{}, fmt.Errorf("route attempts must be between 1 and 1000")
+	}
 	generationAttempts := r.GenerationAttempts
-	if generationAttempts == 0 { generationAttempts = pcb.DefaultOptions().GenerationAttempts }
-	if generationAttempts < 1 || generationAttempts > 20 { return pcb.Options{}, fmt.Errorf("generation attempts must be between 1 and 20") }
+	if generationAttempts == 0 {
+		generationAttempts = pcb.DefaultOptions().GenerationAttempts
+	}
+	if generationAttempts < 1 || generationAttempts > 20 {
+		return pcb.Options{}, fmt.Errorf("generation attempts must be between 1 and 20")
+	}
 	defaults := pcb.DefaultOptions()
 	decorativeTraceMinLength := r.DecorativeTraceMinLength
-	if decorativeTraceMinLength == 0 { decorativeTraceMinLength = defaults.DecorativeTraceMinLength }
+	if decorativeTraceMinLength == 0 {
+		decorativeTraceMinLength = defaults.DecorativeTraceMinLength
+	}
 	decorativeTraceMaxLength := r.DecorativeTraceMaxLength
-	if decorativeTraceMaxLength == 0 { decorativeTraceMaxLength = defaults.DecorativeTraceMaxLength }
+	if decorativeTraceMaxLength == 0 {
+		decorativeTraceMaxLength = defaults.DecorativeTraceMaxLength
+	}
 	if decorativeTraceMinLength < 3 || decorativeTraceMaxLength < decorativeTraceMinLength || decorativeTraceMaxLength > 100 {
 		return pcb.Options{}, fmt.Errorf("decorative-trace lengths must satisfy 3 <= minimum <= maximum <= 100 grid steps")
 	}
@@ -222,13 +234,21 @@ func (r generateRequest) options() (pcb.Options, error) {
 		return pcb.Options{}, fmt.Errorf("decorative-trace maximum bends must be between 1 and 10")
 	}
 	baseGlowBlurRadius := r.BaseGlowBlurRadius
-	if baseGlowBlurRadius == 0 { baseGlowBlurRadius = defaults.BaseGlowBlurRadius }
+	if baseGlowBlurRadius == 0 {
+		baseGlowBlurRadius = defaults.BaseGlowBlurRadius
+	}
 	baseGlowOpacity := r.BaseGlowOpacity
-	if baseGlowOpacity == 0 { baseGlowOpacity = defaults.BaseGlowOpacity }
+	if baseGlowOpacity == 0 {
+		baseGlowOpacity = defaults.BaseGlowOpacity
+	}
 	accentGlowBlurRadius := r.AccentGlowBlurRadius
-	if accentGlowBlurRadius == 0 { accentGlowBlurRadius = defaults.AccentGlowBlurRadius }
+	if accentGlowBlurRadius == 0 {
+		accentGlowBlurRadius = defaults.AccentGlowBlurRadius
+	}
 	accentGlowOpacity := r.AccentGlowOpacity
-	if accentGlowOpacity == 0 { accentGlowOpacity = defaults.AccentGlowOpacity }
+	if accentGlowOpacity == 0 {
+		accentGlowOpacity = defaults.AccentGlowOpacity
+	}
 	if !positiveFinite(baseGlowBlurRadius) || !positiveFinite(baseGlowOpacity) || baseGlowOpacity > 1 {
 		return pcb.Options{}, fmt.Errorf("base glow blur radius must be greater than 0 and base glow opacity must be between 0 and 1")
 	}
@@ -284,53 +304,53 @@ func (r generateRequest) options() (pcb.Options, error) {
 	}
 
 	return pcb.Options{
-		Width:                                r.Width,
-		Height:                               r.Height,
-		BaseColor:                            r.BaseColor,
-		GridColor:                            gridColor,
-		AccentColor:                          r.AccentColor,
-		BaseGlow:                             r.BaseGlow,
-		BaseGlowBlurRadius:                   baseGlowBlurRadius,
-		BaseGlowOpacity:                      baseGlowOpacity,
-		AccentGlow:                           r.AccentGlow,
-		AccentGlowBlurRadius:                 accentGlowBlurRadius,
-		AccentGlowOpacity:                    accentGlowOpacity,
-		Background:                           r.Background,
-		ComponentCount:                       r.ComponentCount,
-		ClusterCount:                         r.ClusterCount,
-		MinComponentsPerCluster:              r.MinComponentsPerCluster,
+		Width:                                 r.Width,
+		Height:                                r.Height,
+		BaseColor:                             r.BaseColor,
+		GridColor:                             gridColor,
+		AccentColor:                           r.AccentColor,
+		BaseGlow:                              r.BaseGlow,
+		BaseGlowBlurRadius:                    baseGlowBlurRadius,
+		BaseGlowOpacity:                       baseGlowOpacity,
+		AccentGlow:                            r.AccentGlow,
+		AccentGlowBlurRadius:                  accentGlowBlurRadius,
+		AccentGlowOpacity:                     accentGlowOpacity,
+		Background:                            r.Background,
+		ComponentCount:                        r.ComponentCount,
+		ClusterCount:                          r.ClusterCount,
+		MinComponentsPerCluster:               r.MinComponentsPerCluster,
 		MinPowerSourcesPerCluster:             r.MinPowerSourcesPerCluster,
 		MaxPowerSourcesPerCluster:             r.MaxPowerSourcesPerCluster,
-		Connections:                          r.Connections,
-		DecorativeTraceCount:                       r.DecorativeTraceCount,
-		DecorativeTraceMinLength:                   decorativeTraceMinLength,
-		DecorativeTraceMaxLength:                   decorativeTraceMaxLength,
-		DecorativeTraceMaxBends:                    decorativeTraceMaxBends,
-		InterClusterTraces:                   r.InterClusterTraces,
-		MaxParallel:                          r.MaxParallel,
-		RouteAttempts:                        routeAttempts,
-		GenerationAttempts:                   generationAttempts,
-		Pitch:                                r.Pitch,
-		ComponentRadius:                      r.ComponentRadius,
-		ComponentStrokeWidth:                 r.ComponentStrokeWidth,
-		ComponentMiddleHexagonScale:          r.ComponentMiddleHexagonScale,
-		ComponentInnerHexagonScale:           r.ComponentInnerHexagonScale,
-		TraceStrokeWidth:                     r.TraceStrokeWidth,
-		TraceSpacing:                         r.TraceSpacing,
-		NodeRadius:                           r.NodeRadius,
-		ShowBackgroundGrid:                   r.ShowBackgroundGrid,
-		OmitPartialGridHexagons:              r.OmitPartialGridHexagons,
-		GridRadius:                           r.GridRadius,
-		GridStrokeWidth:                      r.GridStrokeWidth,
-		TopPowerSourceCount:                  r.TopPowerSourceCount,
-		BottomPowerSourceCount:               r.BottomPowerSourceCount,
-		PowerSourceSpacing:                   spacing,
-		PowerSourceStyle:                     style,
-		ConstrainComponentsToPowerSourceSpan: r.ConstrainComponentsToPowerSourceSpan,
+		Connections:                           r.Connections,
+		DecorativeTraceCount:                  r.DecorativeTraceCount,
+		DecorativeTraceMinLength:              decorativeTraceMinLength,
+		DecorativeTraceMaxLength:              decorativeTraceMaxLength,
+		DecorativeTraceMaxBends:               decorativeTraceMaxBends,
+		InterClusterTraces:                    r.InterClusterTraces,
+		MaxParallel:                           r.MaxParallel,
+		RouteAttempts:                         routeAttempts,
+		GenerationAttempts:                    generationAttempts,
+		Pitch:                                 r.Pitch,
+		ComponentRadius:                       r.ComponentRadius,
+		ComponentStrokeWidth:                  r.ComponentStrokeWidth,
+		ComponentMiddleHexagonScale:           r.ComponentMiddleHexagonScale,
+		ComponentInnerHexagonScale:            r.ComponentInnerHexagonScale,
+		TraceStrokeWidth:                      r.TraceStrokeWidth,
+		TraceSpacing:                          r.TraceSpacing,
+		NodeRadius:                            r.NodeRadius,
+		ShowBackgroundGrid:                    r.ShowBackgroundGrid,
+		OmitPartialGridHexagons:               r.OmitPartialGridHexagons,
+		GridRadius:                            r.GridRadius,
+		GridStrokeWidth:                       r.GridStrokeWidth,
+		TopPowerSourceCount:                   r.TopPowerSourceCount,
+		BottomPowerSourceCount:                r.BottomPowerSourceCount,
+		PowerSourceSpacing:                    spacing,
+		PowerSourceStyle:                      style,
+		ConstrainComponentsToPowerSourceSpan:  r.ConstrainComponentsToPowerSourceSpan,
 		ConstrainLayoutToPowerSourceTrapezoid: r.ConstrainLayoutToPowerSourceTrapezoid,
-		ConnectorInset:                       r.ConnectorInset,
-		Seed:                                 seed,
-		SeedSet:                              r.SeedSet,
+		ConnectorInset:                        r.ConnectorInset,
+		Seed:                                  seed,
+		SeedSet:                               r.SeedSet,
 	}, nil
 }
 

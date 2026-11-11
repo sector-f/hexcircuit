@@ -15,9 +15,9 @@ func validGenerateRequest() generateRequest {
 		AutoRoutingPitch: o.AutoRoutingPitch, GridRadius: o.GridRadius,
 		GridGap: o.GridGap, GridWidth: o.GridWidth,
 		OmitPartialGridHexagons: o.OmitPartialGridHexagons,
-		Connections: o.Connections, MaxParallel: o.MaxParallel,
+		Connections:             o.Connections, MaxParallel: o.MaxParallel,
 		TrackCountWeights: "11.1111,44.44445,44.44445",
-		ParallelSpacing: o.ParallelSpacing, StrokeWidth: o.StrokeWidth,
+		ParallelSpacing:   o.ParallelSpacing, StrokeWidth: o.StrokeWidth,
 		TraceWidth: o.TraceWidth, NodeRadius: o.NodeRadius,
 		TraceClearance: o.TraceClearance, DetailProb: o.DetailProb,
 		ShowLabels: o.ShowLabels, LabelFont: o.LabelFont,
@@ -25,7 +25,7 @@ func validGenerateRequest() generateRequest {
 		FontColor: o.FontColor, FontColorSpecified: o.FontColorSpecified,
 		LabelDistance: o.LabelDistance, LabelInsideComponents: o.LabelInsideComponents,
 		UseDeterministicRouteCost: o.UseDeterministicRouteCost,
-		FallbackEdgeOrder: string(o.FallbackEdgeOrder), MaxRouteSteps: o.MaxRouteSteps,
+		FallbackEdgeOrder:         string(o.FallbackEdgeOrder), MaxRouteSteps: o.MaxRouteSteps,
 		RouteAttempts: o.RouteAttempts, GenerationAttempts: o.GenerationAttempts, Seed: "42", SeedSet: true,
 	}
 }

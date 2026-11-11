@@ -31,18 +31,18 @@ type placedComponent struct {
 }
 
 type boardPlan struct {
-	Components             []hexgrid.GridComponent
-	SignalTraces           []hexgrid.GridTrace
-	PowerCores             []hexgrid.GridComponent
-	PowerTraces            []hexgrid.GridTrace
+	Components   []hexgrid.GridComponent
+	SignalTraces []hexgrid.GridTrace
+	PowerCores   []hexgrid.GridComponent
+	PowerTraces  []hexgrid.GridTrace
 	// InterclusterComponents contains the endpoint cores rendered with inter-cluster traces.
 	InterclusterComponents []hexgrid.GridComponent
 	// InterClusterTraces remains separate from the power layer so its style can evolve independently.
-	InterClusterTraces     []hexgrid.GridTrace
+	InterClusterTraces []hexgrid.GridTrace
 	// DecorativeTraces are bent, base-color traces that end at hollow terminal pads.
-	DecorativeTraces       []hexgrid.GridTrace
-	PowerRoutes            [][]hexgrid.GridPosition // Full cell paths, retained for no-crossing tests.
-	Clusters               []clusterPlan
+	DecorativeTraces []hexgrid.GridTrace
+	PowerRoutes      [][]hexgrid.GridPosition // Full cell paths, retained for no-crossing tests.
+	Clusters         []clusterPlan
 }
 
 // Generate constructs and renders a PCB-inspired illustration.
@@ -76,7 +76,6 @@ func Generate(options Options) (string, int, int, error) {
 	}
 	return svg, len(plan.Components), len(plan.SignalTraces) + len(plan.PowerTraces) + len(plan.InterClusterTraces) + len(plan.DecorativeTraces), nil
 }
-
 
 // buildBoardWithSeedAttempts retries only failures caused by exhausted randomized
 // placement and mandatory power routing. The first attempt always uses masterSeed;
