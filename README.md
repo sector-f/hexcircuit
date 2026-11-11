@@ -1,10 +1,11 @@
 # hexgrid
 
-`hexgrid` is a Go library for describing hexagonal-grid artwork and rendering it as SVG. It provides the coordinate system, reusable geometry, scene model, and renderer used by the procedural generators in this repository.
+`hexgrid` is a Go library for describing hexagonal-grid artwork and rendering it as SVG. It provides a grid-coordinate scene API for manually authored artwork. The lower-level inch-based geometry and SVG toolkit is available separately in `hexgrid/geometry`.
 
 The repository separates three concerns:
 
-- **`hexgrid`** is the reusable geometry and rendering package. It knows how to position hexagons, components, traces, labels, and terminal pads, but it does not decide what an illustration should contain.
+- **`hexgrid`** provides the axial grid, grid-oriented scene model, validation, and rendering entry points. It does not decide what an illustration should contain.
+- **`hexgrid/geometry`** provides the lower-level inch-based geometry types, collision checks, and SVG renderer for applications that need to work directly with physical coordinates.
 - **`generators/`** contains procedural composition algorithms that use `hexgrid` to create particular kinds of artwork. See [`generators/circuit`](generators/circuit/README.md).
 - **`cmd/`** contains executable programs that expose those generators through user interfaces, including [`circuit-cli`](cmd/circuit-cli/README.md), [`pcb-cli`](cmd/pcb-cli/README.md), and [`pcb-web`](cmd/pcb-web/README.md).
 
@@ -102,20 +103,20 @@ A terminal can be placed at a grid position that does not contain a component. W
 
 Set `GridTrace.HideTerminal` to `true` when the trace should end at a component boundary instead. In this mode, the final `Path` position must contain a component, the terminal pad is omitted, and every track is clipped at the outer boundary of that destination component. This is useful when the trace should visually connect directly to the component outline.
 
-At the lower-level scene API, terminals are represented explicitly by `hexgrid.Terminal` values in `hexgrid.Scene`.
+The lower-level geometry API represents terminals explicitly as `geometry.Terminal` values in `geometry.Scene`.
 
 ## Rendering a layout
 
-For a manually authored composition, use `GridScene` and `RenderGrid`:
+For a manually authored composition, use `hexgrid.Scene` and `hexgrid.Render`:
 
 1. Start with `DefaultOptions` and set the canvas, grid, component, and trace styling.
 2. Add `GridComponent` values at the desired axial positions.
 3. Add `GridTrace` values that connect those components or end at free terminal positions.
-4. Pass the layout to `RenderGrid` to receive an SVG string.
+4. Pass the scene to `Render` to receive an SVG string.
 
-`BuildScene` converts a `GridScene` into the renderer's lower-level `Scene` representation. That lower-level API uses explicit inch-based coordinates (`Point` values) instead of axial coordinates. `Render` serializes a `Scene` to SVG. This is useful when an application needs to construct geometry directly rather than using the grid-based layout API.
+`hexgrid.Scene` is the public grid-oriented scene type; `GridScene` remains as a compatibility alias. It supports labels in `Scene.Labels`. Use `hexgrid.TryPlaceLabel(scene, request)` to find a label position that fits without colliding with components, traces, terminal pads, or previously placed labels. Append each returned label before placing the next one. Label font family, size, and color are configured through `Options`.
 
-The renderer draws the supplied geometry; it does not rearrange objects or prevent overlaps. The normal layer order is background fill, background grid, traces, components, labels, and terminal pads. `Scene.GridColor` controls the background grid independently of `Scene.Color`; an empty grid color falls back to `Color`. The same setting is available through `hexgrid.Options` for grid-based scenes.
+Applications that need arbitrary inch-based geometry can import `github.com/sector-f/hexgrid/geometry` and use `geometry.Scene`, `geometry.Render`, and `geometry.TryPlaceLabel`. The low-level renderer draws supplied geometry without rearranging objects or preventing overlaps. Its layer order is background fill, background grid, traces, components, labels, and terminal pads. `geometry.Scene.GridColor` controls the background grid independently of `geometry.Scene.Color`; an empty grid color falls back to `Color`.
 
 ## Use `hexgrid` directly for manually-authored artwork
 
@@ -136,7 +137,7 @@ func main() {
     options.Width = 8
     options.Height = 6
     options.Color = "#396cf8"
-    layout := hexgrid.GridScene{
+    layout := hexgrid.Scene{
         Options: options,
         Components: []hexgrid.GridComponent{
             {Position: hexgrid.GridPosition{Q: -2, R: 0}, Style: hexgrid.ComponentStyleSingle},
@@ -161,7 +162,7 @@ func main() {
         },
     }
 
-    svg, err := hexgrid.RenderGrid(layout)
+    svg, err := hexgrid.Render(layout)
     if err != nil {
         log.Fatal(err)
     }

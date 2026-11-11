@@ -19,7 +19,7 @@ func TestGridSceneForRenderPassesGridColor(t *testing.T) {
 		t.Fatalf("grid color = %q, want %q", layout.Options.GridColor, options.GridColor)
 	}
 
-	svg, err := hexgrid.RenderGrid(layout)
+	svg, err := hexgrid.Render(layout)
 	if err != nil {
 		t.Fatal(err)
 	}

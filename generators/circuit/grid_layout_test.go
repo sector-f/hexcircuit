@@ -1,6 +1,9 @@
 package circuit
 
 import (
+	"fmt"
+	"math"
+	"strings"
 	"testing"
 
 	"github.com/sector-f/hexgrid"
@@ -72,17 +75,20 @@ func TestGridSceneForRenderUsesAxialComponentsAndGridTraces(t *testing.T) {
 		t.Errorf("trace destination = %+v, want %+v", got, want)
 	}
 
-	scene, err := hexgrid.BuildScene(layout)
+	svg, err := hexgrid.Render(layout)
 	if err != nil {
-		t.Fatalf("BuildScene returned an error for converted circuit layout: %v", err)
+		t.Fatalf("Render() returned an error for converted circuit scene: %v", err)
 	}
-	if got, want := len(scene.Components), 2; got != want {
+	componentLayer := svgLayerContents(t, svg, "components")
+	traceLayer := svgLayerContents(t, svg, "traces")
+	terminalLayer := svgLayerContents(t, svg, "terminal-pads")
+	if got, want := strings.Count(componentLayer, "<polygon"), 2; got != want {
 		t.Errorf("rendered component count = %d, want %d", got, want)
 	}
-	if got, want := len(scene.Traces), 2; got != want {
+	if got, want := strings.Count(traceLayer, "<polyline"), 2; got != want {
 		t.Errorf("rendered trace count = %d, want %d", got, want)
 	}
-	if got, want := len(scene.Terminals), 2; got != want {
+	if got, want := strings.Count(terminalLayer, "<circle"), 2; got != want {
 		t.Errorf("rendered terminal count = %d, want %d", got, want)
 	}
 }
@@ -96,11 +102,14 @@ func TestAssignComponentDetailsUsesTripleGridStyle(t *testing.T) {
 		HexComponent: HexComponent{Index: 0, Radius: 0.4},
 		Hub:          true,
 	}}
-	scene := hexgrid.Scene{Components: []hexgrid.Component{{
-		Index:  0,
-		Radius: 0.4,
-		Style:  hexgrid.ComponentStyleSingle,
-	}}}
+	scene := hexgrid.Scene{
+		Options: hexgrid.Options{ComponentRadius: 0.4},
+		Components: []hexgrid.GridComponent{{
+			Position: hexgrid.GridPosition{},
+			Style: hexgrid.ComponentStyleSingle,
+			RadiusScale: 1,
+		}},
+	}
 
 	assignComponentDetails(options, components, &scene, 42)
 	if got, want := scene.Components[0].Style, hexgrid.ComponentStyleTriple; got != want {
@@ -143,11 +152,9 @@ func TestGridTraceGeometryMatchesRouterGeometry(t *testing.T) {
 		routePoints = append(routePoints, coordToXY(coord, options.Width, options.Height, options.RoutingPitch, options.Orientation))
 	}
 	legacyTracks := make([][]Point, 2)
-	legacyEndpoints := make([]Point, 2)
 	for line := range legacyTracks {
 		offset := (float64(line) - 0.5) * options.ParallelSpacing
 		legacyTracks[line] = offsetPolyline(routePoints, offset)
-		legacyEndpoints[line] = legacyTracks[line][len(legacyTracks[line])-1]
 	}
 
 	connection := AcceptedConnection{
@@ -159,28 +166,56 @@ func TestGridTraceGeometryMatchesRouterGeometry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("gridSceneForRender() error = %v", err)
 	}
-	scene, err := hexgrid.BuildScene(layout)
+	svg, err := hexgrid.Render(layout)
 	if err != nil {
-		t.Fatalf("BuildScene() error = %v", err)
+		t.Fatalf("Render() error = %v", err)
 	}
-	if len(scene.Traces) != len(legacyTracks) {
-		t.Fatalf("got %d built traces, want %d", len(scene.Traces), len(legacyTracks))
-	}
-	for line := range legacyTracks {
-		got, want := scene.Traces[line].Points, legacyTracks[line]
-		if len(got) != len(want) {
-			t.Fatalf("line %d has %d points after grid conversion, want %d", line, len(got), len(want))
-		}
-		for pointIndex := range want {
-			if distance(got[pointIndex], want[pointIndex]) > 2e-9 {
-				t.Errorf("line %d point %d changed during grid conversion: got %+v, want %+v", line, pointIndex, got[pointIndex], want[pointIndex])
-			}
+	traceLayer := svgLayerContents(t, svg, "traces")
+	for line, track := range legacyTracks {
+		rendered := trimTestTraceEndpoint(track, options.NodeRadius)
+		expected := expectedSVGPolyline(rendered)
+		if !strings.Contains(traceLayer, expected) {
+			t.Errorf("rendered line %d does not contain router-equivalent points %q", line, expected)
 		}
 	}
-	for line, want := range legacyEndpoints {
-		got := scene.Terminals[line]
-		if distance(Point{X: got.X, Y: got.Y}, want) > 2e-9 {
-			t.Errorf("terminal %d changed during grid conversion: got (%f, %f), want %+v", line, got.X, got.Y, want)
-		}
+}
+
+func svgLayerContents(t *testing.T, svg, id string) string {
+	t.Helper()
+	startTag := `<g id="` + id + `"`
+	start := strings.Index(svg, startTag)
+	if start < 0 {
+		t.Fatalf("SVG is missing layer %q", id)
 	}
+	end := strings.Index(svg[start:], "</g>")
+	if end < 0 {
+		t.Fatalf("SVG layer %q is not closed", id)
+	}
+	return svg[start : start+end]
+}
+
+func trimTestTraceEndpoint(points []Point, radius float64) []Point {
+	trimmed := append([]Point(nil), points...)
+	if len(trimmed) < 2 {
+		return trimmed
+	}
+	end, previous := trimmed[len(trimmed)-1], trimmed[len(trimmed)-2]
+	dx, dy := end.X-previous.X, end.Y-previous.Y
+	length := math.Hypot(dx, dy)
+	if length <= radius {
+		return trimmed[:len(trimmed)-1]
+	}
+	trimmed[len(trimmed)-1] = Point{
+		X: end.X - dx/length*radius,
+		Y: end.Y - dy/length*radius,
+	}
+	return trimmed
+}
+
+func expectedSVGPolyline(points []Point) string {
+	coordinates := make([]string, len(points))
+	for i, point := range points {
+		coordinates[i] = fmt.Sprintf("%d,%d", int(math.Round(point.X*1000)), int(math.Round(point.Y*1000)))
+	}
+	return `points="` + strings.Join(coordinates, " ") + `"`
 }

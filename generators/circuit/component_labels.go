@@ -186,6 +186,33 @@ func (f *labelFont) measure(text string) labelMetrics {
 	}
 }
 
+type labelComponentGeometry struct {
+	Index int
+	X, Y float64
+	Radius float64
+}
+
+func componentGeometryForLabel(scene hexgrid.Scene, index int) labelComponentGeometry {
+	component := scene.Components[index]
+	radiusScale := component.RadiusScale
+	if radiusScale == 0 {
+		radiusScale = 1
+	}
+	center := hexgrid.GridPositionToPoint(
+		component.Position,
+		scene.Options.Width,
+		scene.Options.Height,
+		scene.Options.Grid.Pitch,
+		scene.Options.Orientation,
+	)
+	return labelComponentGeometry{
+		Index: index,
+		X: center.X,
+		Y: center.Y,
+		Radius: scene.Options.ComponentRadius * radiusScale,
+	}
+}
+
 // placeComponentLabels selects words, finds collision-free positions, and numbers
 // only labels that were actually placed. It uses its own RNG stream so enabling labels
 // does not perturb component placement, route selection, or inner-detail randomness.
@@ -210,13 +237,15 @@ func placeComponentLabels(
 	if labelDebugEnabled() {
 		labelDebugf("begin: canvas=(%.6f x %.6f in; %.0f x %.0f SVG units), components=%d, probability=%.4f, distance=%.6f in, font=%q size=%.3f pt, baseAngle=%.6f rad",
 			o.Width, o.Height, o.Width*componentLabelSVGUnitsPerInch, o.Height*componentLabelSVGUnitsPerInch, len(scene.Components), o.LabelProbability, o.LabelDistance, font.Family, o.LabelFontSize, baseAngle)
-		for _, component := range scene.Components {
+		for componentIndex := range scene.Components {
+			component := componentGeometryForLabel(scene, componentIndex)
 			labelDebugf("input component: index=%d center=(%.6f, %.6f) in / (%.3f, %.3f) SVG units, radius=%.6f in / %.3f SVG units",
 				component.Index, component.X, component.Y, component.X*1000, component.Y*1000, component.Radius, component.Radius*1000)
 		}
 	}
 
-	for _, component := range scene.Components {
+	for componentIndex := range scene.Components {
+		component := componentGeometryForLabel(scene, componentIndex)
 		if labelRNG.Float64() >= o.LabelProbability {
 			labelDebugf("skip component index=%d center=(%.6f, %.6f) in: probability check did not select it", component.Index, component.X, component.Y)
 			continue

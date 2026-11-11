@@ -337,7 +337,7 @@ func renderBoard(o Options, plan boardPlan) (string, error) {
 	base.NodeRadius = o.NodeRadius
 
 	baseTraces := append(append([]hexgrid.GridTrace(nil), plan.SignalTraces...), plan.DecorativeTraces...)
-	baseSVG, err := hexgrid.RenderGrid(hexgrid.GridScene{
+	baseSVG, err := hexgrid.Render(hexgrid.Scene{
 		Options:    base,
 		Components: plan.Components,
 		Traces:     baseTraces,
@@ -354,7 +354,7 @@ func renderBoard(o Options, plan boardPlan) (string, error) {
 		accent.GlowOpacity = o.AccentGlowOpacity
 		accent.Background = "none"
 		accent.Grid.StrokeWidth = 0
-		accentSVG, err := hexgrid.RenderGrid(hexgrid.GridScene{
+		accentSVG, err := hexgrid.Render(hexgrid.Scene{
 			Options:    accent,
 			Components: plan.PowerCores,
 			Traces:     plan.PowerTraces,
@@ -375,7 +375,7 @@ func renderBoard(o Options, plan boardPlan) (string, error) {
 		interCluster.GlowOpacity = o.AccentGlowOpacity
 		interCluster.Background = "none"
 		interCluster.Grid.StrokeWidth = 0
-		interClusterSVG, err := hexgrid.RenderGrid(hexgrid.GridScene{
+		interClusterSVG, err := hexgrid.Render(hexgrid.Scene{
 			Options:    interCluster,
 			Components: plan.InterclusterComponents,
 			Traces:     plan.InterClusterTraces,
@@ -412,7 +412,7 @@ func appendSVGLayerNamed(baseSVG, overlaySVG, prefix string) (string, error) {
 	baseInsert := baseClose
 	overlayBodyStart := overlayOpen + overlayTagEnd + 1
 	overlayBody := overlaySVG[overlayBodyStart:overlayClose]
-	// RenderGrid gives each layer generic group IDs. Namespace the overlay IDs so
+	// Render gives each layer generic group IDs. Namespace the overlay IDs so
 	// combining the two documents does not leave duplicate IDs in the final SVG.
 	for _, id := range []string{
 		"background-fill",

@@ -1,4 +1,4 @@
-package hexgrid
+package geometry
 
 import (
 	"math"
@@ -149,3 +149,5 @@ func midpointFacingAxis(min, max, normal float64) float64 {
 		return (min + max) / 2
 	}
 }
+
+

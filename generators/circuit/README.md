@@ -2,7 +2,7 @@
 
 The `circuit` package generates randomized SVG artwork built from a hexagonal lattice, larger component hexagons, and routed bundles of parallel traces. It is a procedural composition generator: it decides where components go, which components should connect, and how to route those connections while respecting the available geometry.
 
-The package uses [`github.com/sector-f/hexgrid`](https://github.com/sector-f/hexgrid) for grid-layout conversion and SVG rendering. `hexgrid` supplies the reusable geometry and renderer; this package supplies the circuit-specific placement, network construction, routing, and visual variation.
+The package uses [`github.com/sector-f/hexgrid`](https://github.com/sector-f/hexgrid) for grid-scene validation, label placement, and SVG rendering. This package supplies circuit-specific placement, network construction, routing, and visual variation, and does not import the lower-level `hexgrid/geometry` package.
 
 ## Usage
 
@@ -92,7 +92,7 @@ Each track normally ends at a hollow terminal pad inside its destination compone
 
 ### 6. Render the accepted composition
 
-Once placement and routing finish, the package converts the components and accepted connections into a `hexgrid.GridScene`, builds a `hexgrid.Scene`, and passes that scene to `hexgrid.Render`.
+Once placement and routing finish, the package converts the components and accepted connections into a grid-oriented `hexgrid.Scene`. It places labels through `hexgrid.TryPlaceLabel`, chooses component styles on the grid components, and passes the scene to `hexgrid.Render`.
 
 The shared renderer draws the optional background fill and grid, then traces, components and their details, labels, and terminal pads. Circuit-specific decisions remain in this package; the root `hexgrid` package does not know how many components to place or which paths form a useful circuit composition.
 

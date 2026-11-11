@@ -1345,13 +1345,9 @@ func renderSVG(
 	connections []AcceptedConnection,
 	seed int64,
 ) (string, error) {
-	layout, err := gridSceneForRender(o, components, connections)
+	scene, err := gridSceneForRender(o, components, connections)
 	if err != nil {
 		return "", fmt.Errorf("convert circuit layout to hexgrid: %w", err)
-	}
-	scene, err := hexgrid.BuildScene(layout)
-	if err != nil {
-		return "", fmt.Errorf("build hexgrid scene: %w", err)
 	}
 
 	labelFontFamily := o.LabelFont
@@ -1375,11 +1371,11 @@ func renderSVG(
 		scene.Labels = placeComponentLabels(o, scene, seed, baseAngle, wordList, loadedFont)
 		labelFontFamily = loadedFont.Family
 	}
-	scene.LabelFontFamily = labelFontFamily
-	scene.LabelColor = componentLabelFontColor(o)
-	scene.LabelFontSize = o.LabelFontSize
+	scene.Options.LabelFontFamily = labelFontFamily
+	scene.Options.LabelColor = componentLabelFontColor(o)
+	scene.Options.LabelFontSize = o.LabelFontSize
 	assignComponentDetails(o, components, &scene, seed)
-	return hexgrid.Render(scene), nil
+	return hexgrid.Render(scene)
 }
 
 // assignComponentDetails makes randomized visual decisions in the generator. The
@@ -1401,17 +1397,22 @@ func assignComponentDetails(o Options, components []Component, scene *hexgrid.Sc
 	detailRNG := rand.New(rand.NewSource(seed))
 	for i := range scene.Components {
 		visualComponent := &scene.Components[i]
-		component, ok := componentByIndex[visualComponent.Index]
+		component, ok := componentByIndex[i]
 		if !ok {
 			continue
 		}
 
+		radiusScale := visualComponent.RadiusScale
+		if radiusScale == 0 {
+			radiusScale = 1
+		}
+		radius := o.ComponentRadius * radiusScale
 		detailChance := o.DetailProb * componentDetailScale
 		if component.Hub {
 			detailChance = math.Min(1.0, o.DetailProb*hubDetailScale)
 		}
-		wantsDetails := visualComponent.Radius >= o.ComponentRadius*minimumDetailRadius && detailRNG.Float64() < detailChance
-		if wantsDetails && !labelsInside[visualComponent.Index] {
+		wantsDetails := radius >= o.ComponentRadius*minimumDetailRadius && detailRNG.Float64() < detailChance
+		if wantsDetails && !labelsInside[i] {
 			// The former nested-detail motif contains an outer, middle, and inner
 			// hexagon, so it maps directly to the new triple component style.
 			visualComponent.Style = hexgrid.ComponentStyleTriple
@@ -1426,7 +1427,7 @@ func gridSceneForRender(
 	o Options,
 	components []Component,
 	connections []AcceptedConnection,
-) (hexgrid.GridScene, error) {
+) (hexgrid.Scene, error) {
 	gridOptions := hexgrid.DefaultOptions()
 	gridOptions.Width = o.Width
 	gridOptions.Height = o.Height
@@ -1444,7 +1445,7 @@ func gridSceneForRender(
 	gridOptions.TraceSpacing = o.ParallelSpacing
 	gridOptions.NodeRadius = o.NodeRadius
 
-	layout := hexgrid.GridScene{Options: gridOptions}
+	layout := hexgrid.Scene{Options: gridOptions}
 	layout.Components = make([]hexgrid.GridComponent, 0, len(components))
 	for _, component := range components {
 		radiusScale := component.RadiusScale
@@ -1462,10 +1463,10 @@ func gridSceneForRender(
 	layout.Traces = make([]hexgrid.GridTrace, 0, len(connections))
 	for i, connection := range connections {
 		if len(connection.Path) < 2 {
-			return hexgrid.GridScene{}, fmt.Errorf("connection %d must contain a source and destination grid position", i)
+			return hexgrid.Scene{}, fmt.Errorf("connection %d must contain a source and destination grid position", i)
 		}
 		if connection.Lines < 1 {
-			return hexgrid.GridScene{}, fmt.Errorf("connection %d must contain at least one parallel line", i)
+			return hexgrid.Scene{}, fmt.Errorf("connection %d must contain at least one parallel line", i)
 		}
 		trace := hexgrid.GridTrace{
 			Start: gridPosition(connection.Path[0]),

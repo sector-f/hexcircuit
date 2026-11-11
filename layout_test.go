@@ -4,11 +4,13 @@ import (
 	"math"
 	"strings"
 	"testing"
+
+	"github.com/sector-f/hexgrid/geometry"
 )
 
-func TestGridSceneBuildsComponentsAndParallelTrace(t *testing.T) {
+func TestSceneBuildsComponentsAndParallelTrace(t *testing.T) {
 	opts := DefaultOptions()
-	layout := GridScene{
+	layout := Scene{
 		Options: opts,
 		Components: []GridComponent{
 			{Position: GridPosition{Q: 0, R: 0}, Style: ComponentStyleSingle},
@@ -25,9 +27,9 @@ func TestGridSceneBuildsComponentsAndParallelTrace(t *testing.T) {
 		}},
 	}
 
-	scene, err := BuildScene(layout)
+	scene, err := buildGeometryScene(layout)
 	if err != nil {
-		t.Fatalf("BuildScene() error = %v", err)
+		t.Fatalf("buildGeometryScene() error = %v", err)
 	}
 	if len(scene.Components) != 2 {
 		t.Fatalf("got %d components, want 2", len(scene.Components))
@@ -56,18 +58,18 @@ func TestGridSceneBuildsComponentsAndParallelTrace(t *testing.T) {
 }
 
 func TestRenderDoesNotTrimHideTerminalTrace(t *testing.T) {
-	scene := Scene{
+	scene := geometry.Scene{
 		Width:            2,
 		Height:           2,
 		Color:            "#000000",
 		TraceStrokeWidth: 0.01,
 		NodeRadius:       0.2,
-		Traces: []Trace{{
-			Points:       []Point{{X: 0.5, Y: 0.5}, {X: 1.5, Y: 0.5}},
+		Traces: []geometry.Trace{{
+			Points:       []geometry.Point{{X: 0.5, Y: 0.5}, {X: 1.5, Y: 0.5}},
 			HideTerminal: true,
 		}},
 	}
-	rendered := Render(scene)
+	rendered := geometry.Render(scene)
 	if !strings.Contains(rendered, "1500,500") {
 		t.Fatalf("Render() shortened a HideTerminal trace instead of preserving its final point: %s", rendered)
 	}
@@ -106,7 +108,7 @@ func TestGridPositionToPointUsesFlatTopAxialBasis(t *testing.T) {
 
 func TestGridCellsRetainPhysicalCentersWithConventionalCoordinates(t *testing.T) {
 	const width, height, pitch = 6.0, 4.0, 0.5
-	cells := GridCells(width, height, pitch, "pointy", 0)
+	cells := geometry.GridCells(width, height, pitch, "pointy", 0)
 	if len(cells) == 0 {
 		t.Fatal("GridCells() returned no cells")
 	}
@@ -134,9 +136,9 @@ func TestComponentStyleHexagonCounts(t *testing.T) {
 	}
 }
 
-func TestGridSceneRejectsPathSegmentThatIsNotOnAGridAxis(t *testing.T) {
+func TestSceneRejectsPathSegmentThatIsNotOnAGridAxis(t *testing.T) {
 	opts := DefaultOptions()
-	layout := GridScene{
+	layout := Scene{
 		Options: opts,
 		Components: []GridComponent{
 			{Position: GridPosition{Q: 0, R: 0}, Style: ComponentStyleSingle},
@@ -148,14 +150,14 @@ func TestGridSceneRejectsPathSegmentThatIsNotOnAGridAxis(t *testing.T) {
 			Lines: 1,
 		}},
 	}
-	if _, err := BuildScene(layout); err == nil {
-		t.Fatal("BuildScene() accepted a path segment that is not aligned with a hex-grid axis")
+	if _, err := buildGeometryScene(layout); err == nil {
+		t.Fatal("buildGeometryScene() accepted a path segment that is not aligned with a hex-grid axis")
 	}
 }
 
-func TestGridSceneAcceptsStraightPathSegmentThatSkipsCells(t *testing.T) {
+func TestSceneAcceptsStraightPathSegmentThatSkipsCells(t *testing.T) {
 	opts := DefaultOptions()
-	layout := GridScene{
+	layout := Scene{
 		Options: opts,
 		Components: []GridComponent{
 			{Position: GridPosition{Q: 0, R: 0}, Style: ComponentStyleSingle},
@@ -167,14 +169,14 @@ func TestGridSceneAcceptsStraightPathSegmentThatSkipsCells(t *testing.T) {
 			Lines: 1,
 		}},
 	}
-	if _, err := BuildScene(layout); err != nil {
-		t.Fatalf("BuildScene() rejected a straight segment spanning two grid steps: %v", err)
+	if _, err := buildGeometryScene(layout); err != nil {
+		t.Fatalf("buildGeometryScene() rejected a straight segment spanning two grid steps: %v", err)
 	}
 }
 
-func TestGridSceneAcceptsStraightRunsAndTurns(t *testing.T) {
+func TestSceneAcceptsStraightRunsAndTurns(t *testing.T) {
 	opts := DefaultOptions()
-	layout := GridScene{
+	layout := Scene{
 		Options: opts,
 		Components: []GridComponent{
 			{Position: GridPosition{Q: 0, R: 0}, Style: ComponentStyleSingle},
@@ -189,15 +191,15 @@ func TestGridSceneAcceptsStraightRunsAndTurns(t *testing.T) {
 			Lines: 1,
 		}},
 	}
-	if _, err := BuildScene(layout); err != nil {
-		t.Fatalf("BuildScene() rejected straight runs separated by a turn: %v", err)
+	if _, err := buildGeometryScene(layout); err != nil {
+		t.Fatalf("buildGeometryScene() rejected straight runs separated by a turn: %v", err)
 	}
 }
 
-func TestGridSceneAllowsTerminalAtCoordinateWithoutComponent(t *testing.T) {
+func TestSceneAllowsTerminalAtCoordinateWithoutComponent(t *testing.T) {
 	opts := DefaultOptions()
 	endpoint := GridPosition{Q: 0, R: 2}
-	layout := GridScene{
+	layout := Scene{
 		Options: opts,
 		Components: []GridComponent{
 			{Position: GridPosition{Q: 0, R: 0}, Style: ComponentStyleSingle},
@@ -208,9 +210,9 @@ func TestGridSceneAllowsTerminalAtCoordinateWithoutComponent(t *testing.T) {
 			Lines: 1,
 		}},
 	}
-	scene, err := BuildScene(layout)
+	scene, err := buildGeometryScene(layout)
 	if err != nil {
-		t.Fatalf("BuildScene() rejected a free terminal coordinate: %v", err)
+		t.Fatalf("buildGeometryScene() rejected a free terminal coordinate: %v", err)
 	}
 	if len(scene.Terminals) != 1 {
 		t.Fatalf("got %d terminal pads, want 1", len(scene.Terminals))
@@ -222,9 +224,9 @@ func TestGridSceneAllowsTerminalAtCoordinateWithoutComponent(t *testing.T) {
 	}
 }
 
-func TestGridSceneHideTerminalRequiresDestinationComponent(t *testing.T) {
+func TestSceneHideTerminalRequiresDestinationComponent(t *testing.T) {
 	opts := DefaultOptions()
-	layout := GridScene{
+	layout := Scene{
 		Options: opts,
 		Components: []GridComponent{
 			{Position: GridPosition{Q: 0, R: 0}, Style: ComponentStyleSingle},
@@ -236,15 +238,15 @@ func TestGridSceneHideTerminalRequiresDestinationComponent(t *testing.T) {
 			HideTerminal: true,
 		}},
 	}
-	if _, err := BuildScene(layout); err == nil {
-		t.Fatal("BuildScene() accepted HideTerminal without a destination component")
+	if _, err := buildGeometryScene(layout); err == nil {
+		t.Fatal("buildGeometryScene() accepted HideTerminal without a destination component")
 	}
 }
 
-func TestGridSceneHideTerminalClipsBundleToDestinationBoundary(t *testing.T) {
+func TestSceneHideTerminalClipsBundleToDestinationBoundary(t *testing.T) {
 	opts := DefaultOptions()
 	destinationPosition := GridPosition{Q: 0, R: 2}
-	layout := GridScene{
+	layout := Scene{
 		Options: opts,
 		Components: []GridComponent{
 			{Position: GridPosition{Q: 0, R: 0}, Style: ComponentStyleSingle},
@@ -257,9 +259,9 @@ func TestGridSceneHideTerminalClipsBundleToDestinationBoundary(t *testing.T) {
 			HideTerminal: true,
 		}},
 	}
-	scene, err := BuildScene(layout)
+	scene, err := buildGeometryScene(layout)
 	if err != nil {
-		t.Fatalf("BuildScene() error = %v", err)
+		t.Fatalf("buildGeometryScene() error = %v", err)
 	}
 	if len(scene.Traces) != 3 {
 		t.Fatalf("got %d tracks, want 3", len(scene.Traces))
@@ -297,51 +299,19 @@ func distance(a, b Point) float64 {
 	return math.Hypot(dx, dy)
 }
 
-func TestComponentStyleSelectsConfiguredNumberOfHexagons(t *testing.T) {
-	scene := Scene{ComponentMiddleHexagonScale: 0.6, ComponentInnerHexagonScale: 0.3}
-	for _, test := range []struct {
-		style ComponentStyle
-		want  int
-	}{
-		{ComponentStyleSingle, 0},
-		{ComponentStyleDouble, 1},
-		{ComponentStyleTriple, 2},
-	} {
-		got := len(componentInnerScales(scene, Component{Style: test.style}))
-		if got != test.want {
-			t.Errorf("style %d produced %d inner hexagons, want %d", test.style, got, test.want)
-		}
-	}
-}
-
-func TestLegacyComponentDetailKeepsOriginalInnerHexagons(t *testing.T) {
-	got := componentInnerScales(Scene{}, Component{Detail: ComponentDetailNestedHexagons})
-	want := []float64{largeInnerDetailScale, smallInnerDetailScale}
-	if len(got) != len(want) {
-		t.Fatalf("got %d legacy inner hexagon scales, want %d", len(got), len(want))
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Errorf("legacy inner scale %d = %v, want %v", i, got[i], want[i])
-		}
-	}
-}
-
-
 func TestGridColorOverridesOnlyBackgroundGrid(t *testing.T) {
 	options := DefaultOptions()
 	options.Color = "#123456"
 	options.GridColor = "#abcdef"
 
-	scene, err := BuildScene(GridScene{Options: options})
+	scene := Scene{Options: options}
+	svg, err := Render(scene)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if scene.GridColor != options.GridColor {
-		t.Fatalf("built scene grid color = %q, want %q", scene.GridColor, options.GridColor)
+	if scene.Options.GridColor != options.GridColor {
+		t.Fatalf("scene grid color = %q, want %q", scene.Options.GridColor, options.GridColor)
 	}
-
-	svg := Render(scene)
 	gridStart := strings.Index(svg, `id="background-grid"`)
 	componentsStart := strings.Index(svg, `id="components"`)
 	if gridStart < 0 || componentsStart <= gridStart {
@@ -356,11 +326,15 @@ func TestGridColorOverridesOnlyBackgroundGrid(t *testing.T) {
 }
 
 func TestGridColorFallsBackToSceneColor(t *testing.T) {
-	scene := Scene{
-		Width: 2, Height: 2, Color: "#123456",
-		Grid: Grid{Pitch: 0.5, Radius: 0.2, StrokeWidth: 0.01},
+	options := DefaultOptions()
+	options.Width = 2
+	options.Height = 2
+	options.Color = "#123456"
+	options.Grid = Grid{Pitch: 0.5, Radius: 0.2, StrokeWidth: 0.01}
+	svg, err := Render(Scene{Options: options})
+	if err != nil {
+		t.Fatal(err)
 	}
-	svg := Render(scene)
 	gridStart := strings.Index(svg, `id="background-grid"`)
 	tracesStart := strings.Index(svg, `id="traces"`)
 	if gridStart < 0 || tracesStart <= gridStart {
@@ -380,7 +354,7 @@ func TestGlowSettingsAreDisabledByDefault(t *testing.T) {
 	if options.GlowBlurRadius <= 0 || options.GlowOpacity <= 0 {
 		t.Fatalf("default glow settings must be usable when enabled: radius=%v opacity=%v", options.GlowBlurRadius, options.GlowOpacity)
 	}
-	svg, err := RenderGrid(GridScene{Options: options})
+	svg, err := Render(Scene{Options: options})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -395,7 +369,7 @@ func TestGlowRendersOnlyOnForegroundLayers(t *testing.T) {
 	options.GlowBlurRadius = 0.06
 	options.GlowOpacity = 0.4
 
-	svg, err := RenderGrid(GridScene{Options: options})
+	svg, err := Render(Scene{Options: options})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -428,7 +402,7 @@ func TestGlowRendersOnlyOnForegroundLayers(t *testing.T) {
 	}
 }
 
-func TestBuildSceneRejectsInvalidGlowSettings(t *testing.T) {
+func TestRenderRejectsInvalidGlowSettings(t *testing.T) {
 	tests := []struct {
 		name string
 		edit func(*Options)
@@ -444,9 +418,41 @@ func TestBuildSceneRejectsInvalidGlowSettings(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			options := DefaultOptions()
 			test.edit(&options)
-			if _, err := BuildScene(GridScene{Options: options}); err == nil {
+			if _, err := buildGeometryScene(Scene{Options: options}); err == nil {
 				t.Fatal("expected invalid glow settings to be rejected")
 			}
 		})
 	}
 }
+
+func TestTryPlaceLabelUsesSceneAndTracksPriorLabels(t *testing.T) {
+	options := DefaultOptions()
+	scene := Scene{
+		Options: options,
+		Components: []GridComponent{{
+			Position: GridPosition{},
+			Style: ComponentStyleSingle,
+		}},
+	}
+	request := LabelRequest{
+		ComponentIndex: 0,
+		Text: "VCO 1",
+		Metrics: TextMetrics{MinX: 0, MinY: -0.02, MaxX: 0.12, MaxY: 0},
+		Side: 0,
+		Gap: 0.1,
+		Padding: 0.005,
+		ObjectGap: 0.006,
+	}
+	label, err := TryPlaceLabel(scene, request)
+	if err != nil {
+		t.Fatalf("TryPlaceLabel() error = %v", err)
+	}
+	if label.ComponentIndex != 0 || label.Text != request.Text {
+		t.Fatalf("TryPlaceLabel() returned unexpected label: %+v", label)
+	}
+	scene.Labels = append(scene.Labels, label)
+	if _, err := TryPlaceLabel(scene, request); err == nil {
+		t.Fatal("TryPlaceLabel() accepted a label overlapping an existing label")
+	}
+}
+
