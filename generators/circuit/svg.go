@@ -117,7 +117,13 @@ func conventionalCoord(coord Coord, orientation string) Coord {
 	return Coord{Q: coord.Q + coord.R, R: -coord.Q}
 }
 
-type HexComponent = hexgrid.Component
+// HexComponent is the circuit router's local physical geometry for a component.
+// It is deliberately independent of the low-level hexgrid/geometry package.
+type HexComponent struct {
+	Index  int
+	X, Y   float64
+	Radius float64
+}
 
 // Component is a hexagonal circuit component placed at one lattice coordinate.
 // The embedded geometry is used by the router for collision checks; final rendering
@@ -838,19 +844,105 @@ func pointSegmentDistance(p, a, b Point) float64 {
 // segmentSegmentDistance returns zero for intersecting segments; otherwise it returns
 // the minimum distance between an endpoint of either segment and the other segment.
 func segmentSegmentDistance(a, b, c, d Point) float64 {
-	if hexgrid.SegmentsIntersect(a, b, c, d) {
+	if segmentsIntersect(a, b, c, d) {
 		return 0
 	}
 	return math.Min(math.Min(pointSegmentDistance(a, c, d), pointSegmentDistance(b, c, d)), math.Min(pointSegmentDistance(c, a, b), pointSegmentDistance(d, a, b)))
 }
 
+// hexagonVertices returns the six corners of a regular hexagon. Pointy orientation
+// starts at the top; flat orientation starts at the right.
+func hexagonVertices(cx, cy, radius float64, orientation string) []Point {
+	start := -90.0
+	if orientation == "flat" {
+		start = 0
+	}
+	vertices := make([]Point, hexDirectionCount)
+	for i := range vertices {
+		angle := (start + degreesPerHexStep*float64(i)) * math.Pi / 180
+		vertices[i] = Point{
+			X: cx + radius*math.Cos(angle),
+			Y: cy + radius*math.Sin(angle),
+		}
+	}
+	return vertices
+}
+
+// pointInPolygon reports whether point lies inside a simple polygon using ray casting.
+func pointInPolygon(point Point, polygon []Point) bool {
+	x, y := point.X, point.Y
+	inside := false
+	j := len(polygon) - 1
+	for i := 0; i < len(polygon); i++ {
+		xi, yi := polygon[i].X, polygon[i].Y
+		xj, yj := polygon[j].X, polygon[j].Y
+		if (yi > y) != (yj > y) {
+			xIntersect := (xj-xi)*(y-yi)/(yj-yi) + xi
+			if x < xIntersect {
+				inside = !inside
+			}
+		}
+		j = i
+	}
+	return inside
+}
+
+// segmentsIntersect treats touching endpoints and collinear overlap as intersections.
+func segmentsIntersect(a, b, c, d Point) bool {
+	ab, cd, ac := sub(b, a), sub(d, c), sub(c, a)
+	denominator := cross(ab, cd)
+	if math.Abs(denominator) < epsilon {
+		if math.Abs(cross(ac, ab)) > epsilon {
+			return false
+		}
+		axis := 0
+		if math.Abs(ab.Y) > math.Abs(ab.X) {
+			axis = 1
+		}
+		var aa, bb, cc, dd float64
+		if axis == 0 {
+			aa, bb, cc, dd = a.X, b.X, c.X, d.X
+		} else {
+			aa, bb, cc, dd = a.Y, b.Y, c.Y, d.Y
+		}
+		if aa > bb {
+			aa, bb = bb, aa
+		}
+		if cc > dd {
+			cc, dd = dd, cc
+		}
+		return math.Max(aa, cc) <= math.Min(bb, dd)+epsilon
+	}
+	t := cross(ac, cd) / denominator
+	u := cross(ac, ab) / denominator
+	return t >= -epsilon && t <= 1+epsilon && u >= -epsilon && u <= 1+epsilon
+}
+
+// pointInsideHexWithMargin tests a regular hexagon's six half-planes after insetting
+// every side by margin.
+func pointInsideHexWithMargin(point, center Point, radius, baseAngle, margin float64) bool {
+	allowed := radius*sqrt3/2 - margin
+	if allowed <= 0 {
+		return false
+	}
+	delta := sub(point, center)
+	for side := 0; side < hexDirectionCount; side++ {
+		theta := baseAngle + degreesPerHexStep*float64(side)*math.Pi/180
+		normal := Point{X: math.Cos(theta), Y: math.Sin(theta)}
+		if dot(delta, normal) > allowed+epsilon {
+			return false
+		}
+	}
+	return true
+}
+
 // routeHitsComponent rejects a track that enters a component polygon or comes within
 // clearance of any of its edges.
 func routeHitsComponent(track []Point, component Component, orientation string, clearance float64) bool {
-	polygon := hexgrid.HexVertices(component.X, component.Y, component.Radius, orientation)
+	polygon := hexagonVertices(component.X, component.Y, component.Radius, orientation)
 	for _, pair := range segmentPairs(track) {
 		a, b := pair[0], pair[1]
-		if hexgrid.PointInPolygon(a, polygon) || hexgrid.PointInPolygon(b, polygon) {
+		if pointInPolygon(a, polygon) || pointInPolygon(b, polygon) {
 			return true
 		}
 		for i := 0; i < len(polygon); i++ {
@@ -1023,7 +1115,7 @@ func (rt *router) buildConnection(src, dst Component, path []Coord, side int) *A
 	endpoints := make([]Point, 0, len(candidateTracks))
 	for _, track := range candidateTracks {
 		endpoint := track[len(track)-1]
-		if !hexgrid.PointInsideHexWithMargin(
+		if !pointInsideHexWithMargin(
 			endpoint,
 			Point{X: dst.X, Y: dst.Y},
 			dst.Radius,
