@@ -41,7 +41,7 @@ type boardPlan struct {
 	InterClusterTraces []hexgrid.GridTrace
 	// TestPointTraces are short base-color stubs ending at hollow terminal pads.
 	TestPointTraces []hexgrid.GridTrace
-	PowerRoutes        [][]hexgrid.GridPosition // Full cell paths, retained for no-crossing tests.
+	PowerRoutes     [][]hexgrid.GridPosition // Full cell paths, retained for no-crossing tests.
 	Clusters           []clusterPlan
 }
 

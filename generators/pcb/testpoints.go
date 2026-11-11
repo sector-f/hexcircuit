@@ -7,9 +7,8 @@ import (
 )
 
 type testPointCandidate struct {
-	clusterID int
-	start     hexgrid.GridPosition
-	path      []hexgrid.GridPosition
+	start hexgrid.GridPosition
+	path  []hexgrid.GridPosition
 }
 
 // addDecorativeTestPoints places short straight stubs from leaf components to
@@ -82,7 +81,6 @@ func addDecorativeTestPoints(
 					}
 					if valid {
 						byCluster[clusterIndex] = append(byCluster[clusterIndex], testPointCandidate{
-							clusterID: clusterIndex,
 							start: component.Position,
 							path: path,
 						})

@@ -199,6 +199,11 @@ func TestGenerateRequestRejectsInvalidOptions(t *testing.T) {
 		{"too many route attempts", func(r *generateRequest) { r.RouteAttempts = 1001 }},
 		{"negative generation attempts", func(r *generateRequest) { r.GenerationAttempts = -1 }},
 		{"too many generation attempts", func(r *generateRequest) { r.GenerationAttempts = 21 }},
+		{"negative test-point count", func(r *generateRequest) { r.TestPointCount = -1 }},
+		{"test-point count too large", func(r *generateRequest) { r.TestPointCount = 1001 }},
+		{"test-point minimum too short", func(r *generateRequest) { r.TestPointMinLength = 1 }},
+		{"test-point maximum below minimum", func(r *generateRequest) { r.TestPointMinLength = 4; r.TestPointMaxLength = 3 }},
+		{"test-point maximum too large", func(r *generateRequest) { r.TestPointMaxLength = 101 }},
 		{"invalid seed", func(r *generateRequest) { r.Seed = "seed" }},
 		{"negative base glow blur radius", func(r *generateRequest) { r.BaseGlowBlurRadius = -0.1 }},
 		{"base glow opacity above one", func(r *generateRequest) { r.BaseGlowOpacity = 1.1 }},
@@ -229,7 +234,7 @@ func TestHandleIndexRendersPCBInterface(t *testing.T) {
 	if got := response.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
 		t.Fatalf("content type = %q, want HTML", got)
 	}
-	for _, want := range []string{"PCB Layout Generator", "constrainLayoutToPowerSourceTrapezoid", "powerSourceSpacing", "minPowerSourcesPerCluster", "maxPowerSourcesPerCluster", "interClusterTraces", "gridColor", "routeAttempts", "generationAttempts", "baseGlowEnabled", "baseGlowBlurRadius", "baseGlowOpacity", "accentGlowEnabled", "accentGlowBlurRadius", "accentGlowOpacity"} {
+	for _, want := range []string{"PCB Layout Generator", "constrainLayoutToPowerSourceTrapezoid", "powerSourceSpacing", "minPowerSourcesPerCluster", "maxPowerSourcesPerCluster", "interClusterTraces", "testPointCount", "testPointMinLength", "testPointMaxLength", "gridColor", "routeAttempts", "generationAttempts", "baseGlowEnabled", "baseGlowBlurRadius", "baseGlowOpacity", "accentGlowEnabled", "accentGlowBlurRadius", "accentGlowOpacity"} {
 		if !bytes.Contains(response.Body.Bytes(), []byte(want)) {
 			t.Errorf("rendered HTML is missing %q", want)
 		}
@@ -269,5 +274,21 @@ func TestPositiveFinite(t *testing.T) {
 		if positiveFinite(value) {
 			t.Errorf("positiveFinite(%s) = true", strconv.FormatFloat(value, 'g', -1, 64))
 		}
+	}
+}
+
+func TestGenerateRequestDefaultsTestPointLengthsWhenOmitted(t *testing.T) {
+	req := validRequest()
+	req.TestPointMinLength = 0
+	req.TestPointMaxLength = 0
+	got, err := req.options()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defaults := pcb.DefaultOptions()
+	if got.TestPointMinLength != defaults.TestPointMinLength || got.TestPointMaxLength != defaults.TestPointMaxLength {
+		t.Fatalf("test-point length defaults = (%d, %d), want (%d, %d)",
+			got.TestPointMinLength, got.TestPointMaxLength,
+			defaults.TestPointMinLength, defaults.TestPointMaxLength)
 	}
 }
