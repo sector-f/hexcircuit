@@ -111,3 +111,28 @@ func TestAddDecorativeTracesDisabled(t *testing.T) {
 		t.Fatalf("disabled decorative traces produced %d routes", len(got))
 	}
 }
+
+func TestDecorativeTraceAcceptsMinimumLength(t *testing.T) {
+	o := DefaultOptions()
+	o.DecorativeTraceMinLength = 3
+	o.DecorativeTraceMaxLength = 3
+	o.DecorativeTraceMaxBends = 1
+	allowed := make(map[hexgrid.GridPosition]bool)
+	for q := -5; q <= 5; q++ {
+		for r := -5; r <= 5; r++ {
+			allowed[hexgrid.GridPosition{Q: q, R: r}] = true
+		}
+	}
+	start := hexgrid.GridPosition{}
+	path := randomDecorativeTracePath(
+		start, axialDirections[0], o, allowed,
+		make(map[hexgrid.GridPosition]bool), make(map[hexgrid.GridPosition]bool),
+		rand.New(rand.NewSource(3)),
+	)
+	if len(path) != 4 {
+		t.Fatalf("path has %d cells, want start plus 3 steps", len(path))
+	}
+	if !decorativeTracePathIsClear(path, allowed, nil, nil) {
+		t.Fatal("valid three-step bent path was rejected")
+	}
+}

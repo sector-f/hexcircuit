@@ -204,7 +204,7 @@ func decorativeTracePathIsClear(
 	path []hexgrid.GridPosition,
 	allowed, blocked, reserved map[hexgrid.GridPosition]bool,
 ) bool {
-	if len(path) < 5 {
+	if len(path) < 4 {
 		return false
 	}
 	for _, position := range path[1:] {
