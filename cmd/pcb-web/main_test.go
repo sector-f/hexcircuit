@@ -202,7 +202,6 @@ func TestGenerateRequestRejectsInvalidOptions(t *testing.T) {
 		{"too many generation attempts", func(r *generateRequest) { r.GenerationAttempts = 21 }},
 		{"negative decorative-trace count", func(r *generateRequest) { r.DecorativeTraceCount = -1 }},
 		{"decorative-trace count too large", func(r *generateRequest) { r.DecorativeTraceCount = 1001 }},
-		{"decorative-trace count too large", func(r *generateRequest) { r.DecorativeTraceCount = 1001 }},
 		{"decorative-trace minimum too short", func(r *generateRequest) { r.DecorativeTraceMinLength = 2 }},
 		{"decorative-trace max bends too large", func(r *generateRequest) { r.DecorativeTraceMaxBends = 11 }},
 		{"decorative-trace maximum below minimum", func(r *generateRequest) { r.DecorativeTraceMinLength = 4; r.DecorativeTraceMaxLength = 3 }},
