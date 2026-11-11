@@ -121,7 +121,7 @@ When `--constrain-components-to-power-source-span` is enabled, every ordinary co
 
 Power-source count flags describe the number of physical contact components on each edge, not the number that will be active. Active contacts are assigned to clusters according to the configured minimum and maximum feeds per cluster; multiple feeds within a cluster are routed to different components before destinations are reused. In `separated` mode, neighboring physical contacts are placed two lattice cells apart. In `adjacent` mode, they occupy neighboring lattice cells.
 
-The base color is used for ordinary components, all source-contact outlines (including unused contacts), and signal traces. The optional background grid uses the grid color, which defaults to the base color unless --grid-color is set. The accent color is used for power feeds and their connected power-entry cores at source contacts and selected destination components, plus optional inter-cluster traces. The background hexagonal field is disabled by default; enable it with `--show-background-grid`.
+The base color is used for ordinary components, all source-contact outlines (including unused contacts), and signal traces. The optional background grid uses the grid color, which defaults to the base color unless --grid-color is set. The accent color is used for power feeds and their connected power-entry cores at source contacts and selected destination components, plus optional inter-cluster traces. The background hexagonal field is disabled by default; enable it with `--show-background-grid`. Neon glow is independently disabled by default; use `--glow` to enable it. The glow affects foreground traces, component outlines, and terminal pads, not the background grid.
 
 The generator uses randomized placement and routing. It first makes up to `--route-attempts` complete mandatory power-feed routing passes for each placement, and it tries up to `--generation-attempts` complete board generations if randomized placement/routing is exhausted. The latter defaults to 4 total attempts, including the original seed. Fallback seeds are derived deterministically from the first seed, so supplying an integer `--seed` keeps the entire retry sequence reproducible for the same generator version and options. Static validation and geometry errors are not retried. Without `--seed`, each run selects a fresh master seed.
 
@@ -145,6 +145,9 @@ Run `./pcb-cli --help` for the complete flag list and defaults reported by the p
 | `--base-color` | `#396CF8` | Color for ordinary components and signal traces. |
 | `--accent-color` | `#FF6A00` | Color for power feeds, connected power-entry cores, and optional inter-cluster traces. |
 | `--background` | `none` | Canvas fill. Use `none` or `transparent` for no fill. |
+| `--glow` | `false` | Enable a soft neon bloom on traces, component outlines, and terminal pads. |
+| `--glow-blur-radius` | `0.05` | Gaussian blur standard deviation for the neon glow, in inches. |
+| `--glow-opacity` | `0.55` | Neon glow opacity, from `0` to `1`. |
 
 ### Components and clusters
 

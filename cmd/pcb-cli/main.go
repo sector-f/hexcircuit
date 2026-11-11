@@ -47,6 +47,9 @@ func parseOptions(arguments []string, stderr io.Writer) (CLIOptions, error) {
 	flags.StringVar(&opts.Generator.GridColor, "grid-color", opts.Generator.GridColor, "Background hexagon grid color; defaults to --base-color.")
 	flags.StringVar(&opts.Generator.AccentColor, "accent-color", opts.Generator.AccentColor, "Color exclusively for power feeds and connected power-entry cores.")
 	flags.StringVar(&opts.Generator.Background, "background", opts.Generator.Background, "Canvas background fill; use 'none' or 'transparent' for no fill.")
+	flags.BoolVar(&opts.Generator.GlowEnabled, "glow", opts.Generator.GlowEnabled, "Enable a soft neon glow on foreground traces, components, and terminal pads.")
+	flags.Float64Var(&opts.Generator.GlowBlurRadius, "glow-blur-radius", opts.Generator.GlowBlurRadius, "Neon glow Gaussian blur radius, in inches.")
+	flags.Float64Var(&opts.Generator.GlowOpacity, "glow-opacity", opts.Generator.GlowOpacity, "Neon glow opacity from 0 to 1.")
 
 	flags.IntVar(&opts.Generator.ComponentCount, "component-count", opts.Generator.ComponentCount, "Number of ordinary components placed in clusters, excluding power-source contacts.")
 	flags.IntVar(&opts.Generator.ClusterCount, "cluster-count", opts.Generator.ClusterCount, "Number of major component clusters.")

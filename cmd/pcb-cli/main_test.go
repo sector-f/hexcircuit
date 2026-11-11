@@ -22,6 +22,9 @@ func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 		"--route-attempts=7",
 		"--generation-attempts=6",
 		"--grid-color=#abcdef",
+		"--glow",
+		"--glow-blur-radius=0.07",
+		"--glow-opacity=0.4",
 		"--seed=42",
 	}, io.Discard)
 	if err != nil {
@@ -38,6 +41,10 @@ func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 	}
 	if opts.Generator.GridColor != "#abcdef" {
 		t.Errorf("grid color = %q, want #abcdef", opts.Generator.GridColor)
+	}
+	if !opts.Generator.GlowEnabled || opts.Generator.GlowBlurRadius != 0.07 || opts.Generator.GlowOpacity != 0.4 {
+		t.Errorf("glow settings = (%v, %v, %v), want (true, 0.07, 0.4)",
+			opts.Generator.GlowEnabled, opts.Generator.GlowBlurRadius, opts.Generator.GlowOpacity)
 	}
 	if opts.Generator.PowerSourceSpacing != pcb.PowerSourceSpacingAdjacent {
 		t.Errorf("power-source spacing = %q, want adjacent", opts.Generator.PowerSourceSpacing)
