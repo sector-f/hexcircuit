@@ -266,11 +266,6 @@ func Render(scene Scene) (string, error) {
 	return geometry.Render(visual), nil
 }
 
-// RenderGrid is retained as a descriptive alias for Render.
-func RenderGrid(scene Scene) (string, error) {
-	return Render(scene)
-}
-
 // TryPlaceLabel finds a collision-free label position in a high-level grid scene.
 // ComponentIndex refers to the component's index in Scene.Components. The returned
 // label can be appended to Scene.Labels before placing another label.
