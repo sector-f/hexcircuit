@@ -26,8 +26,15 @@ type Cell struct {
 	Center Point
 }
 
-// ComponentStyle selects how many concentric hexagons make up a component.
-type ComponentStyle = geometry.ComponentStyle
+type (
+	ComponentStyle = geometry.ComponentStyle
+	Grid           = geometry.Grid
+	Point          = geometry.Point
+	Rect           = geometry.Rect
+	TextMetrics    = geometry.TextMetrics
+	Label          = geometry.Label
+	LabelRequest   = geometry.LabelRequest
+)
 
 // Keep the style constants available from the high-level package as well. Their
 // values and type are exactly the corresponding geometry package constants.
@@ -36,16 +43,6 @@ const (
 	ComponentStyleDouble ComponentStyle = geometry.ComponentStyleDouble
 	ComponentStyleTriple ComponentStyle = geometry.ComponentStyleTriple
 )
-
-// Grid describes the visible hexagonal lattice. Dimensions are in inches.
-type Grid = geometry.Grid
-
-// Point, Rect, and label types are shared with the lower-level geometry package.
-type Point = geometry.Point
-type Rect = geometry.Rect
-type TextMetrics = geometry.TextMetrics
-type Label = geometry.Label
-type LabelRequest = geometry.LabelRequest
 
 // GridCells returns lattice cells whose centers fall within the canvas rectangle inset
 // by margin. A negative margin deliberately includes off-canvas cells so the grid can

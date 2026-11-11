@@ -122,8 +122,8 @@ func TestGridCellsRetainPhysicalCentersWithConventionalCoordinates(t *testing.T)
 
 func TestComponentStyleConstantsMatchGeometryPackage(t *testing.T) {
 	tests := []struct {
-		name string
-		grid ComponentStyle
+		name     string
+		grid     ComponentStyle
 		geometry ComponentStyle
 	}{
 		{"single", ComponentStyleSingle, geometry.ComponentStyleSingle},
@@ -362,7 +362,6 @@ func TestGridColorFallsBackToSceneColor(t *testing.T) {
 	}
 }
 
-
 func TestGlowSettingsAreDisabledByDefault(t *testing.T) {
 	options := DefaultOptions()
 	if options.GlowEnabled {
@@ -448,17 +447,17 @@ func TestTryPlaceLabelUsesSceneAndTracksPriorLabels(t *testing.T) {
 		Options: options,
 		Components: []GridComponent{{
 			Position: GridPosition{},
-			Style: ComponentStyleSingle,
+			Style:    ComponentStyleSingle,
 		}},
 	}
 	request := LabelRequest{
 		ComponentIndex: 0,
-		Text: "VCO 1",
-		Metrics: TextMetrics{MinX: 0, MinY: -0.02, MaxX: 0.12, MaxY: 0},
-		Side: 0,
-		Gap: 0.1,
-		Padding: 0.005,
-		ObjectGap: 0.006,
+		Text:           "VCO 1",
+		Metrics:        TextMetrics{MinX: 0, MinY: -0.02, MaxX: 0.12, MaxY: 0},
+		Side:           0,
+		Gap:            0.1,
+		Padding:        0.005,
+		ObjectGap:      0.006,
 	}
 	label, err := TryPlaceLabel(scene, request)
 	if err != nil {
@@ -472,4 +471,3 @@ func TestTryPlaceLabelUsesSceneAndTracksPriorLabels(t *testing.T) {
 		t.Fatal("TryPlaceLabel() accepted a label overlapping an existing label")
 	}
 }
-
