@@ -67,25 +67,25 @@ func addDecorativeTestPoints(
 			}
 
 			for _, direction := range directions {
-				for length := o.TestPointMinLength; length <= o.TestPointMaxLength; length++ {
-					path := make([]hexgrid.GridPosition, 0, length)
-					position := component.Position
-					valid := true
-					for step := 0; step < length; step++ {
-						position = addPosition(position, direction)
-						if !allowed[position] || blocked[position] || reserved[position] {
-							valid = false
-							break
-						}
-						path = append(path, position)
+				clearPath := make([]hexgrid.GridPosition, 0, o.TestPointMaxLength)
+				position := component.Position
+				for step := 0; step < o.TestPointMaxLength; step++ {
+					position = addPosition(position, direction)
+					if !allowed[position] || blocked[position] || reserved[position] {
+						break
 					}
-					if valid {
-						byCluster[clusterIndex] = append(byCluster[clusterIndex], testPointCandidate{
-							start: component.Position,
-							path: path,
-						})
-					}
+					clearPath = append(clearPath, position)
 				}
+				if len(clearPath) < o.TestPointMinLength {
+					continue
+				}
+
+				length := o.TestPointMinLength + rng.Intn(len(clearPath)-o.TestPointMinLength+1)
+				path := append([]hexgrid.GridPosition(nil), clearPath[:length]...)
+				byCluster[clusterIndex] = append(byCluster[clusterIndex], testPointCandidate{
+					start: component.Position,
+					path: path,
+				})
 			}
 		}
 		rng.Shuffle(len(byCluster[clusterIndex]), func(i, j int) {
