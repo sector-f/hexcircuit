@@ -230,7 +230,6 @@ func normalizeOptions(o Options) (Options, error) {
 		{"trace stroke width", o.TraceStrokeWidth},
 		{"node radius", o.NodeRadius},
 		{"grid radius", o.GridRadius},
-		{"glow blur radius", o.GlowBlurRadius},
 		{"connector inset", o.ConnectorInset},
 	}
 	for _, item := range positive {
@@ -241,11 +240,14 @@ func normalizeOptions(o Options) (Options, error) {
 	if !isFinite(o.GridStrokeWidth) || o.GridStrokeWidth < 0 {
 		return o, fmt.Errorf("grid stroke width must be finite and greater than or equal to zero")
 	}
+	if !isFinite(o.GlowBlurRadius) || o.GlowBlurRadius < 0 {
+		return o, fmt.Errorf("glow blur radius must be finite and greater than or equal to zero")
+	}
 	if !isFinite(o.GlowOpacity) || o.GlowOpacity < 0 || o.GlowOpacity > 1 {
 		return o, fmt.Errorf("glow opacity must be between 0 and 1")
 	}
-	if o.GlowEnabled && o.GlowOpacity == 0 {
-		return o, fmt.Errorf("enabled glow requires a positive opacity")
+	if o.GlowEnabled && (o.GlowBlurRadius == 0 || o.GlowOpacity == 0) {
+		return o, fmt.Errorf("enabled glow requires a positive blur radius and opacity")
 	}
 	if !isFinite(o.TraceSpacing) || o.TraceSpacing <= 0 {
 		return o, fmt.Errorf("trace spacing must be finite and greater than zero")

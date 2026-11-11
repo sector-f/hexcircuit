@@ -1367,11 +1367,18 @@ func TestGlowOptionsDefaultDisabledAndValidate(t *testing.T) {
 	if options.GlowBlurRadius <= 0 || options.GlowOpacity <= 0 {
 		t.Fatalf("default glow settings must be usable: radius=%v opacity=%v", options.GlowBlurRadius, options.GlowOpacity)
 	}
+	zeroGlow := DefaultOptions()
+	zeroGlow.GlowBlurRadius = 0
+	zeroGlow.GlowOpacity = 0
+	if _, err := normalizeOptions(zeroGlow); err != nil {
+		t.Fatalf("zero-valued glow settings should be valid while glow is disabled: %v", err)
+	}
 	for _, test := range []struct{name string; edit func(*Options)}{
 		{"negative blur radius", func(o *Options) { o.GlowBlurRadius = -0.01 }},
 		{"NaN blur radius", func(o *Options) { o.GlowBlurRadius = math.NaN() }},
 		{"opacity above one", func(o *Options) { o.GlowOpacity = 1.1 }},
 		{"enabled glow with zero opacity", func(o *Options) { o.GlowEnabled = true; o.GlowOpacity = 0 }},
+		{"enabled glow with zero blur radius", func(o *Options) { o.GlowEnabled = true; o.GlowBlurRadius = 0 }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			o := DefaultOptions(); test.edit(&o)
