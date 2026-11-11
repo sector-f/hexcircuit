@@ -69,40 +69,101 @@ func powerSourcePositions(o Options) (top, bottom []hexgrid.GridPosition, err er
 }
 
 func selectPowerSourceRow(rows map[int][]hexgrid.Cell, count int, top bool, spacing PowerSourceSpacing) ([]hexgrid.GridPosition, error) {
-	if count == 0 { return nil, nil }
+	if count == 0 {
+		return nil, nil
+	}
 	step := 1
-	if spacing == PowerSourceSpacingSeparated { step = 2 }
+	if spacing == PowerSourceSpacingSeparated {
+		step = 2
+	}
 	requiredSpan := 1 + (count-1)*step
-	var best []hexgrid.Cell
-	bestY := math.Inf(1)
-	if !top {
-		bestY = math.Inf(-1)
-	}
-	for _, row := range rows {
-		if len(row) < requiredSpan {
-			continue
-		}
-		y := row[0].Center.Y
-		if (top && y < bestY) || (!top && y > bestY) {
-			bestY = y
-			best = row
-		}
-	}
 	rowName := "bottom"
 	if top {
 		rowName = "top"
 	}
-	if len(best) < requiredSpan {
-		return nil, fmt.Errorf("%s power-source row does not fit: need %d contacts spanning %d grid cells at %q spacing, but the available grid row has %d cells", rowName, count, requiredSpan, spacing, len(best))
+
+	type rowCandidate struct {
+		r     int
+		cells []hexgrid.Cell
+		y     float64
 	}
-	sort.Slice(best, func(i, j int) bool { return best[i].Center.X < best[j].Center.X })
-	start := (len(best) - requiredSpan) / 2
+	candidates := make([]rowCandidate, 0, len(rows))
+	widestRow := 0
+	for r, row := range rows {
+		if len(row) > widestRow {
+			widestRow = len(row)
+		}
+		if len(row) == 0 {
+			continue
+		}
+		candidates = append(candidates, rowCandidate{
+			r:     r,
+			cells: append([]hexgrid.Cell(nil), row...),
+			y:     row[0].Center.Y,
+		})
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].y != candidates[j].y {
+			if top {
+				return candidates[i].y < candidates[j].y
+			}
+			return candidates[i].y > candidates[j].y
+		}
+		if top {
+			return candidates[i].r < candidates[j].r
+		}
+		return candidates[i].r > candidates[j].r
+	})
+
+	// Keep the existing capacity rule: start at the outermost row that can
+	// accommodate the requested contacts and their configured spacing.
+	outermost := -1
+	for i, candidate := range candidates {
+		if len(candidate.cells) >= requiredSpan {
+			outermost = i
+			break
+		}
+	}
+	if outermost < 0 {
+		return nil, fmt.Errorf("%s power-source row does not fit: need %d contacts spanning %d grid cells at %q spacing, but the widest available grid row has %d cells",
+			rowName, count, requiredSpan, spacing, widestRow)
+	}
+
+	selected := candidates[outermost]
+	if !powerSourceRowIsSymmetric(len(selected.cells), requiredSpan) {
+		// An even-length row has its center between cells. If the centered
+		// fixed-spacing selection is asymmetric, move exactly one row inward.
+		inward := outermost + 1
+		if inward >= len(candidates) {
+			return nil, fmt.Errorf("%s power-source row cannot be made horizontally symmetrical: no row one step inward", rowName)
+		}
+		selected = candidates[inward]
+		if len(selected.cells) < requiredSpan {
+			return nil, fmt.Errorf("%s power-source row cannot be made horizontally symmetrical: the next inward row has %d cells, need %d",
+				rowName, len(selected.cells), requiredSpan)
+		}
+		if !powerSourceRowIsSymmetric(len(selected.cells), requiredSpan) {
+			return nil, fmt.Errorf("%s power-source row cannot be made horizontally symmetrical: the next inward row has %d cells, which cannot center %d contacts at %q spacing",
+				rowName, len(selected.cells), count, spacing)
+		}
+	}
+
+	sort.Slice(selected.cells, func(i, j int) bool {
+		return selected.cells[i].Center.X < selected.cells[j].Center.X
+	})
+	start := (len(selected.cells) - requiredSpan) / 2
 	positions := make([]hexgrid.GridPosition, count)
 	for i := range positions {
-		cell := best[start+i*step]
+		cell := selected.cells[start+i*step]
 		positions[i] = hexgrid.GridPosition{Q: cell.Q, R: cell.R}
 	}
 	return positions, nil
+}
+
+// powerSourceRowIsSymmetric reports whether a centered, fixed-span selection can
+// be reflected exactly across the horizontal centerline of a row.
+func powerSourceRowIsSymmetric(rowLength, requiredSpan int) bool {
+	return rowLength >= requiredSpan && (rowLength-requiredSpan)%2 == 0
 }
 
 func placeClusters(

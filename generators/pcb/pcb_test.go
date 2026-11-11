@@ -1274,3 +1274,88 @@ func TestRoutePowerFeedsRetriesCompleteFeedSet(t *testing.T) {
 	}
 	if len(clusters[0].PowerPaths[0]) < 2 { t.Fatalf("stored route = %v", clusters[0].PowerPaths[0]) }
 }
+
+
+func TestPowerSourceRowsPreserveHorizontalSymmetry(t *testing.T) {
+	tests := []struct {
+		name     string
+		rows     map[int][]hexgrid.Cell
+		count    int
+		top      bool
+		spacing  PowerSourceSpacing
+		wantR    int
+		wantQ    []int
+	}{
+		{
+			name: "keeps symmetric outer row",
+			rows: map[int][]hexgrid.Cell{
+				0: makeSymmetryTestPowerSourceRow(0, 8, 0),
+				1: makeSymmetryTestPowerSourceRow(1, 9, 1),
+			},
+			count: 4, top: true, spacing: PowerSourceSpacingAdjacent,
+			wantR: 0, wantQ: []int{2, 3, 4, 5},
+		},
+		{
+			name: "moves inward for separated spacing",
+			rows: map[int][]hexgrid.Cell{
+				0: makeSymmetryTestPowerSourceRow(0, 8, 0),
+				1: makeSymmetryTestPowerSourceRow(1, 9, 1),
+				2: makeSymmetryTestPowerSourceRow(2, 10, 2),
+			},
+			count: 4, top: true, spacing: PowerSourceSpacingSeparated,
+			wantR: 1, wantQ: []int{1, 3, 5, 7},
+		},
+		{
+			name: "moves inward for odd adjacent count",
+			rows: map[int][]hexgrid.Cell{
+				0: makeSymmetryTestPowerSourceRow(0, 8, 0),
+				1: makeSymmetryTestPowerSourceRow(1, 9, 1),
+			},
+			count: 3, top: true, spacing: PowerSourceSpacingAdjacent,
+			wantR: 1, wantQ: []int{3, 4, 5},
+		},
+		{
+			name: "moves inward from bottom edge",
+			rows: map[int][]hexgrid.Cell{
+				0: makeSymmetryTestPowerSourceRow(0, 10, 0),
+				1: makeSymmetryTestPowerSourceRow(1, 9, 1),
+				2: makeSymmetryTestPowerSourceRow(2, 8, 2),
+			},
+			count: 4, top: false, spacing: PowerSourceSpacingSeparated,
+			wantR: 1, wantQ: []int{1, 3, 5, 7},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := selectPowerSourceRow(test.rows, test.count, test.top, test.spacing)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != len(test.wantQ) {
+				t.Fatalf("got %d positions, want %d: %v", len(got), len(test.wantQ), got)
+			}
+			for i, position := range got {
+				if position.R != test.wantR || position.Q != test.wantQ[i] {
+					t.Fatalf("position %d = %v, want {Q:%d R:%d}", i, position, test.wantQ[i], test.wantR)
+				}
+			}
+			for i := range got {
+				if got[i].Q+got[len(got)-1-i].Q != test.wantQ[0]+test.wantQ[len(test.wantQ)-1] {
+					t.Fatalf("selected positions are not horizontally mirrored: %v", got)
+				}
+			}
+		})
+	}
+}
+
+func makeSymmetryTestPowerSourceRow(r, length int, y float64) []hexgrid.Cell {
+	cells := make([]hexgrid.Cell, length)
+	for q := range cells {
+		cells[q] = hexgrid.Cell{
+			Q: q, R: r,
+			Center: hexgrid.Point{X: float64(q), Y: y},
+		}
+	}
+	return cells
+}
