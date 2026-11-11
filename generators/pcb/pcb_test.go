@@ -1497,7 +1497,8 @@ func TestNormalizeOptionsRejectsInvalidDecorativeTraceSettings(t *testing.T) {
 	}{
 		{"negative count", func(o *Options) { o.DecorativeTraceCount = -1 }},
 		{"count too large", func(o *Options) { o.DecorativeTraceCount = maxDecorativeTraceCount + 1 }},
-		{"minimum below two", func(o *Options) { o.DecorativeTraceMinLength = 1 }},
+		{"minimum below three", func(o *Options) { o.DecorativeTraceMinLength = 2 }},
+		{"too many bends", func(o *Options) { o.DecorativeTraceMaxBends = 11 }},
 		{"maximum below minimum", func(o *Options) { o.DecorativeTraceMaxLength = o.DecorativeTraceMinLength - 1 }},
 		{"maximum over 100", func(o *Options) { o.DecorativeTraceMaxLength = 101 }},
 	}
@@ -1512,7 +1513,7 @@ func TestNormalizeOptionsRejectsInvalidDecorativeTraceSettings(t *testing.T) {
 	}
 }
 
-func TestBuildBoardAddsDecorativeDecorativeTraces(t *testing.T) {
+func TestBuildBoardAddsDecorativeTraces(t *testing.T) {
 	o := DefaultOptions()
 	o.ComponentCount = 12
 	o.ClusterCount = 3
@@ -1538,8 +1539,8 @@ func TestBuildBoardAddsDecorativeDecorativeTraces(t *testing.T) {
 		t.Fatalf("got %d decorative traces, exceeding target %d", len(plan.DecorativeTraces), o.DecorativeTraceCount)
 	}
 	for _, trace := range plan.DecorativeTraces {
-		if trace.HideTerminal || trace.Lines != 1 || len(trace.Path) != 1 {
-			t.Errorf("unexpected decorative-trace trace: %+v", trace)
+		if trace.HideTerminal || trace.Lines < 1 || trace.Lines > o.MaxParallel || len(trace.Path) < 2 {
+			t.Errorf("unexpected decorative trace: %+v", trace)
 		}
 	}
 	svg, _, traceCount, err := Generate(o)

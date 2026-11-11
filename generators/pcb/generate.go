@@ -39,7 +39,7 @@ type boardPlan struct {
 	InterclusterComponents []hexgrid.GridComponent
 	// InterClusterTraces remains separate from the power layer so its style can evolve independently.
 	InterClusterTraces     []hexgrid.GridTrace
-	// DecorativeTraces are short base-color stubs ending at hollow terminal pads.
+	// DecorativeTraces are bent, base-color traces that end at hollow terminal pads.
 	DecorativeTraces        []hexgrid.GridTrace
 	PowerRoutes            [][]hexgrid.GridPosition // Full cell paths, retained for no-crossing tests.
 	Clusters               []clusterPlan
@@ -48,7 +48,7 @@ type boardPlan struct {
 // Generate constructs and renders a PCB-inspired illustration.
 // It returns the SVG, the number of rendered base-layer components (cluster
 // components plus every configured top- and bottom-row source contact), the
-// number of rendered trace bundles (signal, power, and optional inter-cluster), and any generation error.
+// number of rendered trace bundles (signal, power, inter-cluster, and decorative), and any generation error.
 func Generate(options Options) (string, int, int, error) {
 	o, err := normalizeOptions(options)
 	if err != nil {
