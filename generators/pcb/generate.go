@@ -39,6 +39,8 @@ type boardPlan struct {
 	InterclusterComponents []hexgrid.GridComponent
 	// InterClusterTraces remains separate from the power layer so its style can evolve independently.
 	InterClusterTraces []hexgrid.GridTrace
+	// TestPointTraces are short base-color stubs ending at hollow terminal pads.
+	TestPointTraces []hexgrid.GridTrace
 	PowerRoutes        [][]hexgrid.GridPosition // Full cell paths, retained for no-crossing tests.
 	Clusters           []clusterPlan
 }
@@ -72,7 +74,7 @@ func Generate(options Options) (string, int, int, error) {
 	if err != nil {
 		return "", 0, 0, fmt.Errorf("render PCB: %w", err)
 	}
-	return svg, len(plan.Components), len(plan.SignalTraces) + len(plan.PowerTraces) + len(plan.InterClusterTraces), nil
+	return svg, len(plan.Components), len(plan.SignalTraces) + len(plan.PowerTraces) + len(plan.InterClusterTraces) + len(plan.TestPointTraces), nil
 }
 
 
@@ -219,7 +221,7 @@ func buildBoard(
 		}
 	}
 
-	if o.Connections > 0 || o.InterClusterTraces {
+	if o.Connections > 0 || o.InterClusterTraces || o.TestPointCount > 0 {
 		signalRoutes := routingCellsWithinPowerSourceCorridor(
 			routingCellsWithoutPowerSourceRows(o, topSources, bottomSources), topSources, bottomSources, o,
 		)
@@ -267,6 +269,9 @@ func buildBoard(
 					seenEndpoints[position] = true
 				}
 			}
+		}
+		if o.TestPointCount > 0 {
+			plan.TestPointTraces = addDecorativeTestPoints(o, rng, clusters, signalRoutes, blocked, reserved)
 		}
 	}
 
@@ -331,10 +336,11 @@ func renderBoard(o Options, plan boardPlan) (string, error) {
 	base.TraceSpacing = o.TraceSpacing
 	base.NodeRadius = o.NodeRadius
 
+	baseTraces := append(append([]hexgrid.GridTrace(nil), plan.SignalTraces...), plan.TestPointTraces...)
 	baseSVG, err := hexgrid.RenderGrid(hexgrid.GridScene{
 		Options:    base,
 		Components: plan.Components,
-		Traces:     plan.SignalTraces,
+		Traces:     baseTraces,
 	})
 	if err != nil {
 		return "", fmt.Errorf("render base layer: %w", err)

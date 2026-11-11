@@ -21,6 +21,9 @@ func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 		"--inter-cluster-traces",
 		"--route-attempts=7",
 		"--generation-attempts=6",
+		"--test-point-count=7",
+		"--test-point-min-length=3",
+		"--test-point-max-length=5",
 		"--grid-color=#abcdef",
 		"--base-glow",
 		"--base-glow-blur-radius=0.03",
@@ -70,6 +73,10 @@ func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 	}
 	if opts.Generator.RouteAttempts != 7 { t.Errorf("route attempts = %d, want 7", opts.Generator.RouteAttempts) }
 	if opts.Generator.GenerationAttempts != 6 { t.Errorf("generation attempts = %d, want 6", opts.Generator.GenerationAttempts) }
+	if opts.Generator.TestPointCount != 7 || opts.Generator.TestPointMinLength != 3 || opts.Generator.TestPointMaxLength != 5 {
+		t.Errorf("test-point options = (%d, %d, %d), want (7, 3, 5)",
+			opts.Generator.TestPointCount, opts.Generator.TestPointMinLength, opts.Generator.TestPointMaxLength)
+	}
 	if !opts.Generator.SeedSet || opts.Generator.Seed != 42 {
 		t.Errorf("seed state = (%d, %v), want (42, true)", opts.Generator.Seed, opts.Generator.SeedSet)
 	}

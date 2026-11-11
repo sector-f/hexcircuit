@@ -23,7 +23,9 @@ func validRequest() generateRequest {
 		ComponentStrokeWidth: o.ComponentStrokeWidth,
 		ComponentMiddleHexagonScale: o.ComponentMiddleHexagonScale,
 		ComponentInnerHexagonScale: o.ComponentInnerHexagonScale,
-		Connections: o.Connections, InterClusterTraces: o.InterClusterTraces, MaxParallel: o.MaxParallel,
+		Connections: o.Connections, TestPointCount: o.TestPointCount,
+		TestPointMinLength: o.TestPointMinLength, TestPointMaxLength: o.TestPointMaxLength,
+		InterClusterTraces: o.InterClusterTraces, MaxParallel: o.MaxParallel,
 		RouteAttempts: o.RouteAttempts, GenerationAttempts: o.GenerationAttempts, Pitch: o.Pitch,
 		TraceStrokeWidth: o.TraceStrokeWidth, TraceSpacing: o.TraceSpacing, NodeRadius: o.NodeRadius,
 		ShowBackgroundGrid: o.ShowBackgroundGrid, OmitPartialGridHexagons: o.OmitPartialGridHexagons,
@@ -48,6 +50,9 @@ func TestGenerateRequestMapsToPCBOptions(t *testing.T) {
 	req.ConstrainComponentsToPowerSourceSpan = true
 	req.ConstrainLayoutToPowerSourceTrapezoid = true
 	req.InterClusterTraces = true
+	req.TestPointCount = 5
+	req.TestPointMinLength = 3
+	req.TestPointMaxLength = 6
 	req.RouteAttempts = 7
 	req.GenerationAttempts = 6
 	req.BaseGlow = true
@@ -89,6 +94,11 @@ func TestGenerateRequestMapsToPCBOptions(t *testing.T) {
 	}
 	if !got.InterClusterTraces {
 		t.Fatal("inter-cluster trace option was not mapped")
+	}
+	if got.TestPointCount != req.TestPointCount || got.TestPointMinLength != req.TestPointMinLength || got.TestPointMaxLength != req.TestPointMaxLength {
+		t.Fatalf("test-point options = (%d, %d, %d), want (%d, %d, %d)",
+			got.TestPointCount, got.TestPointMinLength, got.TestPointMaxLength,
+			req.TestPointCount, req.TestPointMinLength, req.TestPointMaxLength)
 	}
 	if got.RouteAttempts != 7 { t.Fatalf("route attempts = %d, want 7", got.RouteAttempts) }
 	if got.GenerationAttempts != 6 { t.Fatalf("generation attempts = %d, want 6", got.GenerationAttempts) }

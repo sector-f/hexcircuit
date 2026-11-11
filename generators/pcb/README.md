@@ -69,6 +69,8 @@ All physical dimensions are in inches.
 | `MinPowerSourcesPerCluster` | Minimum active feeds assigned to each cluster; defaults to `1`, and `0` allows unpowered clusters |
 | `MaxPowerSourcesPerCluster` | Maximum active feeds assigned to each cluster; defaults to `1`, with a supported limit of six |
 | `Connections` | Target number of additional intra-cluster signal connections beyond required spanning trees |
+| `TestPointCount` | Best-effort target number of decorative test-point stubs; defaults to `0` (disabled) |
+| `TestPointMinLength`, `TestPointMaxLength` | Inclusive stub-length range in grid steps; defaults to `2`–`4` |
 | `InterClusterTraces` | Enables opportunistic accent-colored routes between components in different clusters; disabled by default |
 | `TopPowerSourceCount` | Number of physical power-source contacts along the top row |
 | `BottomPowerSourceCount` | Number of physical power-source contacts along the bottom row |

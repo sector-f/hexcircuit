@@ -84,6 +84,12 @@ type Options struct {
 	// Connections is the target number of additional signal connections beyond the
 	// spanning-tree connections required to connect every multi-component cluster.
 	Connections int
+	// TestPointCount is the best-effort target number of decorative test-point stubs.
+	// Zero disables test points.
+	TestPointCount int
+	// TestPointMinLength and TestPointMaxLength bound stub length in grid steps.
+	TestPointMinLength int
+	TestPointMaxLength int
 	// InterClusterTraces enables a randomized number of accent-colored traces
 	// connecting components in different clusters. Generation may produce none.
 	InterClusterTraces bool
@@ -173,6 +179,9 @@ func DefaultOptions() Options {
 		MinPowerSourcesPerCluster:             1,
 		MaxPowerSourcesPerCluster:             1,
 		Connections:                          18,
+		TestPointCount:                       0,
+		TestPointMinLength:                   2,
+		TestPointMaxLength:                   4,
 		InterClusterTraces:                   false,
 		MaxParallel:                          3,
 		RouteAttempts:                        12,
@@ -297,6 +306,12 @@ func normalizeOptions(o Options) (Options, error) {
 	}
 	if o.Connections < 0 {
 		return o, fmt.Errorf("additional connection count cannot be negative")
+	}
+	if o.TestPointCount < 0 {
+		return o, fmt.Errorf("test-point count cannot be negative")
+	}
+	if o.TestPointMinLength < 2 || o.TestPointMaxLength < o.TestPointMinLength || o.TestPointMaxLength > 100 {
+		return o, fmt.Errorf("test-point lengths must satisfy 2 <= minimum <= maximum <= 100 grid steps")
 	}
 	if o.MaxParallel < 1 || o.MaxParallel > 3 {
 		return o, fmt.Errorf("maximum parallel track count must be between 1 and 3")
