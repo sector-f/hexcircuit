@@ -229,6 +229,14 @@
           <div class="field"><label for="nodeRadius">Terminal radius (in)</label><input id="nodeRadius" type="number" min="0.001" step="0.001" value="0.014" required></div>
         </div>
 
+        <div class="section-title">Neon glow</div>
+        <div class="fields">
+          <div class="field full check-field"><input id="glowEnabled" type="checkbox"><label for="glowEnabled">Enable neon glow on foreground linework</label></div>
+          <div class="field"><label for="glowBlurRadius">Glow blur radius (in)</label><input id="glowBlurRadius" type="number" min="0.001" max="0.5" step="0.005" value="0.05" required></div>
+          <div class="field"><label for="glowOpacity">Glow opacity</label><input id="glowOpacity" type="number" min="0.01" max="1" step="0.05" value="0.55" required></div>
+        </div>
+        <div class="hint">Glow is applied to traces, component outlines, and terminal pads. The background grid and labels remain crisp.</div>
+
         <div class="section-title">Background grid</div>
         <div class="fields">
           <div class="field full check-field"><input id="showBackgroundGrid" type="checkbox"><label for="showBackgroundGrid">Show background hexagonal grid</label></div>
@@ -301,6 +309,9 @@
           baseColor: value('baseColor'),
           gridColor: value('gridColor'),
           accentColor: value('accentColor'),
+          glowEnabled: checked('glowEnabled'),
+          glowBlurRadius: number('glowBlurRadius'),
+          glowOpacity: number('glowOpacity'),
           background,
           componentCount: number('componentCount'),
           clusterCount: number('clusterCount'),

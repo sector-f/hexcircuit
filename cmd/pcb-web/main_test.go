@@ -14,6 +14,7 @@ func validRequest() generateRequest {
 	o := pcb.DefaultOptions()
 	return generateRequest{
 		Width: o.Width, Height: o.Height, BaseColor: o.BaseColor, GridColor: o.GridColor, AccentColor: o.AccentColor,
+		GlowEnabled: o.GlowEnabled, GlowBlurRadius: o.GlowBlurRadius, GlowOpacity: o.GlowOpacity,
 		Background: o.Background, ComponentCount: o.ComponentCount, ClusterCount: o.ClusterCount,
 		MinComponentsPerCluster: o.MinComponentsPerCluster,
 		MinPowerSourcesPerCluster: o.MinPowerSourcesPerCluster, MaxPowerSourcesPerCluster: o.MaxPowerSourcesPerCluster,
@@ -48,6 +49,9 @@ func TestGenerateRequestMapsToPCBOptions(t *testing.T) {
 	req.InterClusterTraces = true
 	req.RouteAttempts = 7
 	req.GenerationAttempts = 6
+	req.GlowEnabled = true
+	req.GlowBlurRadius = 0.075
+	req.GlowOpacity = 0.35
 
 	got, err := req.options()
 	if err != nil {
@@ -56,6 +60,11 @@ func TestGenerateRequestMapsToPCBOptions(t *testing.T) {
 	if got.BaseColor != req.BaseColor || got.AccentColor != req.AccentColor || got.GridColor != req.GridColor {
 		t.Fatalf("colors = (base %q, grid %q, accent %q), want (base %q, grid %q, accent %q)",
 			got.BaseColor, got.GridColor, got.AccentColor, req.BaseColor, req.GridColor, req.AccentColor)
+	}
+	if !got.GlowEnabled || got.GlowBlurRadius != req.GlowBlurRadius || got.GlowOpacity != req.GlowOpacity {
+		t.Fatalf("glow settings = (%v, %v, %v), want (%v, %v, %v)",
+			got.GlowEnabled, got.GlowBlurRadius, got.GlowOpacity,
+			req.GlowEnabled, req.GlowBlurRadius, req.GlowOpacity)
 	}
 	if got.MinPowerSourcesPerCluster != 1 || got.MaxPowerSourcesPerCluster != 1 {
 		t.Fatalf("power-source range = %d..%d, want 1..1", got.MinPowerSourcesPerCluster, got.MaxPowerSourcesPerCluster)
@@ -150,6 +159,8 @@ func TestGenerateRequestRejectsInvalidOptions(t *testing.T) {
 		{"negative generation attempts", func(r *generateRequest) { r.GenerationAttempts = -1 }},
 		{"too many generation attempts", func(r *generateRequest) { r.GenerationAttempts = 21 }},
 		{"invalid seed", func(r *generateRequest) { r.Seed = "seed" }},
+		{"negative glow blur radius", func(r *generateRequest) { r.GlowBlurRadius = -0.1 }},
+		{"glow opacity above one", func(r *generateRequest) { r.GlowOpacity = 1.1 }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -175,7 +186,7 @@ func TestHandleIndexRendersPCBInterface(t *testing.T) {
 	if got := response.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
 		t.Fatalf("content type = %q, want HTML", got)
 	}
-	for _, want := range []string{"PCB Layout Generator", "constrainLayoutToPowerSourceTrapezoid", "powerSourceSpacing", "minPowerSourcesPerCluster", "maxPowerSourcesPerCluster", "interClusterTraces", "gridColor", "routeAttempts", "generationAttempts"} {
+	for _, want := range []string{"PCB Layout Generator", "constrainLayoutToPowerSourceTrapezoid", "powerSourceSpacing", "minPowerSourcesPerCluster", "maxPowerSourcesPerCluster", "interClusterTraces", "gridColor", "routeAttempts", "generationAttempts", "glowEnabled", "glowBlurRadius", "glowOpacity"} {
 		if !bytes.Contains(response.Body.Bytes(), []byte(want)) {
 			t.Errorf("rendered HTML is missing %q", want)
 		}

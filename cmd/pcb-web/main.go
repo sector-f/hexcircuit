@@ -36,6 +36,9 @@ type generateRequest struct {
 	BaseColor                           string  `json:"baseColor"`
 	GridColor                           string  `json:"gridColor"`
 	AccentColor                         string  `json:"accentColor"`
+	GlowEnabled                         bool    `json:"glowEnabled"`
+	GlowBlurRadius                      float64 `json:"glowBlurRadius"`
+	GlowOpacity                         float64 `json:"glowOpacity"`
 	Background                          string  `json:"background"`
 	ComponentCount                      int     `json:"componentCount"`
 	ClusterCount                        int     `json:"clusterCount"`
@@ -193,6 +196,13 @@ func (r generateRequest) options() (pcb.Options, error) {
 	generationAttempts := r.GenerationAttempts
 	if generationAttempts == 0 { generationAttempts = pcb.DefaultOptions().GenerationAttempts }
 	if generationAttempts < 1 || generationAttempts > 20 { return pcb.Options{}, fmt.Errorf("generation attempts must be between 1 and 20") }
+	glowBlurRadius := r.GlowBlurRadius
+	if glowBlurRadius == 0 { glowBlurRadius = pcb.DefaultOptions().GlowBlurRadius }
+	glowOpacity := r.GlowOpacity
+	if glowOpacity == 0 { glowOpacity = pcb.DefaultOptions().GlowOpacity }
+	if !positiveFinite(glowBlurRadius) || !positiveFinite(glowOpacity) || glowOpacity > 1 {
+		return pcb.Options{}, fmt.Errorf("glow blur radius must be greater than 0 and glow opacity must be between 0 and 1")
+	}
 	if r.MinPowerSourcesPerCluster < 0 || r.MaxPowerSourcesPerCluster < r.MinPowerSourcesPerCluster || r.MaxPowerSourcesPerCluster > 6 {
 		return pcb.Options{}, fmt.Errorf("power sources per cluster must satisfy 0 <= minimum <= maximum <= 6")
 	}
@@ -247,6 +257,9 @@ func (r generateRequest) options() (pcb.Options, error) {
 		BaseColor:                            r.BaseColor,
 		GridColor:                            gridColor,
 		AccentColor:                          r.AccentColor,
+		GlowEnabled:                          r.GlowEnabled,
+		GlowBlurRadius:                       glowBlurRadius,
+		GlowOpacity:                          glowOpacity,
 		Background:                           r.Background,
 		ComponentCount:                       r.ComponentCount,
 		ClusterCount:                         r.ClusterCount,
