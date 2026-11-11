@@ -8,7 +8,7 @@ The repository separates three concerns:
 - **`generators/`** contains procedural composition algorithms that use `hexgrid` to create particular kinds of artwork. See [`generators/circuit`](generators/circuit/README.md).
 - **`cmd/`** contains executable programs that expose those generators through user interfaces, including [`circuit-cli`](cmd/circuit-cli/README.md), [`pcb-cli`](cmd/pcb-cli/README.md), and [`pcb-web`](cmd/pcb-web/README.md).
 
-The package produces vector graphics. Its output is SVG, which can be displayed in a browser or edited in a vector-graphics application such as Inkscape.
+The package produces vector graphics. Its output is SVG, which can be displayed in a browser or edited in a vector-graphics application such as Inkscape. Rendering supports optional neon glow on foreground traces, components, and terminal pads; the background grid and labels remain unfiltered.
 
 ## Requirements
 
