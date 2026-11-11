@@ -13,6 +13,9 @@ import (
 // GridPosition identifies a cell in the hexagonal lattice using axial coordinates.
 // For pointy-top layouts, positive Q points east and positive R points southeast.
 // The origin (0, 0) is at the center of the canvas.
+// hexSideCount is the number of sides on each cell in the grid.
+const hexSideCount = 6
+
 type GridPosition struct {
 	Q, R int
 }

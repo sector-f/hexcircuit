@@ -160,7 +160,6 @@ func TestGridTraceGeometryMatchesRouterGeometry(t *testing.T) {
 	connection := AcceptedConnection{
 		Source: 0, Target: 1,
 		Path: path, Lines: len(legacyTracks),
-		Tracks: legacyTracks, Endpoints: legacyEndpoints,
 	}
 	layout, err := gridSceneForRender(options, components, []AcceptedConnection{connection})
 	if err != nil {
