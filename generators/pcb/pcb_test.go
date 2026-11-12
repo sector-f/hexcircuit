@@ -336,7 +336,7 @@ func TestBuildBoardSupportsMultipleFeedsPerCluster(t *testing.T) {
 	}
 }
 
-func TestBuildBoardDowngradesTriplePowerCoreTargets(t *testing.T) {
+func TestBuildBoardUsesDoubleStyleWhenPowerCoreNeedsTheInnerRing(t *testing.T) {
 	o := DefaultOptions()
 	o.ComponentCount = 1
 	o.ClusterCount = 1
@@ -374,7 +374,7 @@ func TestBuildBoardDowngradesTriplePowerCoreTargets(t *testing.T) {
 	}
 
 	if got := plan.Clusters[0].Components[0].Style; got != hexgrid.ComponentStyleDouble {
-		t.Fatalf("cluster component style = %q, want double after receiving a power core", got)
+		t.Fatalf("cluster component style = %q, want double to clear the power core", got)
 	}
 	foundBaseComponent := false
 	for _, component := range plan.Components {
@@ -459,7 +459,8 @@ func TestAdjustBaseComponentStylesForPowerAndInterclusterCores(t *testing.T) {
 		{Q: 0, R: 0}, {Q: 1, R: 0}, {Q: 2, R: 0},
 		{Q: 3, R: 0}, {Q: 4, R: 0}, {Q: 5, R: 0},
 	}
-	sourceRadiusScale := 0.12 / o.ComponentRadius
+	o.PowerSourceComponentRadius = 0.12
+	sourceRadiusScale := powerSourceComponentRadiusScale(o)
 	baseComponents := []hexgrid.GridComponent{
 		{Position: positions[0], Style: hexgrid.ComponentStyleTriple, RadiusScale: 1},
 		{Position: positions[1], Style: hexgrid.ComponentStyleTriple, RadiusScale: 1},
@@ -499,22 +500,19 @@ func TestAdjustBaseComponentStylesForPowerAndInterclusterCores(t *testing.T) {
 		hexgrid.ComponentStyleSingle,
 		hexgrid.ComponentStyleTriple,
 	}
+	wantByPosition := make(map[hexgrid.GridPosition]hexgrid.ComponentStyle, len(positions))
 	for i := range want {
+		wantByPosition[positions[i]] = want[i]
 		if got := baseComponents[i].Style; got != want[i] {
 			t.Errorf("base component %d style = %q, want %q", i, got, want[i])
 		}
 	}
 	for clusterIndex := range clusters {
 		for componentIndex := range clusters[clusterIndex].Components {
-			position := clusters[clusterIndex].Components[componentIndex].Position
-			for baseIndex := range baseComponents {
-				if baseComponents[baseIndex].Position != position {
-					continue
-				}
-				if got := clusters[clusterIndex].Components[componentIndex].Style; got != baseComponents[baseIndex].Style {
-					t.Errorf("cluster %d component at %v has style %q, base layer has %q",
-						clusterIndex, position, got, baseComponents[baseIndex].Style)
-				}
+			component := clusters[clusterIndex].Components[componentIndex]
+			if got, want := component.Style, wantByPosition[component.Position]; got != want {
+				t.Errorf("cluster %d component at %v has style %q, want %q",
+					clusterIndex, component.Position, got, want)
 			}
 		}
 	}
