@@ -595,9 +595,8 @@ func toPowerSources(positions []hexgrid.GridPosition, side powerSide) []powerSou
 	return sources
 }
 
-// choosePowerTargets assigns each feed to a component in its cluster. It uses
-// every component once before reusing a destination when there are more feeds
-// than components, then repeats that order as necessary.
+// choosePowerTargets assigns feeds to outer components, using each once
+// before reusing a destination. A singleton cluster falls back to its hub.
 func choosePowerTargets(components []placedComponent, count int, rng *rand.Rand) []hexgrid.GridPosition {
 	if count <= 0 || len(components) == 0 {
 		return nil
