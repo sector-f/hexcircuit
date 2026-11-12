@@ -336,6 +336,95 @@ func TestBuildBoardSupportsMultipleFeedsPerCluster(t *testing.T) {
 	}
 }
 
+func TestBuildBoardDowngradesTriplePowerCoreTargets(t *testing.T) {
+	o := DefaultOptions()
+	o.ComponentCount = 1
+	o.ClusterCount = 1
+	o.TopPowerSourceCount = 1
+	o.BottomPowerSourceCount = 0
+	o.Connections = 0
+	o.MaxParallel = 1
+
+	top, bottom, err := powerSourcePositions(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := buildBoard(o, rand.New(rand.NewSource(42)), top, bottom)
+	if err != nil {
+		t.Fatalf("build single-component powered cluster: %v", err)
+	}
+	if len(plan.Clusters) != 1 || len(plan.Clusters[0].PowerTargets) != 1 {
+		t.Fatalf("got %d clusters and %d power targets, want one each",
+			len(plan.Clusters), len(plan.Clusters[0].PowerTargets))
+	}
+
+	target := plan.Clusters[0].PowerTargets[0]
+	if len(plan.PowerCores) != 2 {
+		t.Fatalf("got %d power cores, want source and target cores", len(plan.PowerCores))
+	}
+	foundPowerCore := false
+	for _, core := range plan.PowerCores {
+		if core.Position == target {
+			foundPowerCore = true
+			break
+		}
+	}
+	if !foundPowerCore {
+		t.Fatalf("assigned target %v has no rendered power core", target)
+	}
+
+	if got := plan.Clusters[0].Components[0].Style; got != hexgrid.ComponentStyleDouble {
+		t.Fatalf("cluster component style = %q, want double after receiving a power core", got)
+	}
+	foundBaseComponent := false
+	for _, component := range plan.Components {
+		if component.Position != target {
+			continue
+		}
+		foundBaseComponent = true
+		if component.Style != hexgrid.ComponentStyleDouble {
+			t.Fatalf("base component style at powered target %v = %q, want double", target, component.Style)
+		}
+		break
+	}
+	if !foundBaseComponent {
+		t.Fatalf("powered target %v is missing from the base component layer", target)
+	}
+}
+
+func TestDowngradePoweredTripleComponentsOnlyChangesPoweredTriples(t *testing.T) {
+	positions := []hexgrid.GridPosition{
+		{Q: 0, R: 0}, {Q: 1, R: 0}, {Q: 2, R: 0}, {Q: 3, R: 0},
+	}
+	components := []placedComponent{
+		{Position: positions[0], Style: hexgrid.ComponentStyleTriple},
+		{Position: positions[1], Style: hexgrid.ComponentStyleDouble},
+		{Position: positions[2], Style: hexgrid.ComponentStyleSingle},
+		{Position: positions[3], Style: hexgrid.ComponentStyleTriple},
+	}
+	clusters := []clusterPlan{{
+		Components: append([]placedComponent(nil), components...),
+		PowerTargets: []hexgrid.GridPosition{positions[0], positions[1], positions[2]},
+	}}
+
+	downgradePoweredTripleComponents(components, clusters)
+
+	want := []hexgrid.ComponentStyle{
+		hexgrid.ComponentStyleDouble,
+		hexgrid.ComponentStyleDouble,
+		hexgrid.ComponentStyleSingle,
+		hexgrid.ComponentStyleTriple,
+	}
+	for i := range want {
+		if got := components[i].Style; got != want[i] {
+			t.Errorf("placement %d style = %q, want %q", i, got, want[i])
+		}
+		if got := clusters[0].Components[i].Style; got != want[i] {
+			t.Errorf("cluster component %d style = %q, want %q", i, got, want[i])
+		}
+	}
+}
+
 func TestPowerFeedsUseTopAndBottomRowsWithoutCrossing(t *testing.T) {
 	o := DefaultOptions()
 	o.Seed = 73

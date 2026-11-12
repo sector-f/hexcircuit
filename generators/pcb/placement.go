@@ -414,6 +414,7 @@ func placeClusters(
 				cluster.PowerPath = append([]hexgrid.GridPosition(nil), cluster.PowerPaths[0]...)
 			}
 		}
+		downgradePoweredTripleComponents(placements, clusters)
 		return placements, clusters, nil
 	}
 	if constrainedCandidatesFailed {
@@ -423,6 +424,35 @@ func placeClusters(
 		return nil, nil, &retryableGenerationError{err: fmt.Errorf("could not find enough distinct cluster components whose power-entry cores fit a single track; increase the minimum/maximum component radius or reduce trace spacing, node radius, or trace stroke width")}
 	}
 	return nil, nil, &retryableGenerationError{err: fmt.Errorf("could not place %d components in %d separated clusters with non-crossing power feeds; reduce component density or cluster size, or increase the canvas dimensions", o.ComponentCount, o.ClusterCount)}
+}
+
+// downgradePoweredTripleComponents removes the innermost base-layer outline from
+// any triple-style cluster component that successfully receives a power core.
+// Keep the returned placement list and the cluster plans consistent.
+func downgradePoweredTripleComponents(placements []placedComponent, clusters []clusterPlan) {
+	powered := make(map[hexgrid.GridPosition]bool)
+	for _, cluster := range clusters {
+		for _, target := range cluster.PowerTargets {
+			powered[target] = true
+		}
+	}
+	if len(powered) == 0 {
+		return
+	}
+
+	for i := range placements {
+		if powered[placements[i].Position] && placements[i].Style == hexgrid.ComponentStyleTriple {
+			placements[i].Style = hexgrid.ComponentStyleDouble
+		}
+	}
+	for clusterIndex := range clusters {
+		for componentIndex := range clusters[clusterIndex].Components {
+			component := &clusters[clusterIndex].Components[componentIndex]
+			if powered[component.Position] && component.Style == hexgrid.ComponentStyleTriple {
+				component.Style = hexgrid.ComponentStyleDouble
+			}
+		}
+	}
 }
 
 // routePowerFeeds retries the complete feed set with fresh reservations. Changing
