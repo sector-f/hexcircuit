@@ -32,9 +32,10 @@ type placedComponent struct {
 }
 
 type boardPlan struct {
-	Components   []hexgrid.GridComponent
-	SignalTraces []hexgrid.GridTrace
-	PowerCores   []hexgrid.GridComponent
+	Components    []hexgrid.GridComponent
+	SignalTraces  []hexgrid.GridTrace
+	HubComponents []hexgrid.GridComponent
+	PowerCores    []hexgrid.GridComponent
 	PowerTraces  []hexgrid.GridTrace
 	// InterclusterComponents contains the endpoint cores rendered with inter-cluster traces.
 	InterclusterComponents []hexgrid.GridComponent
@@ -148,6 +149,12 @@ func buildBoard(
 	}
 
 	plan := boardPlan{Clusters: clusters}
+	for _, cluster := range clusters {
+		plan.HubComponents = append(plan.HubComponents, hexgrid.GridComponent{
+			Position: cluster.Hub,
+			Style:    hexgrid.ComponentStyleTriple,
+		})
+	}
 	allPositions := make(map[hexgrid.GridPosition]bool, len(placements)+len(topSources)+len(bottomSources))
 	for _, p := range placements {
 		allPositions[p.Position] = true
@@ -205,41 +212,32 @@ func buildBoard(
 	}
 
 	blocked := allPositions
-	// Every cluster already has a connected placement tree. Convert its parent
-	// relationships into mandatory local signal traces before adding optional links.
+	signalRoutes := routingCellsWithinPowerSourceCorridor(
+		routingCellsWithoutPowerSourceRows(o, topSources, bottomSources), topSources, bottomSources, o,
+	)
+	activeSources := make([]powerSource, 0)
 	for _, cluster := range clusters {
-		for _, component := range cluster.Components {
-			if component.Parent == nil {
-				continue
-			}
-			plan.SignalTraces = append(plan.SignalTraces, hexgrid.GridTrace{
-				Start:        *component.Parent,
-				Path:         []hexgrid.GridPosition{component.Position},
-				Lines:        randomLines(rng, o.MaxParallel),
-				HideTerminal: true,
-			})
+		activeSources = append(activeSources, cluster.PowerSources...)
+	}
+	if o.ConstrainComponentsToPowerSourceSpan {
+		spanSources := powerSourceSpanAssignments(activeSources, toPowerSources(topSources, powerSideTop), toPowerSources(bottomSources, powerSideBottom))
+		signalRoutes = routingCellsWithinPowerSourceSpan(signalRoutes, spanSources, o)
+	}
+	if o.ConstrainLayoutToPowerSourceTrapezoid {
+		bounds, err := newPowerSourceTrapezoid(topSources, bottomSources, o)
+		if err != nil {
+			return boardPlan{}, err
 		}
+		signalRoutes = routingCellsWithinPowerSourceTrapezoid(signalRoutes, bounds, o)
 	}
 
+	hubTraces, err := addHubConnections(o, rng, clusters, signalRoutes, blocked, reserved)
+	if err != nil {
+		return boardPlan{}, &retryableGenerationError{err: err}
+	}
+	plan.SignalTraces = append(plan.SignalTraces, hubTraces...)
+
 	if o.Connections > 0 || o.InterClusterTraces || o.DecorativeTraceCount > 0 {
-		signalRoutes := routingCellsWithinPowerSourceCorridor(
-			routingCellsWithoutPowerSourceRows(o, topSources, bottomSources), topSources, bottomSources, o,
-		)
-		activeSources := make([]powerSource, 0)
-		for _, cluster := range clusters {
-			activeSources = append(activeSources, cluster.PowerSources...)
-		}
-		if o.ConstrainComponentsToPowerSourceSpan {
-			spanSources := powerSourceSpanAssignments(activeSources, toPowerSources(topSources, powerSideTop), toPowerSources(bottomSources, powerSideBottom))
-			signalRoutes = routingCellsWithinPowerSourceSpan(signalRoutes, spanSources, o)
-		}
-		if o.ConstrainLayoutToPowerSourceTrapezoid {
-			bounds, err := newPowerSourceTrapezoid(topSources, bottomSources, o)
-			if err != nil {
-				return boardPlan{}, err
-			}
-			signalRoutes = routingCellsWithinPowerSourceTrapezoid(signalRoutes, bounds, o)
-		}
 		if o.Connections > 0 {
 			extra, err := addExtraSignalConnections(o, rng, clusters, signalRoutes, blocked, reserved)
 			if err != nil {
@@ -382,6 +380,26 @@ func renderBoard(o Options, plan boardPlan) (string, error) {
 			return "", fmt.Errorf("render inter-cluster trace layer: %w", err)
 		}
 		combined, err = appendSVGLayerNamed(combined, interClusterSVG, "inter-cluster")
+		if err != nil {
+			return "", err
+		}
+	}
+	if len(plan.HubComponents) > 0 {
+		hub := base
+		hub.Color = o.AccentColor
+		hub.GlowEnabled = o.AccentGlow
+		hub.GlowBlurRadius = o.AccentGlowBlurRadius
+		hub.GlowOpacity = o.AccentGlowOpacity
+		hub.Background = "none"
+		hub.Grid.StrokeWidth = 0
+		hubSVG, err := hexgrid.Render(hexgrid.Scene{
+			Options:    hub,
+			Components: plan.HubComponents,
+		})
+		if err != nil {
+			return "", fmt.Errorf("render hub layer: %w", err)
+		}
+		combined, err = appendSVGLayerNamed(combined, hubSVG, "hub")
 		if err != nil {
 			return "", err
 		}

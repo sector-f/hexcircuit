@@ -602,9 +602,16 @@ func choosePowerTargets(components []placedComponent, count int, rng *rand.Rand)
 	if count <= 0 || len(components) == 0 {
 		return nil
 	}
-	positions := make([]hexgrid.GridPosition, len(components))
-	for i, component := range components {
-		positions[i] = component.Position
+	positions := make([]hexgrid.GridPosition, 0, len(components))
+	for _, component := range components {
+		if component.Parent != nil {
+			positions = append(positions, component.Position)
+		}
+	}
+	if len(positions) == 0 {
+		for _, component := range components {
+			positions = append(positions, component.Position)
+		}
 	}
 	rng.Shuffle(len(positions), func(i, j int) {
 		positions[i], positions[j] = positions[j], positions[i]

@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"math"
 	"math/rand"
+	"sort"
 
 	"github.com/sector-f/hexgrid"
 	"github.com/sector-f/hexgrid/internal/gridgeom"
@@ -258,6 +259,55 @@ func compressPath(path []hexgrid.GridPosition) []hexgrid.GridPosition {
 	}
 	result = append(result, path[len(path)-1])
 	return result
+}
+
+// addHubConnections creates one routed signal trace from each cluster hub to
+// every other component in that cluster. Other components in the same cluster
+// may be traversed as underpasses; their rendered symbols cover the trace bodies.
+func addHubConnections(
+	o Options,
+	rng *rand.Rand,
+	clusters []clusterPlan,
+	allowed, blocked, reserved map[hexgrid.GridPosition]bool,
+) ([]hexgrid.GridTrace, error) {
+	traces := make([]hexgrid.GridTrace, 0)
+	for _, cluster := range clusters {
+		targets := make([]hexgrid.GridPosition, 0, len(cluster.Components)-1)
+		localBlocked := copyAllowedRoutes(blocked)
+		for _, component := range cluster.Components {
+			if component.Position == cluster.Hub {
+				continue
+			}
+			targets = append(targets, component.Position)
+			delete(localBlocked, component.Position)
+		}
+		// Preserve the endpoint validation required by findRoute.
+		localBlocked[cluster.Hub] = true
+		sort.SliceStable(targets, func(i, j int) bool {
+			return hexDistance(cluster.Hub, targets[i]) > hexDistance(cluster.Hub, targets[j])
+		})
+
+		for _, target := range targets {
+			localBlocked[target] = true
+			path, ok := findRoute(cluster.Hub, target, allowed, localBlocked, reserved, powerSideAny, rng)
+			if !ok || len(path) < 2 {
+				return nil, fmt.Errorf(
+					"could not route cluster %d hub to component at grid position (%d, %d)",
+					cluster.ID+1, target.Q, target.R,
+				)
+			}
+			traces = append(traces, hexgrid.GridTrace{
+				Start:        cluster.Hub,
+				Path:         compressPath(path),
+				Lines:        randomLines(rng, o.MaxParallel),
+				HideTerminal: true,
+			})
+			for _, position := range path[1 : len(path)-1] {
+				reserved[position] = true
+			}
+		}
+	}
+	return traces, nil
 }
 
 func addExtraSignalConnections(
