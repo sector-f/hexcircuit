@@ -297,10 +297,7 @@ func buildBoard(
 		}
 	}
 
-	accentCores := make([]hexgrid.GridComponent, 0, len(plan.PowerCores)+len(plan.InterclusterComponents))
-	accentCores = append(accentCores, plan.PowerCores...)
-	accentCores = append(accentCores, plan.InterclusterComponents...)
-	adjustBaseComponentStylesForAccentCores(o, plan.Components, plan.Clusters, accentCores)
+	adjustBaseComponentStylesForAccentCores(o, plan.Components, plan.Clusters, plan.PowerCores, plan.InterclusterComponents)
 
 	return plan, nil
 }
