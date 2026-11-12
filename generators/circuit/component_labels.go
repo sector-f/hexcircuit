@@ -2,7 +2,6 @@ package circuit
 
 import (
 	"fmt"
-	"math"
 	"math/rand"
 	"os"
 	"strings"
@@ -19,6 +18,15 @@ const (
 	componentLabelPadding          = 0.005
 	componentLabelObjectGap        = 0.006
 )
+
+// componentLabelFontColor returns the explicitly configured label color when
+// supplied; otherwise it preserves the generator's existing foreground color.
+func componentLabelFontColor(o Options) string {
+	if o.FontColorSpecified {
+		return o.FontColor
+	}
+	return o.Color
+}
 
 // Label diagnostics are opt-in so normal generation remains quiet. Set
 // HEXAGONS_DEBUG_LABELS=1 when investigating placements.

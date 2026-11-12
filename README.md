@@ -59,7 +59,7 @@ The six adjacent-cell directions are:
 | 0 | -1 | northwest |
 | 1 | -1 | northeast |
 
-For example, `GridPosition{Q: -1, R: 0}` is one cell west of the origin. `GridPosition{Q: 0, R: 2}` is two cells southeast. `The renderer converts axial positions into physical drawing coordinates internally.
+For example, `GridPosition{Q: -1, R: 0}` is one cell west of the origin. `GridPosition{Q: 0, R: 2}` is two cells southeast. The renderer converts axial positions into physical drawing coordinates internally.
 
 The same axial positions remain valid when changing the orientation. The orientation changes the rendered hexagon geometry; callers do not need to redesign their coordinate layout.
 
