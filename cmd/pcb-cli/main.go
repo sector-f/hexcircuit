@@ -57,6 +57,7 @@ func parseOptions(arguments []string, stderr io.Writer) (CLIOptions, error) {
 	flags.IntVar(&opts.Generator.ComponentCount, "component-count", opts.Generator.ComponentCount, "Number of ordinary components placed in clusters, excluding power-source contacts.")
 	flags.IntVar(&opts.Generator.ClusterCount, "cluster-count", opts.Generator.ClusterCount, "Number of major component clusters.")
 	flags.IntVar(&opts.Generator.MinComponentsPerCluster, "min-components-per-cluster", opts.Generator.MinComponentsPerCluster, "Minimum number of ordinary components in each cluster.")
+	flags.BoolVar(&opts.Generator.AccentClusterCenters, "accent-cluster-centers", opts.Generator.AccentClusterCenters, "Render the first component in each cluster using the accent color.")
 	flags.IntVar(&opts.Generator.MinPowerSourcesPerCluster, "min-power-sources-per-cluster", opts.Generator.MinPowerSourcesPerCluster, "Minimum number of active power feeds per cluster; 0 permits unpowered clusters.")
 	flags.IntVar(&opts.Generator.MaxPowerSourcesPerCluster, "max-power-sources-per-cluster", opts.Generator.MaxPowerSourcesPerCluster, "Maximum number of active power feeds per cluster (up to 6).")
 	flags.IntVar(&opts.Generator.Connections, "connections", opts.Generator.Connections, "Target number of additional intra-cluster signal trace bundles.")

@@ -10,6 +10,7 @@ import (
 func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 	opts, err := parseOptions([]string{
 		"--min-components-per-cluster=2",
+		"--accent-cluster-centers",
 		"--min-power-sources-per-cluster=0",
 		"--max-power-sources-per-cluster=3",
 		"--top-power-source-count=9",
@@ -39,6 +40,9 @@ func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 	}
 	if opts.Generator.MinComponentsPerCluster != 2 {
 		t.Errorf("minimum components per cluster = %d, want 2", opts.Generator.MinComponentsPerCluster)
+	}
+	if !opts.Generator.AccentClusterCenters {
+		t.Error("accent cluster centers were not enabled")
 	}
 	if opts.Generator.MinPowerSourcesPerCluster != 0 || opts.Generator.MaxPowerSourcesPerCluster != 3 {
 		t.Errorf("power-source range = %d..%d, want 0..3", opts.Generator.MinPowerSourcesPerCluster, opts.Generator.MaxPowerSourcesPerCluster)

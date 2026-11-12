@@ -187,6 +187,7 @@
           <div class="field"><label for="componentCount">Component count</label><input id="componentCount" type="number" min="1" max="500" step="1" value="38" required></div>
           <div class="field"><label for="clusterCount">Cluster count</label><input id="clusterCount" type="number" min="1" max="50" step="1" value="6" required></div>
           <div class="field"><label for="minComponentsPerCluster">Minimum components</label><input id="minComponentsPerCluster" type="number" min="1" max="500" step="1" value="1" required></div>
+          <div class="field full check-field"><input id="accentClusterCenters" type="checkbox"><label for="accentClusterCenters">Render cluster centers in accent color</label></div>
           <div class="field"><label for="minPowerSourcesPerCluster">Minimum power feeds</label><input id="minPowerSourcesPerCluster" type="number" min="0" max="6" step="1" value="1" required></div>
           <div class="field"><label for="maxPowerSourcesPerCluster">Maximum power feeds</label><input id="maxPowerSourcesPerCluster" type="number" min="0" max="6" step="1" value="1" required></div>
           <div class="field"><label for="componentRadius">Component radius (in)</label><input id="componentRadius" type="number" min="0.001" step="0.01" value="0.26" required></div>
@@ -331,6 +332,7 @@
           componentCount: number('componentCount'),
           clusterCount: number('clusterCount'),
           minComponentsPerCluster: number('minComponentsPerCluster'),
+           accentClusterCenters: checked('accentClusterCenters'),
           minPowerSourcesPerCluster: number('minPowerSourcesPerCluster'),
           maxPowerSourcesPerCluster: number('maxPowerSourcesPerCluster'),
           componentRadius: number('componentRadius'),

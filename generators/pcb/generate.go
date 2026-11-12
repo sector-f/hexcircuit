@@ -334,16 +334,57 @@ func renderBoard(o Options, plan boardPlan) (string, error) {
 	base.TraceSpacing = o.TraceSpacing
 	base.NodeRadius = o.NodeRadius
 
+	baseComponents := plan.Components
+	var accentClusterCenters []hexgrid.GridComponent
+	if o.AccentClusterCenters {
+		centerPositions := make(map[hexgrid.GridPosition]bool, len(plan.Clusters))
+		for _, cluster := range plan.Clusters {
+			if len(cluster.Components) == 0 {
+				continue
+			}
+			center := cluster.Components[0]
+			centerPositions[center.Position] = true
+			accentClusterCenters = append(accentClusterCenters, hexgrid.GridComponent{
+				Position:    center.Position,
+				Style:       center.Style,
+				RadiusScale: center.RadiusScale,
+			})
+		}
+		baseComponents = make([]hexgrid.GridComponent, 0, len(plan.Components)-len(accentClusterCenters))
+		for _, component := range plan.Components {
+			if !centerPositions[component.Position] {
+				baseComponents = append(baseComponents, component)
+			}
+		}
+	}
+
 	baseTraces := append(append([]hexgrid.GridTrace(nil), plan.SignalTraces...), plan.DecorativeTraces...)
 	baseSVG, err := hexgrid.Render(hexgrid.Scene{
 		Options:    base,
-		Components: plan.Components,
+		Components: baseComponents,
 		Traces:     baseTraces,
 	})
 	if err != nil {
 		return "", fmt.Errorf("render base layer: %w", err)
 	}
 	combined := baseSVG
+	if len(accentClusterCenters) > 0 {
+		accent := base
+		accent.Color = o.AccentColor
+		accent.GlowEnabled = o.AccentGlow
+		accent.GlowBlurRadius = o.AccentGlowBlurRadius
+		accent.GlowOpacity = o.AccentGlowOpacity
+		accent.Background = "none"
+		accent.Grid.StrokeWidth = 0
+		centerSVG, err := hexgrid.Render(hexgrid.Scene{Options: accent, Components: accentClusterCenters})
+		if err != nil {
+			return "", fmt.Errorf("render accent cluster centers: %w", err)
+		}
+		combined, err = appendSVGLayerNamed(combined, centerSVG, "cluster-centers")
+		if err != nil {
+			return "", err
+		}
+	}
 	if len(plan.PowerTraces) > 0 {
 		accent := base
 		accent.Color = o.AccentColor

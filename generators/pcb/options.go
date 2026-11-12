@@ -77,6 +77,9 @@ type Options struct {
 	// MinComponentsPerCluster is the minimum number of components assigned to each cluster.
 	// A value of 1 permits single-component clusters.
 	MinComponentsPerCluster int
+	// AccentClusterCenters renders the first component placed in each cluster
+	// on the accent-color layer instead of the base-color layer.
+	AccentClusterCenters bool
 	// MinPowerSourcesPerCluster and MaxPowerSourcesPerCluster bound the randomized
 	// number of active power feeds assigned to each cluster. Zero permits unpowered clusters.
 	// The current generator supports at most six feeds per cluster.

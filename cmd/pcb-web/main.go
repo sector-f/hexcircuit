@@ -46,6 +46,7 @@ type generateRequest struct {
 	ComponentCount                        int     `json:"componentCount"`
 	ClusterCount                          int     `json:"clusterCount"`
 	MinComponentsPerCluster               int     `json:"minComponentsPerCluster"`
+	AccentClusterCenters                  bool    `json:"accentClusterCenters"`
 	MinPowerSourcesPerCluster             int     `json:"minPowerSourcesPerCluster"`
 	MaxPowerSourcesPerCluster             int     `json:"maxPowerSourcesPerCluster"`
 	ComponentRadius                       float64 `json:"componentRadius"`
@@ -319,6 +320,7 @@ func (r generateRequest) options() (pcb.Options, error) {
 		ComponentCount:                        r.ComponentCount,
 		ClusterCount:                          r.ClusterCount,
 		MinComponentsPerCluster:               r.MinComponentsPerCluster,
+		AccentClusterCenters:                  r.AccentClusterCenters,
 		MinPowerSourcesPerCluster:             r.MinPowerSourcesPerCluster,
 		MaxPowerSourcesPerCluster:             r.MaxPowerSourcesPerCluster,
 		Connections:                           r.Connections,

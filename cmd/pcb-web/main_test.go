@@ -18,6 +18,7 @@ func validRequest() generateRequest {
 		AccentGlow: o.AccentGlow, AccentGlowBlurRadius: o.AccentGlowBlurRadius, AccentGlowOpacity: o.AccentGlowOpacity,
 		Background: o.Background, ComponentCount: o.ComponentCount, ClusterCount: o.ClusterCount,
 		MinComponentsPerCluster:   o.MinComponentsPerCluster,
+		AccentClusterCenters:      o.AccentClusterCenters,
 		MinPowerSourcesPerCluster: o.MinPowerSourcesPerCluster, MaxPowerSourcesPerCluster: o.MaxPowerSourcesPerCluster,
 		ComponentRadius:             o.ComponentRadius,
 		ComponentStrokeWidth:        o.ComponentStrokeWidth,
@@ -49,6 +50,7 @@ func TestGenerateRequestMapsToPCBOptions(t *testing.T) {
 	req.PowerSourceStyle = "double"
 	req.ConstrainComponentsToPowerSourceSpan = true
 	req.ConstrainLayoutToPowerSourceTrapezoid = true
+	req.AccentClusterCenters = true
 	req.InterClusterTraces = true
 	req.DecorativeTraceCount = 5
 	req.DecorativeTraceMinLength = 3
@@ -92,6 +94,9 @@ func TestGenerateRequestMapsToPCBOptions(t *testing.T) {
 	}
 	if !got.ConstrainComponentsToPowerSourceSpan || !got.ConstrainLayoutToPowerSourceTrapezoid {
 		t.Fatal("layout constraints were not mapped")
+	}
+	if !got.AccentClusterCenters {
+		t.Fatal("accent cluster centers option was not mapped")
 	}
 	if !got.InterClusterTraces {
 		t.Fatal("inter-cluster trace option was not mapped")
@@ -243,7 +248,7 @@ func TestHandleIndexRendersPCBInterface(t *testing.T) {
 	if got := response.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
 		t.Fatalf("content type = %q, want HTML", got)
 	}
-	for _, want := range []string{"PCB Layout Generator", "constrainLayoutToPowerSourceTrapezoid", "powerSourceSpacing", "minPowerSourcesPerCluster", "maxPowerSourcesPerCluster", "interClusterTraces", "decorativeTraceCount", "decorativeTraceMinLength", "decorativeTraceMaxLength", "decorativeTraceMaxBends", "gridColor", "routeAttempts", "generationAttempts", "baseGlowEnabled", "baseGlowBlurRadius", "baseGlowOpacity", "accentGlowEnabled", "accentGlowBlurRadius", "accentGlowOpacity"} {
+	for _, want := range []string{"PCB Layout Generator", "constrainLayoutToPowerSourceTrapezoid", "powerSourceSpacing", "minPowerSourcesPerCluster", "maxPowerSourcesPerCluster", "interClusterTraces", "decorativeTraceCount", "decorativeTraceMinLength", "decorativeTraceMaxLength", "decorativeTraceMaxBends", "gridColor", "routeAttempts", "generationAttempts", "baseGlowEnabled", "baseGlowBlurRadius", "baseGlowOpacity", "accentGlowEnabled", "accentGlowBlurRadius", "accentGlowOpacity", "accentClusterCenters"} {
 		if !bytes.Contains(response.Body.Bytes(), []byte(want)) {
 			t.Errorf("rendered HTML is missing %q", want)
 		}
