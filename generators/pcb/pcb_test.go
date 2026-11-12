@@ -605,6 +605,13 @@ func TestNormalizeOptionsRejectsOverlappingComponentSizes(t *testing.T) {
 		t.Fatal("expected pitch that permits component overlap to be rejected")
 	}
 
+	// Keep this test focused on component-radius validation. Increasing pitch
+	// reduces the number of cells that fit across the canvas, which can make
+	// the default separated power-source row impossible to place.
+	o.TopPowerSourceCount = 0
+	o.BottomPowerSourceCount = 0
+	o.MinPowerSourcesPerCluster = 0
+	o.MaxPowerSourcesPerCluster = 0
 	o.Pitch = 0.54
 	if _, err := normalizeOptions(o); err != nil {
 		t.Fatalf("increased pitch should accommodate component radii: %v", err)
