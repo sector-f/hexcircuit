@@ -455,6 +455,42 @@ func downgradePoweredTripleComponents(placements []placedComponent, clusters []c
 	}
 }
 
+// downgradeInterClusterTripleComponents removes the innermost base-layer outline
+// from triple-style components that receive an inter-cluster endpoint core.
+// Keep the rendered component list and cluster plans consistent.
+func downgradeInterClusterTripleComponents(
+	baseComponents []hexgrid.GridComponent,
+	clusters []clusterPlan,
+	traces []hexgrid.GridTrace,
+) {
+	endpoints := make(map[hexgrid.GridPosition]bool)
+	for _, trace := range traces {
+		if len(trace.Path) == 0 {
+			continue
+		}
+		endpoints[trace.Start] = true
+		endpoints[trace.Path[len(trace.Path)-1]] = true
+	}
+	if len(endpoints) == 0 {
+		return
+	}
+
+	for i := range baseComponents {
+		component := &baseComponents[i]
+		if endpoints[component.Position] && component.Style == hexgrid.ComponentStyleTriple {
+			component.Style = hexgrid.ComponentStyleDouble
+		}
+	}
+	for clusterIndex := range clusters {
+		for componentIndex := range clusters[clusterIndex].Components {
+			component := &clusters[clusterIndex].Components[componentIndex]
+			if endpoints[component.Position] && component.Style == hexgrid.ComponentStyleTriple {
+				component.Style = hexgrid.ComponentStyleDouble
+			}
+		}
+	}
+}
+
 // routePowerFeeds retries the complete feed set with fresh reservations. Changing
 // an earlier feed's path can leave a valid corridor for a later feed.
 func routePowerFeeds(attempts int, rng *rand.Rand, order []powerRouteAssignment, clusters []clusterPlan, allowed, blocked map[hexgrid.GridPosition]bool) bool {

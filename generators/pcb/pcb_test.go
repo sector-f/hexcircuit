@@ -1211,6 +1211,55 @@ func TestRenderBoardKeepsInterClusterTracesInAccentLayer(t *testing.T) {
 	}
 }
 
+func TestDowngradeInterClusterTripleComponentsOnlyChangesEndpoints(t *testing.T) {
+	positions := []hexgrid.GridPosition{
+		{Q: 0, R: 0}, {Q: 1, R: 0}, {Q: 2, R: 0}, {Q: 3, R: 0},
+	}
+	baseComponents := []hexgrid.GridComponent{
+		{Position: positions[0], Style: hexgrid.ComponentStyleTriple},
+		{Position: positions[1], Style: hexgrid.ComponentStyleTriple},
+		{Position: positions[2], Style: hexgrid.ComponentStyleDouble},
+		{Position: positions[3], Style: hexgrid.ComponentStyleTriple},
+	}
+	clusters := []clusterPlan{
+		{ID: 0, Components: []placedComponent{
+			{Position: positions[0], Style: hexgrid.ComponentStyleTriple},
+			{Position: positions[1], Style: hexgrid.ComponentStyleTriple},
+		}},
+		{ID: 1, Components: []placedComponent{
+			{Position: positions[2], Style: hexgrid.ComponentStyleDouble},
+			{Position: positions[3], Style: hexgrid.ComponentStyleTriple},
+		}},
+	}
+	traces := []hexgrid.GridTrace{
+		{Start: positions[0], Path: []hexgrid.GridPosition{positions[1], positions[2]}},
+		{Start: positions[3]}, // An incomplete trace must not mark its start as an endpoint.
+	}
+
+	downgradeInterClusterTripleComponents(baseComponents, clusters, traces)
+
+	want := []hexgrid.ComponentStyle{
+		hexgrid.ComponentStyleDouble, // trace start: Triple -> Double
+		hexgrid.ComponentStyleTriple, // intermediate path cell: unchanged
+		hexgrid.ComponentStyleDouble, // trace end: already Double
+		hexgrid.ComponentStyleTriple, // incomplete trace: unchanged
+	}
+	for i := range want {
+		if got := baseComponents[i].Style; got != want[i] {
+			t.Errorf("base component %d style = %q, want %q", i, got, want[i])
+		}
+	}
+	for clusterIndex := range clusters {
+		for componentIndex := range clusters[clusterIndex].Components {
+			flatIndex := clusterIndex*2 + componentIndex
+			if got := clusters[clusterIndex].Components[componentIndex].Style; got != want[flatIndex] {
+				t.Errorf("cluster %d component %d style = %q, want %q",
+					clusterIndex, componentIndex, got, want[flatIndex])
+			}
+		}
+	}
+}
+
 func TestInterClusterTraceSeedRendersEndpointComponents(t *testing.T) {
 	o := DefaultOptions()
 	o.Seed = 1365413531639368899
@@ -1235,6 +1284,21 @@ func TestInterClusterTraceSeedRendersEndpointComponents(t *testing.T) {
 			expectedRadiusScales[component.Position] = clusterPowerCoreRadiusScale(o, component.RadiusScale)
 		}
 	}
+	baseComponents := make(map[hexgrid.GridPosition]hexgrid.GridComponent, len(plan.Components))
+	for _, component := range plan.Components {
+		baseComponents[component.Position] = component
+	}
+	for _, endpoint := range plan.InterclusterComponents {
+		base, ok := baseComponents[endpoint.Position]
+		if !ok {
+			t.Errorf("inter-cluster endpoint %v has no base-layer component", endpoint.Position)
+			continue
+		}
+		if base.Style == hexgrid.ComponentStyleTriple {
+			t.Errorf("inter-cluster endpoint %v retains triple style in the base layer", endpoint.Position)
+		}
+	}
+
 	components := make(map[hexgrid.GridPosition]hexgrid.GridComponent, len(plan.InterclusterComponents))
 	for _, component := range plan.InterclusterComponents {
 		if _, exists := components[component.Position]; exists {

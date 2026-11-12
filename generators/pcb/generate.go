@@ -291,6 +291,7 @@ func buildBoard(
 					seenEndpoints[position] = true
 				}
 			}
+			downgradeInterClusterTripleComponents(plan.Components, plan.Clusters, plan.InterClusterTraces)
 		}
 		if o.DecorativeTraceCount > 0 {
 			plan.DecorativeTraces = addDecorativeTraces(o, rng, clusters, signalRoutes, blocked, reserved)
