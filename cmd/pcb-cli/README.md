@@ -180,7 +180,7 @@ The inner and middle scales must satisfy `0 < inner < middle < 1`. The pitch mus
 
 | Flag | Default | Description |
 | --- | ---: | --- |
-| `--connections` | `18` | Target number of additional intra-cluster signal connections beyond mandatory spanning-tree connections. |
+| `--connections` | `18` | Target number of optional outer-component links beyond mandatory hub spokes. |
 | `--decorative-trace-count` | `0` | Best-effort count of decorative traces; zero disables them. |
 | `--decorative-trace-min-length` | `4` | Minimum decorative trace length in grid steps. |
 | `--decorative-trace-max-length` | `10` | Maximum decorative trace length in grid steps. |

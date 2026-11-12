@@ -59,7 +59,7 @@ func parseOptions(arguments []string, stderr io.Writer) (CLIOptions, error) {
 	flags.IntVar(&opts.Generator.MinComponentsPerCluster, "min-components-per-cluster", opts.Generator.MinComponentsPerCluster, "Minimum number of ordinary components in each cluster.")
 	flags.IntVar(&opts.Generator.MinPowerSourcesPerCluster, "min-power-sources-per-cluster", opts.Generator.MinPowerSourcesPerCluster, "Minimum number of active power feeds per cluster; 0 permits unpowered clusters.")
 	flags.IntVar(&opts.Generator.MaxPowerSourcesPerCluster, "max-power-sources-per-cluster", opts.Generator.MaxPowerSourcesPerCluster, "Maximum number of active power feeds per cluster (up to 6).")
-	flags.IntVar(&opts.Generator.Connections, "connections", opts.Generator.Connections, "Target number of additional intra-cluster signal trace bundles.")
+	flags.IntVar(&opts.Generator.Connections, "connections", opts.Generator.Connections, "Target number of optional outer-component links beyond mandatory hub spokes.")
 	flags.IntVar(&opts.Generator.DecorativeTraceCount, "decorative-trace-count", opts.Generator.DecorativeTraceCount, "Best-effort target number of decorative traces; zero disables them.")
 	flags.IntVar(&opts.Generator.DecorativeTraceMinLength, "decorative-trace-min-length", opts.Generator.DecorativeTraceMinLength, "Minimum decorative trace length in grid steps (3-100).")
 	flags.IntVar(&opts.Generator.DecorativeTraceMaxLength, "decorative-trace-max-length", opts.Generator.DecorativeTraceMaxLength, "Maximum decorative trace length in grid steps (3-100).")
