@@ -253,6 +253,8 @@ func placeClusters(
 		routingCellsWithoutPowerSourceRows(o, topSources, bottomSources), topSources, bottomSources, o,
 	)
 	constrainedCandidatesFailed := false
+	powerTargetAssignmentFailed := false
+	powerTargetAssignmentSucceeded := false
 
 	// Retry different source, center, and placement combinations when a set of
 	// non-crossing feeds or compact clusters cannot be constructed.
@@ -343,7 +345,12 @@ func placeClusters(
 				break
 			}
 			cluster.PowerSources = append([]powerSource(nil), centerClusters[clusterID].PowerSources...)
-			cluster.PowerTargets = choosePowerTargets(cluster.Components, len(cluster.PowerSources), rng)
+			cluster.PowerTargets = choosePowerTargets(cluster.Components, len(cluster.PowerSources), o, rng)
+			if len(cluster.PowerTargets) != len(cluster.PowerSources) {
+				powerTargetAssignmentFailed = true
+				failed = true
+				break
+			}
 			cluster.PowerPaths = make([][]hexgrid.GridPosition, len(cluster.PowerSources))
 			clusters[clusterID] = cluster
 			placements = append(placements, cluster.Components...)
@@ -354,6 +361,7 @@ func placeClusters(
 		if failed || len(placements) != o.ComponentCount {
 			continue
 		}
+		powerTargetAssignmentSucceeded = true
 
 		// Power routes may pass through empty cells, but never through another
 		// component or source contact. Their destination component is the only
@@ -410,6 +418,9 @@ func placeClusters(
 	}
 	if constrainedCandidatesFailed {
 		return nil, nil, &retryableGenerationError{err: fmt.Errorf("could not place %d components within the horizontal span of the active power sources; increase the source-row width or disable ConstrainComponentsToPowerSourceSpan", o.ComponentCount)}
+	}
+	if powerTargetAssignmentFailed && !powerTargetAssignmentSucceeded {
+		return nil, nil, &retryableGenerationError{err: fmt.Errorf("could not find enough distinct cluster components whose power-entry cores fit a single track; increase the minimum/maximum component radius or reduce trace spacing, node radius, or trace stroke width")}
 	}
 	return nil, nil, &retryableGenerationError{err: fmt.Errorf("could not place %d components in %d separated clusters with non-crossing power feeds; reduce component density or cluster size, or increase the canvas dimensions", o.ComponentCount, o.ClusterCount)}
 }
@@ -609,23 +620,40 @@ func toPowerSources(positions []hexgrid.GridPosition, side powerSide) []powerSou
 	return sources
 }
 
-// choosePowerTargets assigns each feed to a component in its cluster. It uses
-// every component once before reusing a destination when there are more feeds
-// than components, then repeats that order as necessary.
-func choosePowerTargets(components []placedComponent, count int, rng *rand.Rand) []hexgrid.GridPosition {
+// choosePowerTargets assigns feeds to components in their cluster. Components
+// whose power core cannot contain one track are excluded. The remaining targets
+// are randomized, then (when variable sizes are enabled) ordered by core capacity
+// and physical size so larger components are preferred for power entry.
+func choosePowerTargets(components []placedComponent, count int, o Options, rng *rand.Rand) []hexgrid.GridPosition {
 	if count <= 0 || len(components) == 0 {
 		return nil
 	}
-	positions := make([]hexgrid.GridPosition, len(components))
-	for i, component := range components {
-		positions[i] = component.Position
+	eligible := make([]placedComponent, 0, len(components))
+	for _, component := range components {
+		if powerFeedMaxParallel(o, component.RadiusScale) > 0 {
+			eligible = append(eligible, component)
+		}
 	}
-	rng.Shuffle(len(positions), func(i, j int) {
-		positions[i], positions[j] = positions[j], positions[i]
+	if len(eligible) == 0 || (len(eligible) < count && count <= len(components)) {
+		return nil
+	}
+	rng.Shuffle(len(eligible), func(i, j int) {
+		eligible[i], eligible[j] = eligible[j], eligible[i]
 	})
+	if o.ComponentMinRadius != 0 || o.ComponentMaxRadius != 0 {
+		sort.SliceStable(eligible, func(i, j int) bool {
+			aCapacity := powerFeedMaxParallel(o, eligible[i].RadiusScale)
+			bCapacity := powerFeedMaxParallel(o, eligible[j].RadiusScale)
+			if aCapacity != bCapacity {
+				return aCapacity > bCapacity
+			}
+			return clusterPowerCorePhysicalRadius(o, eligible[i].RadiusScale) >
+				clusterPowerCorePhysicalRadius(o, eligible[j].RadiusScale)
+		})
+	}
 	targets := make([]hexgrid.GridPosition, count)
 	for i := range targets {
-		targets[i] = positions[i%len(positions)]
+		targets[i] = eligible[i%len(eligible)].Position
 	}
 	return targets
 }

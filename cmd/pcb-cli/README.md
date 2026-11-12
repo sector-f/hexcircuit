@@ -189,14 +189,14 @@ The inner and middle scales must satisfy `0 < inner < middle < 1`. Setting eithe
 | `--decorative-trace-max-length` | `10` | Maximum decorative trace length in grid steps. |
 | `--decorative-trace-max-bends` | `3` | Maximum number of direction changes per decorative trace. |
 | `--inter-cluster-traces` | `false` | Enable optional randomized accent-colored traces between clusters. |
-| `--max-parallel` | `3` | Maximum number of parallel traces in a bundle; allowed values are 1 through 3. |
+| `--max-parallel` | `3` | Maximum requested tracks in a bundle; power feeds automatically use fewer when an endpoint core is too small. |
 | `--trace-stroke-width` | `0.009` | Width of each signal trace. |
 | `--trace-spacing` | `0.032` | Perpendicular centerline spacing between parallel traces. |
 | `--node-radius` | `0.014` | Radius of hollow terminal pads. |
 | `--route-attempts` | `12` | Complete randomized power-feed routing passes per component placement. |
 | `--generation-attempts` | `4` | Complete board-generation attempts using deterministic fallback seeds; includes the initial seed and accepts values from 1 to 20. |
 
-The requested decorative-trace count is best-effort. Traces start at leaf components, use one or more bends, and end at hollow pads in empty cells. Their line count is randomized up to `--max-parallel`; the default length range is 4–10 grid steps and the default maximum is 3 bends. The requested connection count is a target; the generator's routing constraints may prevent every candidate connection from being placed. The connection count must be nonnegative. `--route-attempts` controls complete randomized passes over mandatory power feeds for one placement. `--generation-attempts` controls how many different deterministic seeds may be tried for the entire board when placement/routing exhausts its internal search; `1` disables seed fallback.
+Power-feed line counts are randomized up to the capacity of both the fixed source core and selected destination core, capped by `--max-parallel`. Smaller components that cannot fit one track are skipped as destinations; larger viable components are preferred. A three-track request can therefore fall back to two or one without requiring a separate option change. The requested decorative-trace count is best-effort. Traces start at leaf components, use one or more bends, and end at hollow pads in empty cells. Their line count is randomized up to `--max-parallel`; the default length range is 4–10 grid steps and the default maximum is 3 bends. The requested connection count is a target; the generator's routing constraints may prevent every candidate connection from being placed. The connection count must be nonnegative. `--route-attempts` controls complete randomized passes over mandatory power feeds for one placement. `--generation-attempts` controls how many different deterministic seeds may be tried for the entire board when placement/routing exhausts its internal search; `1` disables seed fallback.
 
 ### Background grid
 

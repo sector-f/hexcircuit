@@ -192,11 +192,15 @@ func buildBoard(
 			if path[0] != source.Position || path[len(path)-1] != target {
 				return boardPlan{}, fmt.Errorf("cluster %d power feed %d route does not connect its source to its assigned component", cluster.ID+1, i+1)
 			}
+			maxParallel := powerFeedMaxParallel(o, componentRadiusScales[target])
+			if maxParallel == 0 {
+				return boardPlan{}, fmt.Errorf("cluster %d power feed %d has no component core large enough for a single track", cluster.ID+1, i+1)
+			}
 			plan.PowerRoutes = append(plan.PowerRoutes, append([]hexgrid.GridPosition(nil), path...))
 			plan.PowerTraces = append(plan.PowerTraces, hexgrid.GridTrace{
 				Start:        source.Position,
 				Path:         compressPath(path),
-				Lines:        randomLines(rng, o.MaxParallel),
+				Lines:        randomLines(rng, maxParallel),
 				HideTerminal: true,
 			})
 			for _, position := range path {

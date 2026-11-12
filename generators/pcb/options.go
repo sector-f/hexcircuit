@@ -96,7 +96,8 @@ type Options struct {
 	// InterClusterTraces enables a randomized number of accent-colored traces
 	// connecting components in different clusters. Generation may produce none.
 	InterClusterTraces bool
-	// MaxParallel is the maximum number of parallel tracks in a trace bundle (1-3).
+	// MaxParallel is the maximum requested number of parallel tracks in a bundle (1-3).
+	// Power feeds automatically use fewer tracks when either endpoint core is smaller.
 	MaxParallel int
 	// RouteAttempts is the number of randomized passes over all power feeds per placement.
 	RouteAttempts int
@@ -383,11 +384,13 @@ func normalizeOptions(o Options) (Options, error) {
 	if o.Pitch <= minimumComponentSpacing {
 		return o, fmt.Errorf("pitch must be greater than %.6g to prevent component overlap (maximum cluster radius %.6g)", minimumComponentSpacing, maximumComponentRadius)
 	}
-	maximumBundleReach := float64(o.MaxParallel-1)*o.TraceSpacing/2 + o.NodeRadius + o.TraceStrokeWidth/2
-	minimumPowerCoreRadius := math.Min(o.PowerSourceComponentRadius, minimumComponentRadius)
-	powerCoreApothem := minimumPowerCoreRadius * powerCoreRadiusScale * math.Sqrt(3) / 2
-	if maximumBundleReach >= powerCoreApothem {
-		return o, fmt.Errorf("trace bundle does not fit inside power-entry cores; reduce trace spacing, node radius, or maximum parallel tracks")
+	if availablePowerSources > 0 && o.MaxPowerSourcesPerCluster > 0 {
+		if maxParallelTracksForCore(o, sourcePowerCoreRadius(o)) == 0 {
+			return o, fmt.Errorf("a single track does not fit inside the fixed source power core; increase power-source component radius or reduce trace spacing, node radius, or trace stroke width")
+		}
+		if maxParallelTracksForCore(o, maximumClusterPowerCoreRadius(o)) == 0 {
+			return o, fmt.Errorf("a single track does not fit inside even the largest cluster power core; increase the maximum component radius or reduce trace spacing, node radius, or trace stroke width")
+		}
 	}
 	topSources, bottomSources, err := powerSourcePositions(o)
 	if err != nil {
@@ -417,6 +420,41 @@ func clusterComponentRadiusBounds(o Options) (float64, float64) {
 		maximum = o.ComponentRadius
 	}
 	return minimum, maximum
+}
+
+
+func maxParallelTracksForCore(o Options, coreRadius float64) int {
+	if coreRadius <= 0 || !isFinite(coreRadius) {
+		return 0
+	}
+	coreApothem := coreRadius * math.Sqrt(3) / 2
+	for tracks := o.MaxParallel; tracks >= 1; tracks-- {
+		bundleReach := float64(tracks-1)*o.TraceSpacing/2 + o.NodeRadius + o.TraceStrokeWidth/2
+		if bundleReach < coreApothem {
+			return tracks
+		}
+	}
+	return 0
+}
+
+func sourcePowerCoreRadius(o Options) float64 {
+	return o.PowerSourceComponentRadius * powerCoreRadiusScale
+}
+
+func clusterPowerCorePhysicalRadius(o Options, componentRadiusScale float64) float64 {
+	return o.ComponentRadius * clusterPowerCoreRadiusScale(o, componentRadiusScale)
+}
+
+func maximumClusterPowerCoreRadius(o Options) float64 {
+	_, maximumComponentRadius := clusterComponentRadiusBounds(o)
+	return clusterPowerCorePhysicalRadius(o, maximumComponentRadius/o.ComponentRadius)
+}
+
+func powerFeedMaxParallel(o Options, destinationRadiusScale float64) int {
+	return min(
+		maxParallelTracksForCore(o, sourcePowerCoreRadius(o)),
+		maxParallelTracksForCore(o, clusterPowerCorePhysicalRadius(o, destinationRadiusScale)),
+	)
 }
 
 // maximumLayoutComponentRadius includes cluster components and fixed-size

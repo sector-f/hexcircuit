@@ -232,6 +232,7 @@
           <div class="field"><label for="decorativeTraceMaxBends">Maximum bends</label><input id="decorativeTraceMaxBends" type="number" min="1" max="10" step="1" value="3" required></div>
           <div class="hint">Best-effort count of bent, base-color trace bundles from cluster leaf components to hollow terminal pads. Each bundle may contain multiple parallel lines, controlled by Max parallel tracks. Traces are spread across clusters; unavailable paths are skipped. Set the count to zero to disable.</div>
           <div class="field"><label for="maxParallel">Max parallel tracks</label><input id="maxParallel" type="number" min="1" max="3" step="1" value="3" required></div>
+          <div class="hint">This is an upper bound. Power feeds automatically use fewer tracks when the source or destination core is too small; larger viable cluster components are preferred as destinations.</div>
           <div class="field"><label for="traceStrokeWidth">Trace width (in)</label><input id="traceStrokeWidth" type="number" min="0.001" step="0.001" value="0.009" required></div>
           <div class="field"><label for="traceSpacing">Trace spacing (in)</label><input id="traceSpacing" type="number" min="0.001" step="0.001" value="0.032" required></div>
           <div class="field"><label for="nodeRadius">Terminal radius (in)</label><input id="nodeRadius" type="number" min="0.001" step="0.001" value="0.014" required></div>

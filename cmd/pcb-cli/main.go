@@ -65,7 +65,7 @@ func parseOptions(arguments []string, stderr io.Writer) (CLIOptions, error) {
 	flags.IntVar(&opts.Generator.DecorativeTraceMaxLength, "decorative-trace-max-length", opts.Generator.DecorativeTraceMaxLength, "Maximum decorative trace length in grid steps (3-100).")
 	flags.IntVar(&opts.Generator.DecorativeTraceMaxBends, "decorative-trace-max-bends", opts.Generator.DecorativeTraceMaxBends, "Maximum number of bends per decorative trace (1-10).")
 	flags.BoolVar(&opts.Generator.InterClusterTraces, "inter-cluster-traces", opts.Generator.InterClusterTraces, "Enable optional randomized accent-colored traces between clusters.")
-	flags.IntVar(&opts.Generator.MaxParallel, "max-parallel", opts.Generator.MaxParallel, "Maximum number of parallel traces per bundle (1-3).")
+	flags.IntVar(&opts.Generator.MaxParallel, "max-parallel", opts.Generator.MaxParallel, "Maximum requested tracks per bundle (1-3); power feeds automatically reduce to fit endpoint cores.")
 	flags.IntVar(&opts.Generator.RouteAttempts, "route-attempts", opts.Generator.RouteAttempts, "Randomized power-feed routing passes per placement.")
 	flags.IntVar(&opts.Generator.GenerationAttempts, "generation-attempts", opts.Generator.GenerationAttempts, "Complete board-generation attempts using deterministic fallback seeds (includes the first seed).")
 

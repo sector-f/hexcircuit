@@ -682,6 +682,7 @@ func TestGeneratedComponentsDoNotOverlap(t *testing.T) {
 			o.ComponentMinRadius = 0.20
 			o.ComponentMaxRadius = 0.30
 			o.Pitch = 0.54
+			o.Width = 10.4
 		}},
 	}
 	for _, configuration := range configurations {
@@ -1199,11 +1200,123 @@ func TestAppendSVGLayerNamespacesOverlayIDs(t *testing.T) {
 	}
 }
 
-func TestNormalizeOptionsRejectsPowerBundleTooWide(t *testing.T) {
+
+func TestChoosePowerTargetsPrefersLargestEligibleComponents(t *testing.T) {
+	o := DefaultOptions()
+	o.ComponentMinRadius = 0.04
+	o.ComponentMaxRadius = 0.26
+	o.TraceSpacing = 0.08
+	components := []placedComponent{
+		{Position: hexgrid.GridPosition{Q: 0, R: 0}, RadiusScale: 0.04 / o.ComponentRadius},
+		{Position: hexgrid.GridPosition{Q: 1, R: 0}, RadiusScale: 0.14 / o.ComponentRadius},
+		{Position: hexgrid.GridPosition{Q: 2, R: 0}, RadiusScale: 0.26 / o.ComponentRadius},
+	}
+	got := choosePowerTargets(components, 2, o, rand.New(rand.NewSource(7)))
+	want := []hexgrid.GridPosition{{Q: 2, R: 0}, {Q: 1, R: 0}}
+	if len(got) != len(want) {
+		t.Fatalf("got %d destinations, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("destination %d = %v, want larger viable component %v", i, got[i], want[i])
+		}
+	}
+	if got := powerFeedMaxParallel(o, components[0].RadiusScale); got != 0 {
+		t.Fatalf("smallest component supports %d tracks, want 0", got)
+	}
+	if got := powerFeedMaxParallel(o, components[1].RadiusScale); got != 1 {
+		t.Fatalf("medium component supports %d tracks, want 1", got)
+	}
+	if got := powerFeedMaxParallel(o, components[2].RadiusScale); got != 2 {
+		t.Fatalf("largest component supports %d tracks, want 2", got)
+	}
+}
+
+
+
+func TestPowerFeedLineCountsRespectEndpointCoreCapacity(t *testing.T) {
+	o := DefaultOptions()
+	o.ComponentMinRadius = 0.18
+	o.ComponentMaxRadius = 0.24
+	o.TraceSpacing = 0.08
+	o.Seed = 912
+	o.SeedSet = true
+	top, bottom, err := powerSourcePositions(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := buildBoard(o, rand.New(rand.NewSource(o.Seed)), top, bottom)
+	if err != nil {
+		t.Fatalf("build board with adaptive power-feed widths: %v", err)
+	}
+
+	traceIndex := 0
+	for _, cluster := range plan.Clusters {
+		radiusScales := make(map[hexgrid.GridPosition]float64, len(cluster.Components))
+		for _, component := range cluster.Components {
+			radiusScales[component.Position] = component.RadiusScale
+		}
+		for _, target := range cluster.PowerTargets {
+			if traceIndex >= len(plan.PowerTraces) {
+				t.Fatal("missing power trace for assigned power target")
+			}
+			trace := plan.PowerTraces[traceIndex]
+			traceIndex++
+			maximum := powerFeedMaxParallel(o, radiusScales[target])
+			if trace.Lines < 1 || trace.Lines > maximum {
+				t.Errorf("power feed to %v uses %d tracks; endpoint cores support 1..%d",
+					target, trace.Lines, maximum)
+			}
+		}
+	}
+	if traceIndex != len(plan.PowerTraces) {
+		t.Fatalf("checked %d traces, plan contains %d", traceIndex, len(plan.PowerTraces))
+	}
+}
+
+func TestChoosePowerTargetsDoesNotReuseSmallEligibleSet(t *testing.T) {
+	o := DefaultOptions()
+	o.ComponentMinRadius = 0.04
+	o.ComponentMaxRadius = 0.26
+	o.TraceSpacing = 0.08
+	components := []placedComponent{
+		{Position: hexgrid.GridPosition{Q: 0, R: 0}, RadiusScale: 0.04 / o.ComponentRadius},
+		{Position: hexgrid.GridPosition{Q: 1, R: 0}, RadiusScale: 0.26 / o.ComponentRadius},
+		{Position: hexgrid.GridPosition{Q: 2, R: 0}, RadiusScale: 0.04 / o.ComponentRadius},
+	}
+	if targets := choosePowerTargets(components, 2, o, rand.New(rand.NewSource(9))); len(targets) != 0 {
+		t.Fatalf("got %d targets with only one viable destination, want no assignment", len(targets))
+	}
+}
+
+func TestNormalizeOptionsRejectsOnlyWhenNoSinglePowerTrackFits(t *testing.T) {
 	o := DefaultOptions()
 	o.TraceSpacing = 0.20
+	if _, err := normalizeOptions(o); err != nil {
+		t.Fatalf("one-track fallback should remain valid: %v", err)
+	}
+	o.PowerSourceComponentRadius = 0.03
 	if _, err := normalizeOptions(o); err == nil {
-		t.Fatal("expected an error when parallel traces cannot fit inside power-entry cores")
+		t.Fatal("expected an error when even one track cannot fit in a source core")
+	}
+}
+
+func TestNormalizeOptionsAllowsPowerBundlesToShrinkToFit(t *testing.T) {
+	o := DefaultOptions()
+	o.TraceSpacing = 0.08
+	if _, err := normalizeOptions(o); err != nil {
+		t.Fatalf("three-track requests should shrink to the two tracks that fit: %v", err)
+	}
+	if got := powerFeedMaxParallel(o, 1); got != 2 {
+		t.Fatalf("effective maximum = %d, want 2 when only two tracks fit", got)
+	}
+
+	o.TraceSpacing = 0.20
+	if _, err := normalizeOptions(o); err != nil {
+		t.Fatalf("three-track requests should shrink to the single track that fits: %v", err)
+	}
+	if got := powerFeedMaxParallel(o, 1); got != 1 {
+		t.Fatalf("effective maximum = %d, want 1 when only one track fits", got)
 	}
 }
 
