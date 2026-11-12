@@ -414,7 +414,6 @@ func placeClusters(
 				cluster.PowerPath = append([]hexgrid.GridPosition(nil), cluster.PowerPaths[0]...)
 			}
 		}
-		downgradePoweredTripleComponents(placements, clusters)
 		return placements, clusters, nil
 	}
 	if constrainedCandidatesFailed {
@@ -426,66 +425,90 @@ func placeClusters(
 	return nil, nil, &retryableGenerationError{err: fmt.Errorf("could not place %d components in %d separated clusters with non-crossing power feeds; reduce component density or cluster size, or increase the canvas dimensions", o.ComponentCount, o.ClusterCount)}
 }
 
-// downgradePoweredTripleComponents removes the innermost base-layer outline from
-// any triple-style cluster component that successfully receives a power core.
-// Keep the returned placement list and the cluster plans consistent.
-func downgradePoweredTripleComponents(placements []placedComponent, clusters []clusterPlan) {
-	powered := make(map[hexgrid.GridPosition]bool)
-	for _, cluster := range clusters {
-		for _, target := range cluster.PowerTargets {
-			powered[target] = true
-		}
-	}
-	if len(powered) == 0 {
-		return
-	}
+// minimumAccentHexGap is the required edge-to-edge clearance between an
+// accent core outline and the closest nested outline on its base component.
+const (
+	minimumAccentHexGap        = 0.02
+	innerComponentStrokeScale  = 0.78
+)
 
-	for i := range placements {
-		if powered[placements[i].Position] && placements[i].Style == hexgrid.ComponentStyleTriple {
-			placements[i].Style = hexgrid.ComponentStyleDouble
-		}
+// accentCoreInnerHexClearance returns the edge-to-edge distance between an accent
+// core's outer hexagon and one nested base-component hexagon. All hexagons share
+// a center and orientation, so the minimum separation is the difference between
+// their apothems, less half of each outline's stroke width.
+func accentCoreInnerHexClearance(
+	o Options,
+	baseRadiusScale, accentRadiusScale, innerHexScale float64,
+) float64 {
+	if baseRadiusScale == 0 {
+		baseRadiusScale = 1
 	}
-	for clusterIndex := range clusters {
-		for componentIndex := range clusters[clusterIndex].Components {
-			component := &clusters[clusterIndex].Components[componentIndex]
-			if powered[component.Position] && component.Style == hexgrid.ComponentStyleTriple {
-				component.Style = hexgrid.ComponentStyleDouble
-			}
-		}
+	if accentRadiusScale == 0 {
+		accentRadiusScale = 1
 	}
+	baseInnerRadius := o.ComponentRadius * baseRadiusScale * innerHexScale
+	accentRadius := o.ComponentRadius * accentRadiusScale
+	centerlineGap := math.Sqrt(3) / 2 * (baseInnerRadius - accentRadius)
+	strokeGap := o.ComponentStrokeWidth * (1 + innerComponentStrokeScale) / 2
+	return centerlineGap - strokeGap
 }
 
-// downgradeInterClusterTripleComponents removes the innermost base-layer outline
-// from triple-style components that receive an inter-cluster endpoint core.
-// Keep the rendered component list and cluster plans consistent.
-func downgradeInterClusterTripleComponents(
+func accentCoreStyleWithClearance(
+	o Options,
+	style hexgrid.ComponentStyle,
+	baseRadiusScale, accentRadiusScale float64,
+) hexgrid.ComponentStyle {
+	clears := func(innerScale float64) bool {
+		return accentCoreInnerHexClearance(o, baseRadiusScale, accentRadiusScale, innerScale)+1e-9 >= minimumAccentHexGap
+	}
+
+	if style == hexgrid.ComponentStyleTriple && !clears(o.ComponentInnerHexagonScale) {
+		style = hexgrid.ComponentStyleDouble
+	}
+	if style == hexgrid.ComponentStyleDouble && !clears(o.ComponentMiddleHexagonScale) {
+		style = hexgrid.ComponentStyleSingle
+	}
+	return style
+}
+
+// adjustBaseComponentStylesForAccentCores makes room for every accent-layer core.
+// It considers both power cores and inter-cluster endpoint cores, using the largest
+// core at a shared position. Base component and cluster-plan styles are kept aligned.
+func adjustBaseComponentStylesForAccentCores(
+	o Options,
 	baseComponents []hexgrid.GridComponent,
 	clusters []clusterPlan,
-	traces []hexgrid.GridTrace,
+	powerCores, interclusterCores []hexgrid.GridComponent,
 ) {
-	endpoints := make(map[hexgrid.GridPosition]bool)
-	for _, trace := range traces {
-		if len(trace.Path) == 0 {
-			continue
+	coreRadiusByPosition := make(map[hexgrid.GridPosition]float64, len(powerCores)+len(interclusterCores))
+	for _, core := range append(append([]hexgrid.GridComponent(nil), powerCores...), interclusterCores...) {
+		radiusScale := core.RadiusScale
+		if radiusScale == 0 {
+			radiusScale = 1
 		}
-		endpoints[trace.Start] = true
-		endpoints[trace.Path[len(trace.Path)-1]] = true
+		if radiusScale > coreRadiusByPosition[core.Position] {
+			coreRadiusByPosition[core.Position] = radiusScale
+		}
 	}
-	if len(endpoints) == 0 {
+	if len(coreRadiusByPosition) == 0 {
 		return
 	}
 
+	styleByPosition := make(map[hexgrid.GridPosition]hexgrid.ComponentStyle, len(coreRadiusByPosition))
 	for i := range baseComponents {
 		component := &baseComponents[i]
-		if endpoints[component.Position] && component.Style == hexgrid.ComponentStyleTriple {
-			component.Style = hexgrid.ComponentStyleDouble
+		coreRadiusScale, hasCore := coreRadiusByPosition[component.Position]
+		if !hasCore {
+			continue
 		}
+		component.Style = accentCoreStyleWithClearance(o, component.Style, component.RadiusScale, coreRadiusScale)
+		styleByPosition[component.Position] = component.Style
 	}
 	for clusterIndex := range clusters {
 		for componentIndex := range clusters[clusterIndex].Components {
 			component := &clusters[clusterIndex].Components[componentIndex]
-			if endpoints[component.Position] && component.Style == hexgrid.ComponentStyleTriple {
-				component.Style = hexgrid.ComponentStyleDouble
+			if style, hasBaseComponent := styleByPosition[component.Position]; hasBaseComponent {
+				component.Style = style
 			}
 		}
 	}

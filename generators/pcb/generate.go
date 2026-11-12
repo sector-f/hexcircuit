@@ -291,12 +291,16 @@ func buildBoard(
 					seenEndpoints[position] = true
 				}
 			}
-			downgradeInterClusterTripleComponents(plan.Components, plan.Clusters, plan.InterClusterTraces)
 		}
 		if o.DecorativeTraceCount > 0 {
 			plan.DecorativeTraces = addDecorativeTraces(o, rng, clusters, signalRoutes, blocked, reserved)
 		}
 	}
+
+	accentCores := make([]hexgrid.GridComponent, 0, len(plan.PowerCores)+len(plan.InterclusterComponents))
+	accentCores = append(accentCores, plan.PowerCores...)
+	accentCores = append(accentCores, plan.InterclusterComponents...)
+	adjustBaseComponentStylesForAccentCores(o, plan.Components, plan.Clusters, accentCores)
 
 	return plan, nil
 }

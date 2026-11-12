@@ -392,35 +392,130 @@ func TestBuildBoardDowngradesTriplePowerCoreTargets(t *testing.T) {
 	}
 }
 
-func TestDowngradePoweredTripleComponentsOnlyChangesPoweredTriples(t *testing.T) {
-	positions := []hexgrid.GridPosition{
-		{Q: 0, R: 0}, {Q: 1, R: 0}, {Q: 2, R: 0}, {Q: 3, R: 0},
+func TestAccentCoreStyleUsesGeometricClearance(t *testing.T) {
+	o := DefaultOptions()
+	tests := []struct {
+		name                 string
+		style                hexgrid.ComponentStyle
+		baseRadiusScale      float64
+		accentRadiusScale    float64
+		want                 hexgrid.ComponentStyle
+	}{
+		{
+			name: "preserves triple when both nested rings clear the accent core",
+			style: hexgrid.ComponentStyleTriple, baseRadiusScale: 1, accentRadiusScale: 0.20,
+			want: hexgrid.ComponentStyleTriple,
+		},
+		{
+			name: "downgrades triple only when the innermost ring is too close",
+			style: hexgrid.ComponentStyleTriple, baseRadiusScale: 1, accentRadiusScale: 0.22,
+			want: hexgrid.ComponentStyleDouble,
+		},
+		{
+			name: "downgrades double when the middle ring is too close",
+			style: hexgrid.ComponentStyleDouble, baseRadiusScale: 0.72, accentRadiusScale: 0.36,
+			want: hexgrid.ComponentStyleSingle,
+		},
+		{
+			name: "preserves double when the middle ring has enough gap",
+			style: hexgrid.ComponentStyleDouble, baseRadiusScale: 0.90, accentRadiusScale: 0.36,
+			want: hexgrid.ComponentStyleDouble,
+		},
+		{
+			name: "single has no nested outline to clear",
+			style: hexgrid.ComponentStyleSingle, baseRadiusScale: 0.72, accentRadiusScale: 0.50,
+			want: hexgrid.ComponentStyleSingle,
+		},
 	}
-	components := []placedComponent{
-		{Position: positions[0], Style: hexgrid.ComponentStyleTriple},
-		{Position: positions[1], Style: hexgrid.ComponentStyleDouble},
-		{Position: positions[2], Style: hexgrid.ComponentStyleSingle},
-		{Position: positions[3], Style: hexgrid.ComponentStyleTriple},
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := accentCoreStyleWithClearance(o, test.style, test.baseRadiusScale, test.accentRadiusScale); got != test.want {
+				t.Fatalf("style = %q, want %q", got, test.want)
+			}
+		})
 	}
-	clusters := []clusterPlan{{
-		Components: append([]placedComponent(nil), components...),
-		PowerTargets: []hexgrid.GridPosition{positions[0], positions[1], positions[2]},
-	}}
+}
 
-	downgradePoweredTripleComponents(components, clusters)
+func TestAccentCoreClearanceAccountsForStrokeWidths(t *testing.T) {
+	o := DefaultOptions()
+	clearance := accentCoreInnerHexClearance(o, 0.72, 0.36, o.ComponentMiddleHexagonScale)
+	if clearance <= 0 {
+		t.Fatalf("expected a positive geometric gap before applying the visible-gap threshold, got %.6f", clearance)
+	}
+	if clearance >= minimumAccentHexGap {
+		t.Fatalf("clearance %.6f should be below the required %.6f-inch gap", clearance, minimumAccentHexGap)
+	}
+
+	o.ComponentStrokeWidth = 0
+	withoutStroke := accentCoreInnerHexClearance(o, 0.72, 0.36, o.ComponentMiddleHexagonScale)
+	if withoutStroke <= clearance {
+		t.Fatalf("removing stroke widths did not increase clearance: got %.6f, with strokes %.6f", withoutStroke, clearance)
+	}
+}
+
+func TestAdjustBaseComponentStylesForPowerAndInterclusterCores(t *testing.T) {
+	o := DefaultOptions()
+	positions := []hexgrid.GridPosition{
+		{Q: 0, R: 0}, {Q: 1, R: 0}, {Q: 2, R: 0},
+		{Q: 3, R: 0}, {Q: 4, R: 0}, {Q: 5, R: 0},
+	}
+	sourceRadiusScale := 0.12 / o.ComponentRadius
+	baseComponents := []hexgrid.GridComponent{
+		{Position: positions[0], Style: hexgrid.ComponentStyleTriple, RadiusScale: 1},
+		{Position: positions[1], Style: hexgrid.ComponentStyleTriple, RadiusScale: 1},
+		{Position: positions[2], Style: hexgrid.ComponentStyleDouble, RadiusScale: 0.72},
+		{Position: positions[3], Style: hexgrid.ComponentStyleDouble, RadiusScale: 0.90},
+		{Position: positions[4], Style: hexgrid.ComponentStyleDouble, RadiusScale: sourceRadiusScale},
+		{Position: positions[5], Style: hexgrid.ComponentStyleTriple, RadiusScale: 1},
+	}
+	clusters := []clusterPlan{
+		{ID: 0, Components: []placedComponent{
+			{Position: positions[0], Style: hexgrid.ComponentStyleTriple, RadiusScale: 1},
+			{Position: positions[1], Style: hexgrid.ComponentStyleTriple, RadiusScale: 1},
+			{Position: positions[2], Style: hexgrid.ComponentStyleDouble, RadiusScale: 0.72},
+			{Position: positions[5], Style: hexgrid.ComponentStyleTriple, RadiusScale: 1},
+		}},
+		{ID: 1, Components: []placedComponent{
+			{Position: positions[3], Style: hexgrid.ComponentStyleDouble, RadiusScale: 0.90},
+		}},
+	}
+	powerCores := []hexgrid.GridComponent{
+		{Position: positions[2], Style: hexgrid.ComponentStyleSingle, RadiusScale: 0.36},
+		{Position: positions[4], Style: hexgrid.ComponentStyleSingle, RadiusScale: sourceRadiusScale * 0.36},
+	}
+	interclusterCores := []hexgrid.GridComponent{
+		{Position: positions[0], Style: hexgrid.ComponentStyleSingle, RadiusScale: 0.20},
+		{Position: positions[1], Style: hexgrid.ComponentStyleSingle, RadiusScale: 0.22},
+		{Position: positions[3], Style: hexgrid.ComponentStyleSingle, RadiusScale: 0.36},
+	}
+
+	adjustBaseComponentStylesForAccentCores(o, baseComponents, clusters, powerCores, interclusterCores)
 
 	want := []hexgrid.ComponentStyle{
+		hexgrid.ComponentStyleTriple,
 		hexgrid.ComponentStyleDouble,
+		hexgrid.ComponentStyleSingle,
 		hexgrid.ComponentStyleDouble,
 		hexgrid.ComponentStyleSingle,
 		hexgrid.ComponentStyleTriple,
 	}
 	for i := range want {
-		if got := components[i].Style; got != want[i] {
-			t.Errorf("placement %d style = %q, want %q", i, got, want[i])
+		if got := baseComponents[i].Style; got != want[i] {
+			t.Errorf("base component %d style = %q, want %q", i, got, want[i])
 		}
-		if got := clusters[0].Components[i].Style; got != want[i] {
-			t.Errorf("cluster component %d style = %q, want %q", i, got, want[i])
+	}
+	for clusterIndex := range clusters {
+		for componentIndex := range clusters[clusterIndex].Components {
+			position := clusters[clusterIndex].Components[componentIndex].Position
+			for baseIndex := range baseComponents {
+				if baseComponents[baseIndex].Position != position {
+					continue
+				}
+				if got := clusters[clusterIndex].Components[componentIndex].Style; got != baseComponents[baseIndex].Style {
+					t.Errorf("cluster %d component at %v has style %q, base layer has %q",
+						clusterIndex, position, got, baseComponents[baseIndex].Style)
+				}
+			}
 		}
 	}
 }
@@ -1208,55 +1303,6 @@ func TestRenderBoardKeepsInterClusterTracesInAccentLayer(t *testing.T) {
 	}
 	if !strings.Contains(svg, o.AccentColor) {
 		t.Fatalf("inter-cluster layer does not use accent color %q", o.AccentColor)
-	}
-}
-
-func TestDowngradeInterClusterTripleComponentsOnlyChangesEndpoints(t *testing.T) {
-	positions := []hexgrid.GridPosition{
-		{Q: 0, R: 0}, {Q: 1, R: 0}, {Q: 2, R: 0}, {Q: 3, R: 0},
-	}
-	baseComponents := []hexgrid.GridComponent{
-		{Position: positions[0], Style: hexgrid.ComponentStyleTriple},
-		{Position: positions[1], Style: hexgrid.ComponentStyleTriple},
-		{Position: positions[2], Style: hexgrid.ComponentStyleDouble},
-		{Position: positions[3], Style: hexgrid.ComponentStyleTriple},
-	}
-	clusters := []clusterPlan{
-		{ID: 0, Components: []placedComponent{
-			{Position: positions[0], Style: hexgrid.ComponentStyleTriple},
-			{Position: positions[1], Style: hexgrid.ComponentStyleTriple},
-		}},
-		{ID: 1, Components: []placedComponent{
-			{Position: positions[2], Style: hexgrid.ComponentStyleDouble},
-			{Position: positions[3], Style: hexgrid.ComponentStyleTriple},
-		}},
-	}
-	traces := []hexgrid.GridTrace{
-		{Start: positions[0], Path: []hexgrid.GridPosition{positions[1], positions[2]}},
-		{Start: positions[3]}, // An incomplete trace must not mark its start as an endpoint.
-	}
-
-	downgradeInterClusterTripleComponents(baseComponents, clusters, traces)
-
-	want := []hexgrid.ComponentStyle{
-		hexgrid.ComponentStyleDouble, // trace start: Triple -> Double
-		hexgrid.ComponentStyleTriple, // intermediate path cell: unchanged
-		hexgrid.ComponentStyleDouble, // trace end: already Double
-		hexgrid.ComponentStyleTriple, // incomplete trace: unchanged
-	}
-	for i := range want {
-		if got := baseComponents[i].Style; got != want[i] {
-			t.Errorf("base component %d style = %q, want %q", i, got, want[i])
-		}
-	}
-	for clusterIndex := range clusters {
-		for componentIndex := range clusters[clusterIndex].Components {
-			flatIndex := clusterIndex*2 + componentIndex
-			if got := clusters[clusterIndex].Components[componentIndex].Style; got != want[flatIndex] {
-				t.Errorf("cluster %d component %d style = %q, want %q",
-					clusterIndex, componentIndex, got, want[flatIndex])
-			}
-		}
 	}
 }
 
