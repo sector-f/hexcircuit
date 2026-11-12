@@ -66,6 +66,21 @@ func powerSourcePositions(o Options) (top, bottom []hexgrid.GridPosition, err er
 	if len(top) > 0 && len(bottom) > 0 && top[0].R == bottom[0].R {
 		return nil, nil, fmt.Errorf("canvas is too short to fit distinct top and bottom power-source rows")
 	}
+	contacts := append(append([]hexgrid.GridPosition(nil), top...), bottom...)
+	minimumContactSpacing := 2*o.ComponentRadius + o.ComponentStrokeWidth
+	for i, a := range contacts {
+		pointA := gridgeom.PositionToPoint(a.Q, a.R, o.Width, o.Height, o.Pitch, "pointy")
+		for _, b := range contacts[i+1:] {
+			pointB := gridgeom.PositionToPoint(b.Q, b.R, o.Width, o.Height, o.Pitch, "pointy")
+			distance := math.Hypot(pointA.X-pointB.X, pointA.Y-pointB.Y)
+			if distance+1e-9 < minimumContactSpacing {
+				return nil, nil, fmt.Errorf(
+					"power-source contacts at (%d, %d) and (%d, %d) overlap: centers are %.6g inches apart, need at least %.6g",
+					a.Q, a.R, b.Q, b.R, distance, minimumContactSpacing,
+				)
+			}
+		}
+	}
 	return top, bottom, nil
 }
 

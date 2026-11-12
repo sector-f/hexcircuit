@@ -371,8 +371,16 @@ func normalizeOptions(o Options) (Options, error) {
 		return o, fmt.Errorf("connector inset must be less than half the canvas height")
 	}
 	minimumComponentSpacing := 2*maximumComponentRadius + o.ComponentStrokeWidth
-	if o.PowerSourceSpacing == PowerSourceSpacingAdjacent {
-		minimumComponentSpacing = math.Max(minimumComponentSpacing, 2*o.ComponentRadius+o.ComponentStrokeWidth)
+	if o.TopPowerSourceCount > 1 || o.BottomPowerSourceCount > 1 {
+		sourceSpacing := 2*o.ComponentRadius + o.ComponentStrokeWidth
+		if o.PowerSourceSpacing == PowerSourceSpacingSeparated {
+			sourceSpacing /= 2
+		}
+		minimumComponentSpacing = math.Max(minimumComponentSpacing, sourceSpacing)
+	}
+	if o.TopPowerSourceCount+o.BottomPowerSourceCount > 0 {
+		sourceClusterSpacing := (o.ComponentRadius + maximumComponentRadius + o.ComponentStrokeWidth) / 1.6
+		minimumComponentSpacing = math.Max(minimumComponentSpacing, sourceClusterSpacing)
 	}
 	if o.Pitch <= minimumComponentSpacing {
 		return o, fmt.Errorf("pitch must be greater than %.6g to prevent component overlap (maximum cluster radius %.6g)", minimumComponentSpacing, maximumComponentRadius)

@@ -149,8 +149,10 @@ func buildBoard(
 
 	plan := boardPlan{Clusters: clusters}
 	allPositions := make(map[hexgrid.GridPosition]bool, len(placements)+len(topSources)+len(bottomSources))
+	componentRadiusScales := make(map[hexgrid.GridPosition]float64, len(placements))
 	for _, p := range placements {
 		allPositions[p.Position] = true
+		componentRadiusScales[p.Position] = p.RadiusScale
 		plan.Components = append(plan.Components, hexgrid.GridComponent{
 			Position:    p.Position,
 			Style:       p.Style,
@@ -197,7 +199,11 @@ func buildBoard(
 			)
 			if !endpointCores[target] {
 				plan.PowerCores = append(plan.PowerCores,
-					hexgrid.GridComponent{Position: target, Style: hexgrid.ComponentStyleSingle, RadiusScale: powerCoreRadiusScale},
+					hexgrid.GridComponent{
+						Position:    target,
+						Style:       hexgrid.ComponentStyleSingle,
+						RadiusScale: componentRadiusScales[target] * powerCoreRadiusScale,
+					},
 				)
 				endpointCores[target] = true
 			}
@@ -264,7 +270,7 @@ func buildBoard(
 					plan.InterclusterComponents = append(plan.InterclusterComponents, hexgrid.GridComponent{
 						Position:    position,
 						Style:       hexgrid.ComponentStyleSingle,
-						RadiusScale: powerCoreRadiusScale,
+						RadiusScale: componentRadiusScales[position] * powerCoreRadiusScale,
 					})
 					seenEndpoints[position] = true
 				}
