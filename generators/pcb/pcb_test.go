@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/sector-f/hexgrid"
+	"github.com/sector-f/hexgrid/geometry"
+	"github.com/sector-f/hexgrid/internal/gridgeom"
 )
 
 func TestAllocateClusterSizesRespectsMinimum(t *testing.T) {
@@ -372,7 +374,7 @@ func TestPowerFeedsUseTopAndBottomRowsWithoutCrossing(t *testing.T) {
 
 	previousSourceX := -1.0
 	for i, cluster := range plan.Clusters {
-		sourcePoint := hexgrid.GridPositionToPoint(cluster.PowerSource, o.Width, o.Height, o.Pitch, "pointy")
+		sourcePoint := gridgeom.PositionToPoint(cluster.PowerSource.Q, cluster.PowerSource.R, o.Width, o.Height, o.Pitch, "pointy")
 		if i > 0 && sourcePoint.X < previousSourceX {
 			t.Errorf("power sources are not assigned left-to-right with cluster hubs")
 		}
@@ -607,13 +609,13 @@ func TestConstrainComponentsToActivePowerSourceSpan(t *testing.T) {
 		}
 		minimumX, maximumX := math.Inf(1), math.Inf(-1)
 		for _, cluster := range plan.Clusters {
-			x := hexgrid.GridPositionToPoint(cluster.PowerSource, o.Width, o.Height, o.Pitch, "pointy").X
+			x := gridgeom.PositionToPoint(cluster.PowerSource.Q, cluster.PowerSource.R, o.Width, o.Height, o.Pitch, "pointy").X
 			minimumX = math.Min(minimumX, x)
 			maximumX = math.Max(maximumX, x)
 		}
 		for _, cluster := range plan.Clusters {
 			for _, component := range cluster.Components {
-				x := hexgrid.GridPositionToPoint(component.Position, o.Width, o.Height, o.Pitch, "pointy").X
+				x := gridgeom.PositionToPoint(component.Position.Q, component.Position.R, o.Width, o.Height, o.Pitch, "pointy").X
 				if x < minimumX-1e-9 || x > maximumX+1e-9 {
 					t.Fatalf("seed %d: component %v at x=%f is outside active source span [%f, %f]", seed, component.Position, x, minimumX, maximumX)
 				}
@@ -662,9 +664,9 @@ func TestPowerSourceRowsAreReservedForPowerSources(t *testing.T) {
 		if rows[position.R] {
 			t.Errorf("ordinary route map permits source row cell %v", position)
 		}
-		y := hexgrid.GridPositionToPoint(position, o.Width, o.Height, o.Pitch, "pointy").Y
-		topY := hexgrid.GridPositionToPoint(top[0], o.Width, o.Height, o.Pitch, "pointy").Y
-		bottomY := hexgrid.GridPositionToPoint(bottom[0], o.Width, o.Height, o.Pitch, "pointy").Y
+		y := gridgeom.PositionToPoint(position.Q, position.R, o.Width, o.Height, o.Pitch, "pointy").Y
+		topY := gridgeom.PositionToPoint(top[0].Q, top[0].R, o.Width, o.Height, o.Pitch, "pointy").Y
+		bottomY := gridgeom.PositionToPoint(bottom[0].Q, bottom[0].R, o.Width, o.Height, o.Pitch, "pointy").Y
 		if y <= topY || y >= bottomY {
 			t.Errorf("ordinary route map permits cell %v outside source-row corridor", position)
 		}
@@ -688,7 +690,7 @@ func TestPowerSourceSpanConstrainsAllRoutes(t *testing.T) {
 	}
 	minimumX, maximumX := math.Inf(1), math.Inf(-1)
 	for _, source := range active {
-		x := hexgrid.GridPositionToPoint(source.Position, o.Width, o.Height, o.Pitch, "pointy").X
+		x := gridgeom.PositionToPoint(source.Position.Q, source.Position.R, o.Width, o.Height, o.Pitch, "pointy").X
 		minimumX, maximumX = math.Min(minimumX, x), math.Max(maximumX, x)
 	}
 	allowed := routingCellsWithinPowerSourceSpan(routingCellsWithinPowerSourceCorridor(routingCellsWithoutPowerSourceRows(o, top, bottom), top, bottom, o), active, o)
@@ -697,7 +699,7 @@ func TestPowerSourceSpanConstrainsAllRoutes(t *testing.T) {
 		powerAllowed[source.Position] = true
 	}
 	for position := range allowed {
-		x := hexgrid.GridPositionToPoint(position, o.Width, o.Height, o.Pitch, "pointy").X
+		x := gridgeom.PositionToPoint(position.Q, position.R, o.Width, o.Height, o.Pitch, "pointy").X
 		if x < minimumX-1e-9 || x > maximumX+1e-9 {
 			t.Errorf("route map includes %v outside [%f,%f]", position, minimumX, maximumX)
 		}
@@ -742,7 +744,7 @@ func TestPowerSourceTrapezoidConstrainsLayoutAndRoutes(t *testing.T) {
 			}
 		}
 	}
-	cells := hexgrid.GridCells(o.Width, o.Height, o.Pitch, "pointy", math.Max(o.ComponentRadius+o.ComponentStrokeWidth/2, o.ConnectorInset))
+	cells := gridgeom.Cells(o.Width, o.Height, o.Pitch, "pointy", math.Max(o.ComponentRadius+o.ComponentStrokeWidth/2, o.ConnectorInset))
 	globalLeft, globalRight := math.Min(bounds.topLeft, bounds.bottomLeft), math.Max(bounds.topRight, bounds.bottomRight)
 	foundOutsideCorner := false
 	for _, cell := range cells {
@@ -1125,7 +1127,7 @@ func TestTopAndBottomSourcesCanFeedClustersAcrossTheBoard(t *testing.T) {
 			t.Fatalf("seed %d: %v", seed, err)
 		}
 		for _, cluster := range plan.Clusters {
-			hub := hexgrid.GridPositionToPoint(cluster.Hub, o.Width, o.Height, o.Pitch, "pointy")
+			hub := gridgeom.PositionToPoint(cluster.Hub.Q, cluster.Hub.R, o.Width, o.Height, o.Pitch, "pointy")
 			if cluster.PowerSide == powerSideTop && hub.Y > o.Height*0.62 {
 				topFeedsDownward = true
 			}
@@ -1285,7 +1287,7 @@ func TestRoutePowerFeedsRetriesCompleteFeedSet(t *testing.T) {
 func TestPowerSourceRowsPreserveHorizontalSymmetry(t *testing.T) {
 	tests := []struct {
 		name    string
-		rows    map[int][]hexgrid.Cell
+		rows    map[int][]gridgeom.Cell
 		count   int
 		top     bool
 		spacing PowerSourceSpacing
@@ -1294,7 +1296,7 @@ func TestPowerSourceRowsPreserveHorizontalSymmetry(t *testing.T) {
 	}{
 		{
 			name: "keeps symmetric outer row",
-			rows: map[int][]hexgrid.Cell{
+			rows: map[int][]gridgeom.Cell{
 				0: makeSymmetryTestPowerSourceRow(0, 8, 0),
 				1: makeSymmetryTestPowerSourceRow(1, 9, 1),
 			},
@@ -1303,7 +1305,7 @@ func TestPowerSourceRowsPreserveHorizontalSymmetry(t *testing.T) {
 		},
 		{
 			name: "moves inward for separated spacing",
-			rows: map[int][]hexgrid.Cell{
+			rows: map[int][]gridgeom.Cell{
 				0: makeSymmetryTestPowerSourceRow(0, 8, 0),
 				1: makeSymmetryTestPowerSourceRow(1, 9, 1),
 				2: makeSymmetryTestPowerSourceRow(2, 10, 2),
@@ -1313,7 +1315,7 @@ func TestPowerSourceRowsPreserveHorizontalSymmetry(t *testing.T) {
 		},
 		{
 			name: "moves inward for odd adjacent count",
-			rows: map[int][]hexgrid.Cell{
+			rows: map[int][]gridgeom.Cell{
 				0: makeSymmetryTestPowerSourceRow(0, 8, 0),
 				1: makeSymmetryTestPowerSourceRow(1, 9, 1),
 			},
@@ -1322,7 +1324,7 @@ func TestPowerSourceRowsPreserveHorizontalSymmetry(t *testing.T) {
 		},
 		{
 			name: "moves inward from bottom edge",
-			rows: map[int][]hexgrid.Cell{
+			rows: map[int][]gridgeom.Cell{
 				0: makeSymmetryTestPowerSourceRow(0, 10, 0),
 				1: makeSymmetryTestPowerSourceRow(1, 9, 1),
 				2: makeSymmetryTestPowerSourceRow(2, 8, 2),
@@ -1355,12 +1357,12 @@ func TestPowerSourceRowsPreserveHorizontalSymmetry(t *testing.T) {
 	}
 }
 
-func makeSymmetryTestPowerSourceRow(r, length int, y float64) []hexgrid.Cell {
-	cells := make([]hexgrid.Cell, length)
+func makeSymmetryTestPowerSourceRow(r, length int, y float64) []gridgeom.Cell {
+	cells := make([]gridgeom.Cell, length)
 	for q := range cells {
-		cells[q] = hexgrid.Cell{
+		cells[q] = gridgeom.Cell{
 			Q: q, R: r,
-			Center: hexgrid.Point{X: float64(q), Y: y},
+			Center: geometry.Point{X: float64(q), Y: y},
 		}
 	}
 	return cells

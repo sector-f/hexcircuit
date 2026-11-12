@@ -93,7 +93,7 @@ var flatAxialSteps = [...]Coord{
 
 // Point is a position in the SVG's internal coordinate system, measured in inches
 // while geometry is generated and converted to SVG user units only when rendered.
-type Point = hexgrid.Point
+type Point struct { X, Y float64 }
 
 // Coord identifies a cell in the hexagonal lattice using axial (Q, R) coordinates.
 // For pointy-top layouts, positive Q points east and positive R points southeast.
@@ -1441,28 +1441,14 @@ func renderSVG(
 		return "", fmt.Errorf("convert circuit layout to hexgrid: %w", err)
 	}
 
-	labelFontFamily := o.LabelFont
-	if o.ShowLabels && o.LabelProbability > 0 {
-		var wordList []string = defaultLabels
-		if o.LabelWordListSet {
-			wordList = o.LabelWordList
-		}
-
-		loadedFont, err := loadLabelFont(o.LabelFont, o.LabelFontSize, wordList)
-		if err != nil {
-			return "", err
-		}
-		defer loadedFont.Face.Close()
-
-		vertexStart := -90.0
-		if o.Orientation == "flat" {
-			vertexStart = 0
-		}
-		baseAngle := degreesToRadians(vertexStart + 30.0)
-		scene.Labels = placeComponentLabels(o, scene, seed, baseAngle, wordList, loadedFont)
-		labelFontFamily = loadedFont.Family
+	var wordList []string = defaultLabels
+	if o.LabelWordListSet {
+		wordList = o.LabelWordList
 	}
-	scene.Options.LabelFontFamily = labelFontFamily
+	if o.ShowLabels && o.LabelProbability > 0 {
+		scene.Labels = componentLabelRequests(o, scene, seed, wordList)
+	}
+	scene.Options.LabelFontFamily = o.LabelFont
 	scene.Options.LabelColor = componentLabelFontColor(o)
 	scene.Options.LabelFontSize = o.LabelFontSize
 	assignComponentDetails(o, components, &scene, seed)
@@ -1476,13 +1462,6 @@ func assignComponentDetails(o Options, components []Component, scene *hexgrid.Sc
 	componentByIndex := make(map[int]Component, len(components))
 	for _, component := range components {
 		componentByIndex[component.Index] = component
-	}
-
-	labelsInside := make(map[int]bool)
-	for _, label := range scene.Labels {
-		if label.Inside {
-			labelsInside[label.ComponentIndex] = true
-		}
 	}
 
 	detailRNG := rand.New(rand.NewSource(seed))
@@ -1503,7 +1482,7 @@ func assignComponentDetails(o Options, components []Component, scene *hexgrid.Sc
 			detailChance = math.Min(1.0, o.DetailProb*hubDetailScale)
 		}
 		wantsDetails := radius >= o.ComponentRadius*minimumDetailRadius && detailRNG.Float64() < detailChance
-		if wantsDetails && !labelsInside[i] {
+		if wantsDetails {
 			// The former nested-detail motif contains an outer, middle, and inner
 			// hexagon, so it maps directly to the new triple component style.
 			visualComponent.Style = hexgrid.ComponentStyleTriple
@@ -1526,10 +1505,10 @@ func gridSceneForRender(
 	gridOptions.Color = o.Color
 	gridOptions.GridColor = o.GridColor
 	gridOptions.Background = o.Background
-	gridOptions.Grid = hexgrid.Grid{
-		Pitch: o.RoutingPitch, Radius: o.GridRadius,
-		StrokeWidth: o.GridWidth, OmitPartial: o.OmitPartialGridHexagons,
-	}
+	gridOptions.Grid.Pitch = o.RoutingPitch
+	gridOptions.Grid.Radius = o.GridRadius
+	gridOptions.Grid.StrokeWidth = o.GridWidth
+	gridOptions.Grid.OmitPartial = o.OmitPartialGridHexagons
 	gridOptions.ComponentRadius = o.ComponentRadius
 	gridOptions.ComponentStrokeWidth = o.StrokeWidth
 	gridOptions.TraceStrokeWidth = o.TraceWidth

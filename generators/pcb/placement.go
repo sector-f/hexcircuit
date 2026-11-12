@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/sector-f/hexgrid"
+	"github.com/sector-f/hexgrid/internal/gridgeom"
 )
 
 var axialDirections = [...]hexgrid.GridPosition{
@@ -45,12 +46,12 @@ func powerSourcePositions(o Options) (top, bottom []hexgrid.GridPosition, err er
 		return nil, nil, nil
 	}
 	margin := math.Max(o.ComponentRadius+o.ComponentStrokeWidth/2, o.ConnectorInset)
-	cells := hexgrid.GridCells(o.Width, o.Height, o.Pitch, "pointy", margin)
+	cells := gridgeom.Cells(o.Width, o.Height, o.Pitch, "pointy", margin)
 	if len(cells) == 0 {
 		return nil, nil, fmt.Errorf("canvas does not contain any power-source grid positions")
 	}
 
-	rows := make(map[int][]hexgrid.Cell)
+	rows := make(map[int][]gridgeom.Cell)
 	for _, cell := range cells {
 		rows[cell.R] = append(rows[cell.R], cell)
 	}
@@ -68,7 +69,7 @@ func powerSourcePositions(o Options) (top, bottom []hexgrid.GridPosition, err er
 	return top, bottom, nil
 }
 
-func selectPowerSourceRow(rows map[int][]hexgrid.Cell, count int, top bool, spacing PowerSourceSpacing) ([]hexgrid.GridPosition, error) {
+func selectPowerSourceRow(rows map[int][]gridgeom.Cell, count int, top bool, spacing PowerSourceSpacing) ([]hexgrid.GridPosition, error) {
 	if count == 0 {
 		return nil, nil
 	}
@@ -84,7 +85,7 @@ func selectPowerSourceRow(rows map[int][]hexgrid.Cell, count int, top bool, spac
 
 	type rowCandidate struct {
 		r     int
-		cells []hexgrid.Cell
+		cells []gridgeom.Cell
 		y     float64
 	}
 	candidates := make([]rowCandidate, 0, len(rows))
@@ -98,7 +99,7 @@ func selectPowerSourceRow(rows map[int][]hexgrid.Cell, count int, top bool, spac
 		}
 		candidates = append(candidates, rowCandidate{
 			r:     r,
-			cells: append([]hexgrid.Cell(nil), row...),
+			cells: append([]gridgeom.Cell(nil), row...),
 			y:     row[0].Center.Y,
 		})
 	}
@@ -171,7 +172,7 @@ func placeClusters(
 	rng *rand.Rand,
 	topSources, bottomSources []hexgrid.GridPosition,
 ) ([]placedComponent, []clusterPlan, error) {
-	allCells := hexgrid.GridCells(
+	allCells := gridgeom.Cells(
 		o.Width,
 		o.Height,
 		o.Pitch,
@@ -180,10 +181,10 @@ func placeClusters(
 	)
 	var topY, bottomY float64
 	if len(topSources) > 0 {
-		topY = hexgrid.GridPositionToPoint(topSources[0], o.Width, o.Height, o.Pitch, "pointy").Y
+		topY = gridgeom.PositionToPoint(topSources[0].Q, topSources[0].R, o.Width, o.Height, o.Pitch, "pointy").Y
 	}
 	if len(bottomSources) > 0 {
-		bottomY = hexgrid.GridPositionToPoint(bottomSources[0], o.Width, o.Height, o.Pitch, "pointy").Y
+		bottomY = gridgeom.PositionToPoint(bottomSources[0].Q, bottomSources[0].R, o.Width, o.Height, o.Pitch, "pointy").Y
 	}
 
 	// Source rows are reserved exclusively for power contacts. The vertical
@@ -292,8 +293,8 @@ func placeClusters(
 		// Assign the selected contacts to clusters in left-to-right order. Each
 		// cluster receives a contiguous group of zero or more source contacts.
 		sort.Slice(sources, func(i, j int) bool {
-			a := hexgrid.GridPositionToPoint(sources[i].Position, o.Width, o.Height, o.Pitch, "pointy")
-			b := hexgrid.GridPositionToPoint(sources[j].Position, o.Width, o.Height, o.Pitch, "pointy")
+			a := gridgeom.PositionToPoint(sources[i].Position.Q, sources[i].Position.R, o.Width, o.Height, o.Pitch, "pointy")
+			b := gridgeom.PositionToPoint(sources[j].Position.Q, sources[j].Position.R, o.Width, o.Height, o.Pitch, "pointy")
 			if a.X != b.X {
 				return a.X < b.X
 			}
@@ -438,7 +439,7 @@ func candidatesWithinPowerSourceSpan(
 ) []hexgrid.GridPosition {
 	minimumX, maximumX := math.Inf(1), math.Inf(-1)
 	for _, source := range sources {
-		x := hexgrid.GridPositionToPoint(source.Position, o.Width, o.Height, o.Pitch, "pointy").X
+		x := gridgeom.PositionToPoint(source.Position.Q, source.Position.R, o.Width, o.Height, o.Pitch, "pointy").X
 		minimumX = math.Min(minimumX, x)
 		maximumX = math.Max(maximumX, x)
 	}
@@ -449,7 +450,7 @@ func candidatesWithinPowerSourceSpan(
 	const epsilon = 1e-9
 	filtered := make([]hexgrid.GridPosition, 0, len(candidates))
 	for _, candidate := range candidates {
-		x := hexgrid.GridPositionToPoint(candidate, o.Width, o.Height, o.Pitch, "pointy").X
+		x := gridgeom.PositionToPoint(candidate.Q, candidate.R, o.Width, o.Height, o.Pitch, "pointy").X
 		if x >= minimumX-epsilon && x <= maximumX+epsilon {
 			filtered = append(filtered, candidate)
 		}
@@ -467,10 +468,10 @@ func newPowerSourceTrapezoid(topSources, bottomSources []hexgrid.GridPosition, o
 	if len(topSources) == 0 || len(bottomSources) == 0 {
 		return powerSourceTrapezoid{}, fmt.Errorf("power-source trapezoid requires both top and bottom source rows")
 	}
-	topLeft := hexgrid.GridPositionToPoint(topSources[0], o.Width, o.Height, o.Pitch, "pointy")
-	topRight := hexgrid.GridPositionToPoint(topSources[len(topSources)-1], o.Width, o.Height, o.Pitch, "pointy")
-	bottomLeft := hexgrid.GridPositionToPoint(bottomSources[0], o.Width, o.Height, o.Pitch, "pointy")
-	bottomRight := hexgrid.GridPositionToPoint(bottomSources[len(bottomSources)-1], o.Width, o.Height, o.Pitch, "pointy")
+	topLeft := gridgeom.PositionToPoint(topSources[0].Q, topSources[0].R, o.Width, o.Height, o.Pitch, "pointy")
+	topRight := gridgeom.PositionToPoint(topSources[len(topSources)-1].Q, topSources[len(topSources)-1].R, o.Width, o.Height, o.Pitch, "pointy")
+	bottomLeft := gridgeom.PositionToPoint(bottomSources[0].Q, bottomSources[0].R, o.Width, o.Height, o.Pitch, "pointy")
+	bottomRight := gridgeom.PositionToPoint(bottomSources[len(bottomSources)-1].Q, bottomSources[len(bottomSources)-1].R, o.Width, o.Height, o.Pitch, "pointy")
 	if bottomLeft.Y <= topLeft.Y {
 		return powerSourceTrapezoid{}, fmt.Errorf("cannot construct power-source trapezoid: bottom row must be below the top row")
 	}
@@ -482,7 +483,7 @@ func newPowerSourceTrapezoid(topSources, bottomSources []hexgrid.GridPosition, o
 }
 
 func (b powerSourceTrapezoid) contains(position hexgrid.GridPosition, o Options) bool {
-	point := hexgrid.GridPositionToPoint(position, o.Width, o.Height, o.Pitch, "pointy")
+	point := gridgeom.PositionToPoint(position.Q, position.R, o.Width, o.Height, o.Pitch, "pointy")
 	const epsilon = 1e-9
 	if point.Y < b.topY-epsilon || point.Y > b.bottomY+epsilon {
 		return false

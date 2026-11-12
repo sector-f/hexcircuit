@@ -25,7 +25,7 @@ import "github.com/sector-f/hexgrid"
 
 A grid is a regular lattice of equally sized hexagons. Each cell has a center, and the distance between neighboring centers is the **grid pitch**. The visible hexagons are drawn around those centers using the configured radius and stroke width.
 
-The `hexgrid.Grid` type describes this lattice:
+The `geometry.Grid` type describes this lattice:
 
 | Field | Meaning |
 | --- | --- |
@@ -59,7 +59,7 @@ The six adjacent-cell directions are:
 | 0 | -1 | northwest |
 | 1 | -1 | northeast |
 
-For example, `GridPosition{Q: -1, R: 0}` is one cell west of the origin. `GridPosition{Q: 0, R: 2}` is two cells southeast. `GridPositionToPoint` converts an axial position into a model-space `Point`, measured in inches, using the canvas dimensions, grid pitch, and orientation.
+For example, `GridPosition{Q: -1, R: 0}` is one cell west of the origin. `GridPosition{Q: 0, R: 2}` is two cells southeast. `The renderer converts axial positions into physical drawing coordinates internally.
 
 The same axial positions remain valid when changing the orientation. The orientation changes the rendered hexagon geometry; callers do not need to redesign their coordinate layout.
 
@@ -114,9 +114,9 @@ For a manually authored composition, use `hexgrid.Scene` and `hexgrid.Render`:
 3. Add `GridTrace` values that connect those components or end at free terminal positions.
 4. Pass the scene to `Render` to receive an SVG string.
 
-`hexgrid.Scene` is the public grid-oriented scene type; `GridScene` remains as a compatibility alias. It supports labels in `Scene.Labels`. Use `hexgrid.TryPlaceLabel(scene, request)` to find a label position that fits without colliding with components, traces, terminal pads, or previously placed labels. Append each returned label before placing the next one. Label font family, size, and color are configured through `Options`.
+`hexgrid.Scene` is the public grid-oriented scene type. It supports grid-oriented label requests in `Scene.Labels`. Each request identifies a component by axial position and supplies ordered text candidates, preferred sides, spacing, and an optional inside-component fallback. `Render` measures the text, places labels without collisions, and renders them. Label font family, size, and color are configured through `Options`.
 
-Applications that need arbitrary inch-based geometry can import `github.com/sector-f/hexgrid/geometry` and use `geometry.Scene`, `geometry.Render`, and `geometry.TryPlaceLabel`. The low-level renderer draws supplied geometry without rearranging objects or preventing overlaps. Its layer order is background fill, background grid, traces, components, labels, and terminal pads. `geometry.Scene.GridColor` controls the background grid independently of `geometry.Scene.Color`; an empty grid color falls back to `Color`.
+Applications that need arbitrary inch-based geometry can import `github.com/sector-f/hexgrid/geometry` and use `geometry.Scene`, `geometry.Render`, and the lower-level geometry label-placement APIs. The low-level renderer draws supplied geometry without rearranging objects or preventing overlaps. Its layer order is background fill, background grid, traces, components, labels, and terminal pads. `geometry.Scene.GridColor` controls the background grid independently of `geometry.Scene.Color`; an empty grid color falls back to `Color`.
 
 ## Use `hexgrid` directly for manually-authored artwork
 

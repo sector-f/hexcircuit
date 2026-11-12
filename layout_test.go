@@ -34,7 +34,7 @@ func TestSceneBuildsComponentsAndParallelTrace(t *testing.T) {
 	if len(scene.Components) != 2 {
 		t.Fatalf("got %d components, want 2", len(scene.Components))
 	}
-	if scene.Components[0].Style != ComponentStyleSingle || scene.Components[1].Style != ComponentStyleTriple {
+	if scene.Components[0].Style != geometry.ComponentStyleSingle || scene.Components[1].Style != geometry.ComponentStyleTriple {
 		t.Fatalf("component styles = %v, %v", scene.Components[0].Style, scene.Components[1].Style)
 	}
 	if scene.Components[1].Radius != opts.ComponentRadius*0.9 {
@@ -44,7 +44,7 @@ func TestSceneBuildsComponentsAndParallelTrace(t *testing.T) {
 		t.Fatalf("got %d traces and %d terminals, want 3 each", len(scene.Traces), len(scene.Terminals))
 	}
 
-	source := GridPositionToPoint(layout.Components[0].Position, opts.Width, opts.Height, opts.Grid.Pitch, opts.Orientation)
+	source := gridgeom.PositionToPoint(layout.Components[0].Position.Q, layout.Components[0].Position.R, opts.Width, opts.Height, opts.Grid.Pitch, opts.Orientation)
 	for i, trace := range scene.Traces {
 		if len(trace.Points) < 2 {
 			t.Errorf("trace %d has %d points, want at least 2", i, len(trace.Points))
@@ -76,28 +76,27 @@ func TestRenderDoesNotTrimHideTerminalTrace(t *testing.T) {
 }
 
 func TestGridPositionToPointUsesCanvasCenterAsOrigin(t *testing.T) {
-	center := GridPositionToPoint(GridPosition{}, 10, 8, 0.5, "pointy")
-	if center != (Point{X: 5, Y: 4}) {
+	center := gridgeom.PositionToPoint(0, 0, 10, 8, 0.5, "pointy")
+	if center != (geometry.Point{X: 5, Y: 4}) {
 		t.Fatalf("origin = %+v, want center of canvas (5, 4)", center)
 	}
-	west := GridPositionToPoint(GridPosition{Q: -1}, 10, 8, 0.5, "pointy")
-	if west != (Point{X: 4.5, Y: 4}) {
+	west := gridgeom.PositionToPoint(-1, 0, 10, 8, 0.5, "pointy")
+	if west != (geometry.Point{X: 4.5, Y: 4}) {
 		t.Fatalf("Q=-1, R=0 maps to %+v, want one pitch west of center", west)
 	}
-	southeast := GridPositionToPoint(GridPosition{R: 1}, 10, 8, 0.5, "pointy")
-	wantSoutheast := Point{X: 5.25, Y: 4 + 0.5*math.Sqrt(3)/2}
+	southeast := gridgeom.PositionToPoint(0, 1, 10, 8, 0.5, "pointy")
+	wantSoutheast := geometry.Point{X: 5.25, Y: 4 + 0.5*math.Sqrt(3)/2}
 	if distance(southeast, wantSoutheast) > 1e-9 {
 		t.Fatalf("Q=0, R=1 maps to %+v, want southeast neighbor %+v", southeast, wantSoutheast)
 	}
 }
-
 func TestGridPositionToPointUsesFlatTopAxialBasis(t *testing.T) {
 	const pitch = 0.5
-	center := GridPositionToPoint(GridPosition{}, 10, 8, pitch, "flat")
-	q := GridPositionToPoint(GridPosition{Q: 1}, 10, 8, pitch, "flat")
-	r := GridPositionToPoint(GridPosition{R: 1}, 10, 8, pitch, "flat")
-	wantQ := Point{X: center.X + pitch*math.Sqrt(3)/2, Y: center.Y + pitch/2}
-	wantR := Point{X: center.X, Y: center.Y + pitch}
+	center := gridgeom.PositionToPoint(0, 0, 10, 8, pitch, "flat")
+	q := gridgeom.PositionToPoint(1, 0, 10, 8, pitch, "flat")
+	r := gridgeom.PositionToPoint(0, 1, 10, 8, pitch, "flat")
+	wantQ := geometry.Point{X: center.X + pitch*math.Sqrt(3)/2, Y: center.Y + pitch/2}
+	wantR := geometry.Point{X: center.X, Y: center.Y + pitch}
 	if distance(q, wantQ) > 1e-9 {
 		t.Errorf("flat-top Q neighbor = %+v, want %+v", q, wantQ)
 	}
@@ -105,21 +104,19 @@ func TestGridPositionToPointUsesFlatTopAxialBasis(t *testing.T) {
 		t.Errorf("flat-top R neighbor = %+v, want %+v", r, wantR)
 	}
 }
-
 func TestGridCellsRetainPhysicalCentersWithConventionalCoordinates(t *testing.T) {
 	const width, height, pitch = 6.0, 4.0, 0.5
-	cells := GridCells(width, height, pitch, "pointy", 0)
+	cells := gridgeom.Cells(width, height, pitch, "pointy", 0)
 	if len(cells) == 0 {
-		t.Fatal("GridCells() returned no cells")
+		t.Fatal("gridgeom.Cells() returned no cells")
 	}
 	for _, cell := range cells {
-		center := GridPositionToPoint(GridPosition{Q: cell.Q, R: cell.R}, width, height, pitch, "pointy")
+		center := gridgeom.PositionToPoint(cell.Q, cell.R, width, height, pitch, "pointy")
 		if distance(center, cell.Center) > 1e-9 {
 			t.Errorf("cell (%d, %d) stores center %+v, but its axial coordinate maps to %+v", cell.Q, cell.R, cell.Center, center)
 		}
 	}
 }
-
 func TestComponentStyleConstantsMatchGeometryPackage(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -234,9 +231,9 @@ func TestSceneAllowsTerminalAtCoordinateWithoutComponent(t *testing.T) {
 	if len(scene.Terminals) != 1 {
 		t.Fatalf("got %d terminal pads, want 1", len(scene.Terminals))
 	}
-	want := GridPositionToPoint(endpoint, opts.Width, opts.Height, opts.Grid.Pitch, opts.Orientation)
+	want := gridgeom.PositionToPoint(endpoint.Q, endpoint.R, opts.Width, opts.Height, opts.Grid.Pitch, opts.Orientation)
 	got := scene.Terminals[0]
-	if distance(Point{X: got.X, Y: got.Y}, want) > 1e-9 {
+	if distance(geometry.Point{X: got.X, Y: got.Y}, want) > 1e-9 {
 		t.Errorf("terminal center = (%v, %v), want endpoint (%v, %v)", got.X, got.Y, want.X, want.Y)
 	}
 }
@@ -287,7 +284,7 @@ func TestSceneHideTerminalClipsBundleToDestinationBoundary(t *testing.T) {
 		t.Fatalf("got %d terminal pads, want none", len(scene.Terminals))
 	}
 	destination := scene.Components[1]
-	center := Point{X: destination.X, Y: destination.Y}
+	center := geometry.Point{X: destination.X, Y: destination.Y}
 	baseAngle := orientationBaseAngle(opts.Orientation)
 	apothem := destination.Radius * sqrt3 / 2
 	for i, trace := range scene.Traces {
@@ -298,7 +295,7 @@ func TestSceneHideTerminalClipsBundleToDestinationBoundary(t *testing.T) {
 		maxProjection := math.Inf(-1)
 		for side := 0; side < hexSideCount; side++ {
 			theta := baseAngle + float64(side)*math.Pi/3
-			normal := Point{X: math.Cos(theta), Y: math.Sin(theta)}
+			normal := geometry.Point{X: math.Cos(theta), Y: math.Sin(theta)}
 			delta := sub(endpoint, center)
 			projection := dot(delta, normal)
 			if projection > maxProjection {
@@ -311,7 +308,38 @@ func TestSceneHideTerminalClipsBundleToDestinationBoundary(t *testing.T) {
 	}
 }
 
-func distance(a, b Point) float64 {
+
+func TestRenderPlacesGridLabelRequests(t *testing.T) {
+	options := DefaultOptions()
+	options.LabelFontFamily = "DejaVu Sans Mono"
+	options.LabelFontSize = 36
+	scene := Scene{
+		Options: options,
+		Components: []GridComponent{{
+			Position: GridPosition{},
+			Style: ComponentStyleSingle,
+		}},
+		Labels: []GridLabelRequest{{
+			Component: GridPosition{},
+			Candidates: []GridLabelCandidate{{
+				Text: "VCO",
+				SideOrder: []int{0, 1, 2, 3, 4, 5},
+			}},
+			Gap: 0.05,
+			Padding: 0.005,
+			ObjectGap: 0.006,
+		}},
+	}
+	svg, err := Render(scene)
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+	if !strings.Contains(svg, "VCO") {
+		t.Fatalf("rendered SVG does not contain the requested label: %s", svg)
+	}
+}
+
+func distance(a, b geometry.Point) float64 {
 	dx, dy := a.X-b.X, a.Y-b.Y
 	return math.Hypot(dx, dy)
 }
@@ -347,7 +375,7 @@ func TestGridColorFallsBackToSceneColor(t *testing.T) {
 	options.Width = 2
 	options.Height = 2
 	options.Color = "#123456"
-	options.Grid = Grid{Pitch: 0.5, Radius: 0.2, StrokeWidth: 0.01}
+	options.Grid = geometry.Grid{Pitch: 0.5, Radius: 0.2, StrokeWidth: 0.01}
 	svg, err := Render(Scene{Options: options})
 	if err != nil {
 		t.Fatal(err)
@@ -441,33 +469,3 @@ func TestRenderRejectsInvalidGlowSettings(t *testing.T) {
 	}
 }
 
-func TestTryPlaceLabelUsesSceneAndTracksPriorLabels(t *testing.T) {
-	options := DefaultOptions()
-	scene := Scene{
-		Options: options,
-		Components: []GridComponent{{
-			Position: GridPosition{},
-			Style:    ComponentStyleSingle,
-		}},
-	}
-	request := LabelRequest{
-		ComponentIndex: 0,
-		Text:           "VCO 1",
-		Metrics:        TextMetrics{MinX: 0, MinY: -0.02, MaxX: 0.12, MaxY: 0},
-		Side:           0,
-		Gap:            0.1,
-		Padding:        0.005,
-		ObjectGap:      0.006,
-	}
-	label, err := TryPlaceLabel(scene, request)
-	if err != nil {
-		t.Fatalf("TryPlaceLabel() error = %v", err)
-	}
-	if label.ComponentIndex != 0 || label.Text != request.Text {
-		t.Fatalf("TryPlaceLabel() returned unexpected label: %+v", label)
-	}
-	scene.Labels = append(scene.Labels, label)
-	if _, err := TryPlaceLabel(scene, request); err == nil {
-		t.Fatal("TryPlaceLabel() accepted a label overlapping an existing label")
-	}
-}

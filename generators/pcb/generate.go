@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/sector-f/hexgrid"
+	"github.com/sector-f/hexgrid/internal/gridgeom"
 )
 
 type clusterPlan struct {
@@ -282,8 +283,8 @@ func sortClustersByX(clusters []clusterPlan, o Options) {
 	// this helper deterministic for equal horizontal coordinates.
 	for i := 1; i < len(clusters); i++ {
 		for j := i; j > 0; j-- {
-			a := hexgrid.GridPositionToPoint(clusters[j-1].Hub, o.Width, o.Height, o.Pitch, "pointy")
-			b := hexgrid.GridPositionToPoint(clusters[j].Hub, o.Width, o.Height, o.Pitch, "pointy")
+			a := gridgeom.PositionToPoint(clusters[j-1].Hub.Q, clusters[j-1].Hub.R, o.Width, o.Height, o.Pitch, "pointy")
+			b := gridgeom.PositionToPoint(clusters[j].Hub.Q, clusters[j].Hub.R, o.Width, o.Height, o.Pitch, "pointy")
 			if a.X <= b.X {
 				break
 			}
@@ -318,12 +319,10 @@ func renderBoard(o Options, plan boardPlan) (string, error) {
 	base.GlowEnabled = o.BaseGlow
 	base.GlowBlurRadius = o.BaseGlowBlurRadius
 	base.GlowOpacity = o.BaseGlowOpacity
-	base.Grid = hexgrid.Grid{
-		Pitch:       o.Pitch,
-		Radius:      o.GridRadius,
-		StrokeWidth: 0,
-		OmitPartial: o.OmitPartialGridHexagons,
-	}
+	base.Grid.Pitch = o.Pitch
+	base.Grid.Radius = o.GridRadius
+	base.Grid.StrokeWidth = 0
+	base.Grid.OmitPartial = o.OmitPartialGridHexagons
 	if o.ShowBackgroundGrid {
 		base.Grid.StrokeWidth = o.GridStrokeWidth
 	}

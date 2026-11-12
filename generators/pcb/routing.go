@@ -6,6 +6,7 @@ import (
 	"math/rand"
 
 	"github.com/sector-f/hexgrid"
+	"github.com/sector-f/hexgrid/internal/gridgeom"
 )
 
 type routeQueueItem struct {
@@ -38,7 +39,7 @@ func (q *routePriorityQueue) Pop() any {
 
 func routingCells(o Options) map[hexgrid.GridPosition]bool {
 	margin := math.Max(o.ComponentRadius+o.ComponentStrokeWidth/2, o.ConnectorInset)
-	cells := hexgrid.GridCells(o.Width, o.Height, o.Pitch, "pointy", margin)
+	cells := gridgeom.Cells(o.Width, o.Height, o.Pitch, "pointy", margin)
 	allowed := make(map[hexgrid.GridPosition]bool, len(cells))
 	for _, cell := range cells {
 		allowed[hexgrid.GridPosition{Q: cell.Q, R: cell.R}] = true
@@ -75,15 +76,15 @@ func routingCellsWithinPowerSourceCorridor(
 ) map[hexgrid.GridPosition]bool {
 	topY, bottomY := math.Inf(-1), math.Inf(1)
 	if len(topSources) > 0 {
-		topY = hexgrid.GridPositionToPoint(topSources[0], o.Width, o.Height, o.Pitch, "pointy").Y
+		topY = gridgeom.PositionToPoint(topSources[0].Q, topSources[0].R, o.Width, o.Height, o.Pitch, "pointy").Y
 	}
 	if len(bottomSources) > 0 {
-		bottomY = hexgrid.GridPositionToPoint(bottomSources[0], o.Width, o.Height, o.Pitch, "pointy").Y
+		bottomY = gridgeom.PositionToPoint(bottomSources[0].Q, bottomSources[0].R, o.Width, o.Height, o.Pitch, "pointy").Y
 	}
 	filtered := make(map[hexgrid.GridPosition]bool, len(allowed))
 	const epsilon = 1e-9
 	for position := range allowed {
-		y := hexgrid.GridPositionToPoint(position, o.Width, o.Height, o.Pitch, "pointy").Y
+		y := gridgeom.PositionToPoint(position.Q, position.R, o.Width, o.Height, o.Pitch, "pointy").Y
 		if y > topY+epsilon && y < bottomY-epsilon {
 			filtered[position] = true
 		}
@@ -106,7 +107,7 @@ func routingCellsWithinPowerSourceSpan(
 ) map[hexgrid.GridPosition]bool {
 	minimumX, maximumX := math.Inf(1), math.Inf(-1)
 	for _, source := range sources {
-		x := hexgrid.GridPositionToPoint(source.Position, o.Width, o.Height, o.Pitch, "pointy").X
+		x := gridgeom.PositionToPoint(source.Position.Q, source.Position.R, o.Width, o.Height, o.Pitch, "pointy").X
 		minimumX = math.Min(minimumX, x)
 		maximumX = math.Max(maximumX, x)
 	}
@@ -116,7 +117,7 @@ func routingCellsWithinPowerSourceSpan(
 	}
 	const epsilon = 1e-9
 	for position := range allowed {
-		x := hexgrid.GridPositionToPoint(position, o.Width, o.Height, o.Pitch, "pointy").X
+		x := gridgeom.PositionToPoint(position.Q, position.R, o.Width, o.Height, o.Pitch, "pointy").X
 		if x >= minimumX-epsilon && x <= maximumX+epsilon {
 			filtered[position] = true
 		}
