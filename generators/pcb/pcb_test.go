@@ -535,7 +535,7 @@ func TestComponentRadiusBoundsFallBackToComponentRadius(t *testing.T) {
 
 func TestClusterComponentsUseConfiguredRandomRadiusRange(t *testing.T) {
 	o := DefaultOptions()
-	o.ComponentMinRadius = 0.16
+	o.ComponentMinRadius = 0.18
 	o.ComponentMaxRadius = 0.24
 	o.Seed = 912
 	o.SeedSet = true
@@ -580,7 +580,7 @@ func TestClusterPowerCoreRadiusFollowsHostWhenVariableSizesAreEnabled(t *testing
 
 func TestPowerSourceComponentsKeepFixedRadius(t *testing.T) {
 	o := DefaultOptions()
-	o.ComponentMinRadius = 0.16
+	o.ComponentMinRadius = 0.18
 	o.ComponentMaxRadius = 0.24
 	top, bottom, err := powerSourcePositions(o)
 	if err != nil {
@@ -627,12 +627,13 @@ func TestAdjacentPowerSourcesDoNotOverlapAtDefaultPitch(t *testing.T) {
 func TestNormalizeOptionsChecksSourceToClusterClearance(t *testing.T) {
 	o := DefaultOptions()
 	o.ComponentRadius = 1
-	o.ComponentMinRadius = 0.15
-	o.ComponentMaxRadius = 0.20
+	o.ComponentMinRadius = 0.20
+	o.ComponentMaxRadius = 0.25
 	o.MinPowerSourcesPerCluster = 0
 	o.MaxPowerSourcesPerCluster = 0
 	o.TopPowerSourceCount = 1
 	o.BottomPowerSourceCount = 0
+	o.Pitch = 0.70
 	if _, err := normalizeOptions(o); err == nil {
 		t.Fatal("expected large fixed power contacts to require more vertical clearance from cluster components")
 	}
