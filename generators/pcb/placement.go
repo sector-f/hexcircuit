@@ -45,7 +45,7 @@ func powerSourcePositions(o Options) (top, bottom []hexgrid.GridPosition, err er
 	if o.TopPowerSourceCount == 0 && o.BottomPowerSourceCount == 0 {
 		return nil, nil, nil
 	}
-	margin := math.Max(o.ComponentRadius+o.ComponentStrokeWidth/2, o.ConnectorInset)
+	margin := math.Max(o.PowerSourceComponentRadius+o.ComponentStrokeWidth/2, o.ConnectorInset)
 	cells := gridgeom.Cells(o.Width, o.Height, o.Pitch, "pointy", margin)
 	if len(cells) == 0 {
 		return nil, nil, fmt.Errorf("canvas does not contain any power-source grid positions")
@@ -72,8 +72,8 @@ func powerSourcePositions(o Options) (top, bottom []hexgrid.GridPosition, err er
 		for _, b := range contacts[i+1:] {
 			pointB := gridgeom.PositionToPoint(b.Q, b.R, o.Width, o.Height, o.Pitch, "pointy")
 			if regularHexagonsOverlap(
-				pointA.X, pointA.Y, o.ComponentRadius,
-				pointB.X, pointB.Y, o.ComponentRadius,
+				pointA.X, pointA.Y, o.PowerSourceComponentRadius,
+				pointB.X, pointB.Y, o.PowerSourceComponentRadius,
 				o.ComponentStrokeWidth,
 			) {
 				return nil, nil, fmt.Errorf("power-source contacts at (%d, %d) and (%d, %d) overlap", a.Q, a.R, b.Q, b.R)

@@ -49,6 +49,7 @@ type generateRequest struct {
 	MinPowerSourcesPerCluster             int     `json:"minPowerSourcesPerCluster"`
 	MaxPowerSourcesPerCluster             int     `json:"maxPowerSourcesPerCluster"`
 	ComponentRadius                       float64 `json:"componentRadius"`
+	PowerSourceComponentRadius            float64 `json:"powerSourceComponentRadius"`
 	ComponentMinRadius                    float64 `json:"componentMinRadius"`
 	ComponentMaxRadius                    float64 `json:"componentMaxRadius"`
 	ComponentStrokeWidth                  float64 `json:"componentStrokeWidth"`
@@ -292,6 +293,13 @@ func (r generateRequest) options() (pcb.Options, error) {
 	if minimumComponentRadius > maximumComponentRadius {
 		return pcb.Options{}, fmt.Errorf("minimum component radius cannot exceed maximum component radius")
 	}
+	powerSourceComponentRadius := r.PowerSourceComponentRadius
+	if powerSourceComponentRadius == 0 {
+		powerSourceComponentRadius = r.ComponentRadius
+	}
+	if !positiveFinite(powerSourceComponentRadius) {
+		return pcb.Options{}, fmt.Errorf("power-source component radius must be greater than 0")
+	}
 	if !positiveFinite(r.Pitch) || !positiveFinite(r.ComponentRadius) ||
 		!positiveFinite(r.ComponentStrokeWidth) || !positiveFinite(r.TraceStrokeWidth) ||
 		!positiveFinite(r.TraceSpacing) || !positiveFinite(r.NodeRadius) ||
@@ -347,6 +355,7 @@ func (r generateRequest) options() (pcb.Options, error) {
 		GenerationAttempts:                    generationAttempts,
 		Pitch:                                 r.Pitch,
 		ComponentRadius:                       r.ComponentRadius,
+		PowerSourceComponentRadius:            powerSourceComponentRadius,
 		ComponentMinRadius:                    r.ComponentMinRadius,
 		ComponentMaxRadius:                    r.ComponentMaxRadius,
 		ComponentStrokeWidth:                  r.ComponentStrokeWidth,

@@ -578,8 +578,18 @@ func TestClusterPowerCoreRadiusFollowsHostWhenVariableSizesAreEnabled(t *testing
 	}
 }
 
+
+func TestDefaultPowerSourceComponentRadiusMatchesComponentRadius(t *testing.T) {
+	o := DefaultOptions()
+	if o.PowerSourceComponentRadius != o.ComponentRadius {
+		t.Fatalf("default power-source component radius = %g, want ComponentRadius %g",
+			o.PowerSourceComponentRadius, o.ComponentRadius)
+	}
+}
+
 func TestPowerSourceComponentsKeepFixedRadius(t *testing.T) {
 	o := DefaultOptions()
+	o.PowerSourceComponentRadius = 0.20
 	o.ComponentMinRadius = 0.18
 	o.ComponentMaxRadius = 0.24
 	top, bottom, err := powerSourcePositions(o)
@@ -590,9 +600,23 @@ func TestPowerSourceComponentsKeepFixedRadius(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	wantScale := powerSourceComponentRadiusScale(o)
+	sourcePositions := make(map[hexgrid.GridPosition]bool, len(top)+len(bottom))
+	for _, position := range append(top, bottom...) {
+		sourcePositions[position] = true
+	}
 	for _, component := range plan.Components[o.ComponentCount:] {
-		if component.RadiusScale != 0 {
-			t.Errorf("power-source component at %v has radius scale %g; want fixed ComponentRadius", component.Position, component.RadiusScale)
+		if component.RadiusScale != wantScale {
+			t.Errorf("power-source component at %v has radius scale %g; want %g for fixed power-source radius %g",
+				component.Position, component.RadiusScale, wantScale, o.PowerSourceComponentRadius)
+		}
+	}
+	for _, core := range plan.PowerCores {
+		if sourcePositions[core.Position] {
+			wantCoreScale := wantScale * powerCoreRadiusScale
+			if core.RadiusScale != wantCoreScale {
+				t.Errorf("power-source core at %v has radius scale %g; want %g", core.Position, core.RadiusScale, wantCoreScale)
+			}
 		}
 	}
 }
@@ -605,16 +629,13 @@ func TestNormalizeOptionsRejectsOverlappingComponentSizes(t *testing.T) {
 		t.Fatal("expected pitch that permits component overlap to be rejected")
 	}
 
-	// Keep this test focused on component-radius validation. Increasing pitch
-	// reduces the number of cells that fit across the canvas, which can make
-	// the default separated power-source row impossible to place.
-	o.TopPowerSourceCount = 0
-	o.BottomPowerSourceCount = 0
-	o.MinPowerSourcesPerCluster = 0
-	o.MaxPowerSourcesPerCluster = 0
+	// Keep the default top and bottom power-source rows enabled. Increasing
+	// pitch reduces the number of cells across the canvas, so widen the canvas
+	// slightly to preserve room for the existing ten-contact separated rows.
+	o.Width = 10.4
 	o.Pitch = 0.54
 	if _, err := normalizeOptions(o); err != nil {
-		t.Fatalf("increased pitch should accommodate component radii: %v", err)
+		t.Fatalf("increased pitch and canvas width should accommodate component radii while retaining power-source rows: %v", err)
 	}
 }
 
@@ -634,6 +655,7 @@ func TestAdjacentPowerSourcesDoNotOverlapAtDefaultPitch(t *testing.T) {
 func TestNormalizeOptionsChecksSourceToClusterClearance(t *testing.T) {
 	o := DefaultOptions()
 	o.ComponentRadius = 1
+	o.PowerSourceComponentRadius = 1
 	o.ComponentMinRadius = 0.20
 	o.ComponentMaxRadius = 0.25
 	o.MinPowerSourcesPerCluster = 0
@@ -978,7 +1000,7 @@ func TestPowerSourceTrapezoidConstrainsLayoutAndRoutes(t *testing.T) {
 			}
 		}
 	}
-	cells := gridgeom.Cells(o.Width, o.Height, o.Pitch, "pointy", math.Max(o.ComponentRadius+o.ComponentStrokeWidth/2, o.ConnectorInset))
+	cells := gridgeom.Cells(o.Width, o.Height, o.Pitch, "pointy", math.Max(o.PowerSourceComponentRadius+o.ComponentStrokeWidth/2, o.ConnectorInset))
 	globalLeft, globalRight := math.Min(bounds.topLeft, bounds.bottomLeft), math.Max(bounds.topRight, bounds.bottomRight)
 	foundOutsideCorner := false
 	for _, cell := range cells {
@@ -1803,5 +1825,28 @@ func TestBuildBoardAddsDecorativeTraces(t *testing.T) {
 	wantTraceCount := len(plan.SignalTraces) + len(plan.PowerTraces) + len(plan.InterClusterTraces) + len(plan.DecorativeTraces)
 	if traceCount != wantTraceCount {
 		t.Fatalf("Generate trace count = %d, want %d including decorative traces", traceCount, wantTraceCount)
+	}
+}
+
+func TestPowerSourceComponentRadiusIsIndependentAndChecksContactOverlap(t *testing.T) {
+	o := DefaultOptions()
+	o.PowerSourceSpacing = PowerSourceSpacingAdjacent
+	o.PowerSourceComponentRadius = 0.30
+	if _, _, err := powerSourcePositions(o); err == nil {
+		t.Fatal("expected oversized adjacent power-source contacts to overlap")
+	}
+
+	o.PowerSourceComponentRadius = 0.20
+	top, bottom, err := powerSourcePositions(o)
+	if err != nil {
+		t.Fatalf("smaller power-source radius should permit adjacent contacts: %v", err)
+	}
+	if len(top) != o.TopPowerSourceCount || len(bottom) != o.BottomPowerSourceCount {
+		t.Fatalf("got %d top and %d bottom contacts, want %d and %d",
+			len(top), len(bottom), o.TopPowerSourceCount, o.BottomPowerSourceCount)
+	}
+	if minimum, maximum := clusterComponentRadiusBounds(o); minimum != o.ComponentRadius || maximum != o.ComponentRadius {
+		t.Fatalf("source radius changed cluster fallback bounds to (%g, %g), want ComponentRadius %g",
+			minimum, maximum, o.ComponentRadius)
 	}
 }

@@ -169,14 +169,15 @@ Run `./pcb-cli --help` for the complete flag list and defaults reported by the p
 | `--constrain-components-to-power-source-span` | `false` | Restrict components and all routes to the horizontal span between the leftmost and rightmost active power contacts. |
 | `--constrain-layout-to-power-source-trapezoid` | `false` | Restrict components and all routes to the trapezoid connecting the left/right extents of the top and bottom source rows. Requires both rows. |
 | `--pitch` | `0.50` | Center-to-center spacing of neighboring grid positions. |
-| `--component-radius` | `0.26` | Fixed circumradius for power-source contacts and fallback cluster size. |
+| `--component-radius` | `0.26` | Base cluster-component circumradius and fallback for either unset cluster-radius bound. |
+| `--power-source-component-radius` | `0.26` | Fixed circumradius for physical power-source contacts. |
 | `--component-min-radius` | `0` | Minimum randomized cluster-component circumradius; zero falls back to `--component-radius`. |
 | `--component-max-radius` | `0` | Maximum randomized cluster-component circumradius; zero falls back to `--component-radius`; both zero preserve legacy sizing. |
 | `--component-stroke-width` | `0.012` | Component outline width. |
 | `--component-middle-hexagon-scale` | `0.60` | Middle component hexagon size relative to the outer radius. |
 | `--component-inner-hexagon-scale` | `0.34` | Inner component hexagon size relative to the outer radius. |
 
-The inner and middle scales must satisfy `0 < inner < middle < 1`. Setting either radius bound randomizes every cluster component; an unset bound falls back to `--component-radius`. When both bounds are zero, the existing full-size center and randomized outer-component sizes are preserved. Power-source contacts always use `--component-radius`. Pitch validation and source-contact checks use the actual pointy-top hexagon outlines to prevent overlap. The minimum cluster size must be at least one, and `component-count` must be large enough to satisfy the requested minimum across all clusters.
+The inner and middle scales must satisfy `0 < inner < middle < 1`. Setting either radius bound randomizes every cluster component; an unset bound falls back to `--component-radius`. When both bounds are zero, the existing full-size center and randomized outer-component sizes are preserved. Power-source contacts use `--power-source-component-radius`, which defaults to the same value as `--component-radius`. Pitch validation and source-contact checks use the actual pointy-top hexagon outlines to prevent overlap. The minimum cluster size must be at least one, and `component-count` must be large enough to satisfy the requested minimum across all clusters.
 
 ### Traces and terminal pads
 

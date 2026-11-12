@@ -106,9 +106,11 @@ type Options struct {
 
 	// Pitch is the center-to-center spacing of neighboring axial grid positions.
 	Pitch float64
-	// ComponentRadius is the fixed circumradius used for power-source contacts
-	// and the fallback for either cluster-component radius bound.
+	// ComponentRadius is the base circumradius for cluster components and the
+	// fallback for either cluster-component radius bound.
 	ComponentRadius float64
+	// PowerSourceComponentRadius is the fixed circumradius of physical power-source contacts.
+	PowerSourceComponentRadius float64
 	// ComponentMinRadius and ComponentMaxRadius bound randomized cluster-component
 	// circumradii. A zero bound falls back to ComponentRadius.
 	ComponentMinRadius float64
@@ -197,6 +199,7 @@ func DefaultOptions() Options {
 		GenerationAttempts:                    4,
 		Pitch:                                 0.50,
 		ComponentRadius:                       0.26,
+		PowerSourceComponentRadius:            0.26,
 		ComponentStrokeWidth:                  0.012,
 		ComponentMiddleHexagonScale:           0.60,
 		ComponentInnerHexagonScale:            0.34,
@@ -237,6 +240,9 @@ func normalizeOptions(o Options) (Options, error) {
 	if strings.TrimSpace(o.Background) == "" {
 		o.Background = "none"
 	}
+	if o.PowerSourceComponentRadius == 0 {
+		o.PowerSourceComponentRadius = o.ComponentRadius
+	}
 	if o.PowerSourceSpacing == "" {
 		o.PowerSourceSpacing = PowerSourceSpacingSeparated
 	}
@@ -252,6 +258,7 @@ func normalizeOptions(o Options) (Options, error) {
 		{"height", o.Height},
 		{"pitch", o.Pitch},
 		{"component radius", o.ComponentRadius},
+		{"power-source component radius", o.PowerSourceComponentRadius},
 		{"component stroke width", o.ComponentStrokeWidth},
 		{"trace stroke width", o.TraceStrokeWidth},
 		{"node radius", o.NodeRadius},
@@ -370,14 +377,14 @@ func normalizeOptions(o Options) (Options, error) {
 	}
 	minimumComponentSpacing := math.Sqrt(3)*maximumComponentRadius + o.ComponentStrokeWidth
 	if o.TopPowerSourceCount+o.BottomPowerSourceCount > 0 {
-		sourceClusterSpacing := (math.Sqrt(3)/2*(o.ComponentRadius+maximumComponentRadius) + o.ComponentStrokeWidth) / (1.6 * math.Sqrt(3) / 2)
+		sourceClusterSpacing := (math.Sqrt(3)/2*(o.PowerSourceComponentRadius+maximumComponentRadius) + o.ComponentStrokeWidth) / (1.6 * math.Sqrt(3) / 2)
 		minimumComponentSpacing = math.Max(minimumComponentSpacing, sourceClusterSpacing)
 	}
 	if o.Pitch <= minimumComponentSpacing {
 		return o, fmt.Errorf("pitch must be greater than %.6g to prevent component overlap (maximum cluster radius %.6g)", minimumComponentSpacing, maximumComponentRadius)
 	}
 	maximumBundleReach := float64(o.MaxParallel-1)*o.TraceSpacing/2 + o.NodeRadius + o.TraceStrokeWidth/2
-	minimumPowerCoreRadius := math.Min(o.ComponentRadius, minimumComponentRadius)
+	minimumPowerCoreRadius := math.Min(o.PowerSourceComponentRadius, minimumComponentRadius)
 	powerCoreApothem := minimumPowerCoreRadius * powerCoreRadiusScale * math.Sqrt(3) / 2
 	if maximumBundleReach >= powerCoreApothem {
 		return o, fmt.Errorf("trace bundle does not fit inside power-entry cores; reduce trace spacing, node radius, or maximum parallel tracks")
@@ -416,7 +423,13 @@ func clusterComponentRadiusBounds(o Options) (float64, float64) {
 // power-source contacts when calculating canvas-edge clearance.
 func maximumLayoutComponentRadius(o Options) float64 {
 	_, clusterMaximum := clusterComponentRadiusBounds(o)
-	return math.Max(o.ComponentRadius, clusterMaximum)
+	return math.Max(o.PowerSourceComponentRadius, clusterMaximum)
+}
+
+// powerSourceComponentRadiusScale converts the independent power-source radius
+// to the cluster renderer's ComponentRadius-relative scale.
+func powerSourceComponentRadiusScale(o Options) float64 {
+	return o.PowerSourceComponentRadius / o.ComponentRadius
 }
 
 func validScale(value float64) bool {

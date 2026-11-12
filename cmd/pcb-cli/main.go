@@ -70,7 +70,8 @@ func parseOptions(arguments []string, stderr io.Writer) (CLIOptions, error) {
 	flags.IntVar(&opts.Generator.GenerationAttempts, "generation-attempts", opts.Generator.GenerationAttempts, "Complete board-generation attempts using deterministic fallback seeds (includes the first seed).")
 
 	flags.Float64Var(&opts.Generator.Pitch, "pitch", opts.Generator.Pitch, "Center-to-center spacing of neighboring grid positions, in inches.")
-	flags.Float64Var(&opts.Generator.ComponentRadius, "component-radius", opts.Generator.ComponentRadius, "Fixed circumradius for power-source contacts and fallback cluster size, in inches.")
+	flags.Float64Var(&opts.Generator.ComponentRadius, "component-radius", opts.Generator.ComponentRadius, "Base cluster-component circumradius and fallback for cluster radius bounds, in inches.")
+	flags.Float64Var(&opts.Generator.PowerSourceComponentRadius, "power-source-component-radius", opts.Generator.PowerSourceComponentRadius, "Fixed circumradius for physical power-source contacts, in inches.")
 	flags.Float64Var(&opts.Generator.ComponentMinRadius, "component-min-radius", opts.Generator.ComponentMinRadius, "Minimum randomized cluster-component circumradius, in inches; zero falls back to --component-radius.")
 	flags.Float64Var(&opts.Generator.ComponentMaxRadius, "component-max-radius", opts.Generator.ComponentMaxRadius, "Maximum randomized cluster-component circumradius, in inches; zero falls back to --component-radius.")
 	flags.Float64Var(&opts.Generator.ComponentStrokeWidth, "component-stroke-width", opts.Generator.ComponentStrokeWidth, "Component outline width, in inches.")

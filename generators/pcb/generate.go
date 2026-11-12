@@ -165,11 +165,19 @@ func buildBoard(
 	sourceStyle := powerSourceComponentStyle(o.PowerSourceStyle)
 	for _, source := range topSources {
 		allPositions[source] = true
-		plan.Components = append(plan.Components, hexgrid.GridComponent{Position: source, Style: sourceStyle})
+		plan.Components = append(plan.Components, hexgrid.GridComponent{
+			Position:    source,
+			Style:       sourceStyle,
+			RadiusScale: powerSourceComponentRadiusScale(o),
+		})
 	}
 	for _, source := range bottomSources {
 		allPositions[source] = true
-		plan.Components = append(plan.Components, hexgrid.GridComponent{Position: source, Style: sourceStyle})
+		plan.Components = append(plan.Components, hexgrid.GridComponent{
+			Position:    source,
+			Style:       sourceStyle,
+			RadiusScale: powerSourceComponentRadiusScale(o),
+		})
 	}
 
 	reserved := make(map[hexgrid.GridPosition]bool)
@@ -195,7 +203,11 @@ func buildBoard(
 				reserved[position] = true
 			}
 			plan.PowerCores = append(plan.PowerCores,
-				hexgrid.GridComponent{Position: source.Position, Style: hexgrid.ComponentStyleSingle, RadiusScale: powerCoreRadiusScale},
+				hexgrid.GridComponent{
+					Position:    source.Position,
+					Style:       hexgrid.ComponentStyleSingle,
+					RadiusScale: powerSourceComponentRadiusScale(o) * powerCoreRadiusScale,
+				},
 			)
 			if !endpointCores[target] {
 				plan.PowerCores = append(plan.PowerCores,

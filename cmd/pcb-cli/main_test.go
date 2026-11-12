@@ -17,6 +17,7 @@ func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 		"--power-source-spacing=adjacent",
 		"--power-source-style=double",
 		"--component-min-radius=0.17",
+		"--power-source-component-radius=0.21",
 		"--component-max-radius=0.23",
 		"--constrain-components-to-power-source-span",
 		"--constrain-layout-to-power-source-trapezoid",
@@ -61,6 +62,9 @@ func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 	}
 	if opts.Generator.ComponentMinRadius != 0.17 || opts.Generator.ComponentMaxRadius != 0.23 {
 		t.Errorf("component radius range = %g..%g, want 0.17..0.23", opts.Generator.ComponentMinRadius, opts.Generator.ComponentMaxRadius)
+	}
+	if opts.Generator.PowerSourceComponentRadius != 0.21 {
+		t.Errorf("power-source component radius = %g, want 0.21", opts.Generator.PowerSourceComponentRadius)
 	}
 	if opts.Generator.PowerSourceSpacing != pcb.PowerSourceSpacingAdjacent {
 		t.Errorf("power-source spacing = %q, want adjacent", opts.Generator.PowerSourceSpacing)
