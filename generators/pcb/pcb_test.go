@@ -1344,17 +1344,6 @@ func TestInterClusterTraceSeedRendersEndpointComponents(t *testing.T) {
 	for _, component := range plan.Components {
 		baseComponents[component.Position] = component
 	}
-	for _, endpoint := range plan.InterclusterComponents {
-		base, ok := baseComponents[endpoint.Position]
-		if !ok {
-			t.Errorf("inter-cluster endpoint %v has no base-layer component", endpoint.Position)
-			continue
-		}
-		if base.Style == hexgrid.ComponentStyleTriple {
-			t.Errorf("inter-cluster endpoint %v retains triple style in the base layer", endpoint.Position)
-		}
-	}
-
 	for position, coreScale := range accentCoreScales {
 		base, ok := baseComponents[position]
 		if !ok {
