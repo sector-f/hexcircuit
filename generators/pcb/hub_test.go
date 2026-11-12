@@ -2,6 +2,7 @@ package pcb
 
 import (
 	"math/rand"
+	"strings"
 	"testing"
 
 	"github.com/sector-f/hexgrid"
@@ -80,5 +81,26 @@ func TestBuildBoardCreatesVisibleHubsAndHubSpokes(t *testing.T) {
 	}
 	if !strings.Contains(svg, `stroke="`+o.AccentColor+`"`) {
 		t.Fatal("rendered SVG does not draw hubs in the accent color")
+	}
+}
+
+func TestChoosePowerTargetsPrefersOuterComponents(t *testing.T) {
+	hub := hexgrid.GridPosition{Q: 0, R: 0}
+	parent := hub
+	components := []placedComponent{
+		{Position: hub},
+		{Position: hexgrid.GridPosition{Q: 1, R: 0}, Parent: &parent},
+		{Position: hexgrid.GridPosition{Q: 0, R: 1}, Parent: &parent},
+	}
+	targets := choosePowerTargets(components, 8, rand.New(rand.NewSource(41)))
+	for _, target := range targets {
+		if target == hub {
+			t.Fatalf("power feed targets include central hub %v despite available outer components", hub)
+		}
+	}
+
+	singleton := choosePowerTargets([]placedComponent{{Position: hub}}, 1, rand.New(rand.NewSource(41)))
+	if len(singleton) != 1 || singleton[0] != hub {
+		t.Fatalf("singleton cluster power target = %v, want hub position %v", singleton, hub)
 	}
 }
