@@ -271,6 +271,7 @@ func addHubConnections(
 	allowed, blocked, reserved map[hexgrid.GridPosition]bool,
 ) ([]hexgrid.GridTrace, error) {
 	traces := make([]hexgrid.GridTrace, 0)
+	spokeReserved := make(map[hexgrid.GridPosition]bool)
 	for _, cluster := range clusters {
 		targets := make([]hexgrid.GridPosition, 0, len(cluster.Components)-1)
 		localBlocked := copyAllowedRoutes(blocked)
@@ -289,7 +290,13 @@ func addHubConnections(
 
 		for _, target := range targets {
 			localBlocked[target] = true
+			// Prefer to keep spokes clear of power feeds. If a feed blocks every
+			// available exit, retry against the spoke reservations alone; power is
+			// rendered in a later accent layer and can visually overprint crossings.
 			path, ok := findRoute(cluster.Hub, target, allowed, localBlocked, reserved, powerSideAny, rng)
+			if !ok {
+				path, ok = findRoute(cluster.Hub, target, allowed, localBlocked, spokeReserved, powerSideAny, rng)
+			}
 			if !ok || len(path) < 2 {
 				return nil, fmt.Errorf(
 					"could not route cluster %d hub to component at grid position (%d, %d)",
@@ -303,6 +310,7 @@ func addHubConnections(
 				HideTerminal: true,
 			})
 			for _, position := range path[1 : len(path)-1] {
+				spokeReserved[position] = true
 				reserved[position] = true
 			}
 		}

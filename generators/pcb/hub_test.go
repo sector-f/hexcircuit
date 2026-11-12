@@ -51,10 +51,12 @@ func TestBuildBoardCreatesVisibleHubsAndHubSpokes(t *testing.T) {
 			t.Fatalf("hub trace at %v loops back to itself", trace.Start)
 		}
 		endpoint := trace.Path[len(trace.Path)-1]
+		matchedCluster := false
 		for _, cluster := range plan.Clusters {
 			if trace.Start != cluster.Hub {
 				continue
 			}
+			matchedCluster = true
 			found := false
 			for _, component := range cluster.Components {
 				if component.Position == endpoint && endpoint != cluster.Hub {
@@ -65,6 +67,9 @@ func TestBuildBoardCreatesVisibleHubsAndHubSpokes(t *testing.T) {
 			if !found {
 				t.Fatalf("hub trace from %v ends at non-member position %v", trace.Start, endpoint)
 			}
+		}
+		if !matchedCluster {
+			t.Fatalf("hub trace starts at unknown cluster position %v", trace.Start)
 		}
 		if seen[endpoint] {
 			t.Fatalf("multiple hub traces terminate at %v", endpoint)
