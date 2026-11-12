@@ -197,8 +197,6 @@ func DefaultOptions() Options {
 		GenerationAttempts:                    4,
 		Pitch:                                 0.50,
 		ComponentRadius:                       0.26,
-		ComponentMinRadius:                    0.18,
-		ComponentMaxRadius:                    0.24,
 		ComponentStrokeWidth:                  0.012,
 		ComponentMiddleHexagonScale:           0.60,
 		ComponentInnerHexagonScale:            0.34,
@@ -370,23 +368,17 @@ func normalizeOptions(o Options) (Options, error) {
 	if o.ConnectorInset >= o.Height/2 {
 		return o, fmt.Errorf("connector inset must be less than half the canvas height")
 	}
-	minimumComponentSpacing := 2*maximumComponentRadius + o.ComponentStrokeWidth
-	if o.TopPowerSourceCount > 1 || o.BottomPowerSourceCount > 1 {
-		sourceSpacing := 2*o.ComponentRadius + o.ComponentStrokeWidth
-		if o.PowerSourceSpacing == PowerSourceSpacingSeparated {
-			sourceSpacing /= 2
-		}
-		minimumComponentSpacing = math.Max(minimumComponentSpacing, sourceSpacing)
-	}
+	minimumComponentSpacing := math.Sqrt(3)*maximumComponentRadius + o.ComponentStrokeWidth
 	if o.TopPowerSourceCount+o.BottomPowerSourceCount > 0 {
-		sourceClusterSpacing := (o.ComponentRadius + maximumComponentRadius + o.ComponentStrokeWidth) / 1.6
+		sourceClusterSpacing := (math.Sqrt(3)/2*(o.ComponentRadius+maximumComponentRadius) + o.ComponentStrokeWidth) / (1.6 * math.Sqrt(3) / 2)
 		minimumComponentSpacing = math.Max(minimumComponentSpacing, sourceClusterSpacing)
 	}
 	if o.Pitch <= minimumComponentSpacing {
 		return o, fmt.Errorf("pitch must be greater than %.6g to prevent component overlap (maximum cluster radius %.6g)", minimumComponentSpacing, maximumComponentRadius)
 	}
 	maximumBundleReach := float64(o.MaxParallel-1)*o.TraceSpacing/2 + o.NodeRadius + o.TraceStrokeWidth/2
-	powerCoreApothem := o.ComponentRadius * powerCoreRadiusScale * math.Sqrt(3) / 2
+	minimumPowerCoreRadius := math.Min(o.ComponentRadius, minimumComponentRadius)
+	powerCoreApothem := minimumPowerCoreRadius * powerCoreRadiusScale * math.Sqrt(3) / 2
 	if maximumBundleReach >= powerCoreApothem {
 		return o, fmt.Errorf("trace bundle does not fit inside power-entry cores; reduce trace spacing, node radius, or maximum parallel tracks")
 	}

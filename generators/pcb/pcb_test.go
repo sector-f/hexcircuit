@@ -503,6 +503,20 @@ func TestNormalizeOptionsValidatesComponentRadiusBounds(t *testing.T) {
 	}
 }
 
+func TestUnsetComponentRadiusBoundsPreserveLegacyClusterSizes(t *testing.T) {
+	o := DefaultOptions()
+	if o.ComponentMinRadius != 0 || o.ComponentMaxRadius != 0 {
+		t.Fatalf("default cluster radius bounds = (%g, %g), want both unset", o.ComponentMinRadius, o.ComponentMaxRadius)
+	}
+	if got := clusterComponentRadiusScale(o, rand.New(rand.NewSource(1)), true); got != 1 {
+		t.Fatalf("legacy first component radius scale = %g, want 1", got)
+	}
+	got := clusterComponentRadiusScale(o, rand.New(rand.NewSource(1)), false)
+	if got < 0.72 || got > 0.94 {
+		t.Fatalf("legacy outer component radius scale = %g, want range [0.72, 0.94]", got)
+	}
+}
+
 func TestComponentRadiusBoundsFallBackToComponentRadius(t *testing.T) {
 	o := DefaultOptions()
 	o.ComponentMinRadius = 0
@@ -550,6 +564,20 @@ func TestClusterComponentsUseConfiguredRandomRadiusRange(t *testing.T) {
 	}
 }
 
+
+func TestClusterPowerCoreRadiusFollowsHostWhenVariableSizesAreEnabled(t *testing.T) {
+	o := DefaultOptions()
+	if got := clusterPowerCoreRadiusScale(o, 0.8); got != powerCoreRadiusScale {
+		t.Fatalf("legacy power core radius scale = %g, want %g", got, powerCoreRadiusScale)
+	}
+	o.ComponentMinRadius = 0.18
+	o.ComponentMaxRadius = 0.24
+	hostScale := 0.18 / o.ComponentRadius
+	if got, want := clusterPowerCoreRadiusScale(o, hostScale), hostScale*powerCoreRadiusScale; got != want {
+		t.Fatalf("variable-size power core scale = %g, want %g", got, want)
+	}
+}
+
 func TestPowerSourceComponentsKeepFixedRadius(t *testing.T) {
 	o := DefaultOptions()
 	o.ComponentMinRadius = 0.16
@@ -571,61 +599,98 @@ func TestPowerSourceComponentsKeepFixedRadius(t *testing.T) {
 
 func TestNormalizeOptionsRejectsOverlappingComponentSizes(t *testing.T) {
 	o := DefaultOptions()
-	o.ComponentMinRadius = 0.20
-	o.ComponentMaxRadius = 0.25
+	o.ComponentMinRadius = 0.26
+	o.ComponentMaxRadius = 0.30
 	if _, err := normalizeOptions(o); err == nil {
 		t.Fatal("expected pitch that permits component overlap to be rejected")
 	}
 
-	o.Pitch = 0.52
+	o.Pitch = 0.54
 	if _, err := normalizeOptions(o); err != nil {
 		t.Fatalf("increased pitch should accommodate component radii: %v", err)
 	}
 }
 
-func TestAdjacentPowerSourcesRequireNonOverlappingPitch(t *testing.T) {
+func TestAdjacentPowerSourcesDoNotOverlapAtDefaultPitch(t *testing.T) {
 	o := DefaultOptions()
 	o.PowerSourceSpacing = PowerSourceSpacingAdjacent
-	if _, err := normalizeOptions(o); err == nil {
-		t.Fatal("expected adjacent source contacts to require more pitch")
-	}
-	o.Pitch = 0.54
 	if _, err := normalizeOptions(o); err != nil {
-		t.Fatalf("increased pitch should accommodate adjacent source contacts: %v", err)
+		t.Fatalf("adjacent pointy-top contacts should fit at default pitch: %v", err)
+	}
+	if _, _, err := powerSourcePositions(o); err != nil {
+		t.Fatalf("adjacent source contacts overlap: %v", err)
 	}
 }
 
 
-func TestGeneratedComponentsDoNotOverlap(t *testing.T) {
-	o := DefaultOptions()
-	o.Seed = 912
-	o.SeedSet = true
-	top, bottom, err := powerSourcePositions(o)
-	if err != nil {
-		t.Fatal(err)
-	}
-	plan, err := buildBoard(o, rand.New(rand.NewSource(o.Seed)), top, bottom)
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	radius := func(component hexgrid.GridComponent) float64 {
-		if component.RadiusScale == 0 {
-			return o.ComponentRadius
-		}
-		return o.ComponentRadius * component.RadiusScale
+func TestNormalizeOptionsChecksSourceToClusterClearance(t *testing.T) {
+	o := DefaultOptions()
+	o.ComponentRadius = 1
+	o.ComponentMinRadius = 0.15
+	o.ComponentMaxRadius = 0.20
+	o.MinPowerSourcesPerCluster = 0
+	o.MaxPowerSourcesPerCluster = 0
+	o.TopPowerSourceCount = 1
+	o.BottomPowerSourceCount = 0
+	if _, err := normalizeOptions(o); err == nil {
+		t.Fatal("expected large fixed power contacts to require more vertical clearance from cluster components")
 	}
-	for i, a := range plan.Components {
-		pointA := gridgeom.PositionToPoint(a.Position.Q, a.Position.R, o.Width, o.Height, o.Pitch, "pointy")
-		for _, b := range plan.Components[i+1:] {
-			pointB := gridgeom.PositionToPoint(b.Position.Q, b.Position.R, o.Width, o.Height, o.Pitch, "pointy")
-			distance := math.Hypot(pointA.X-pointB.X, pointA.Y-pointB.Y)
-			required := radius(a) + radius(b) + o.ComponentStrokeWidth
-			if distance+1e-9 < required {
-				t.Errorf("components at %v and %v overlap: centers %.6g inches apart, outlines need %.6g",
-					a.Position, b.Position, distance, required)
+	o.Pitch = 0.80
+	if _, err := normalizeOptions(o); err != nil {
+		t.Fatalf("larger pitch should provide source-to-cluster clearance: %v", err)
+	}
+}
+
+func TestGeneratedComponentsDoNotOverlap(t *testing.T) {
+	configurations := []struct {
+		name string
+		edit func(*Options)
+	}{
+		{name: "legacy sizes"},
+		{name: "randomized range", edit: func(o *Options) {
+			o.ComponentMinRadius = 0.20
+			o.ComponentMaxRadius = 0.30
+			o.Pitch = 0.54
+		}},
+	}
+	for _, configuration := range configurations {
+		t.Run(configuration.name, func(t *testing.T) {
+			o := DefaultOptions()
+			o.Seed = 912
+			o.SeedSet = true
+			if configuration.edit != nil {
+				configuration.edit(&o)
 			}
-		}
+			top, bottom, err := powerSourcePositions(o)
+			if err != nil {
+				t.Fatal(err)
+			}
+			plan, err := buildBoard(o, rand.New(rand.NewSource(o.Seed)), top, bottom)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			radius := func(component hexgrid.GridComponent) float64 {
+				if component.RadiusScale == 0 {
+					return o.ComponentRadius
+				}
+				return o.ComponentRadius * component.RadiusScale
+			}
+			for i, a := range plan.Components {
+				pointA := gridgeom.PositionToPoint(a.Position.Q, a.Position.R, o.Width, o.Height, o.Pitch, "pointy")
+				for _, b := range plan.Components[i+1:] {
+					pointB := gridgeom.PositionToPoint(b.Position.Q, b.Position.R, o.Width, o.Height, o.Pitch, "pointy")
+					if regularHexagonsOverlap(
+						pointA.X, pointA.Y, radius(a),
+						pointB.X, pointB.Y, radius(b),
+						o.ComponentStrokeWidth,
+					) {
+						t.Errorf("components at %v and %v overlap", a.Position, b.Position)
+					}
+				}
+			}
+		})
 	}
 }
 
@@ -671,6 +736,18 @@ func TestSourceStyleControlsBaseLayerComponents(t *testing.T) {
 				t.Fatalf("source component style = %v, want %v", component.Style, test.want)
 			}
 		}
+	}
+}
+
+
+func TestPowerSourceContactsRejectOverlappingGeometry(t *testing.T) {
+	o := DefaultOptions()
+	o.TopPowerSourceCount = 3
+	o.BottomPowerSourceCount = 0
+	o.PowerSourceSpacing = PowerSourceSpacingAdjacent
+	o.Pitch = 0.40
+	if _, _, err := powerSourcePositions(o); err == nil {
+		t.Fatal("expected adjacent power-source contacts with overlapping outlines to be rejected")
 	}
 }
 
@@ -1035,7 +1112,7 @@ func TestInterClusterTraceSeedRendersEndpointComponents(t *testing.T) {
 	expectedRadiusScales := make(map[hexgrid.GridPosition]float64)
 	for _, cluster := range plan.Clusters {
 		for _, component := range cluster.Components {
-			expectedRadiusScales[component.Position] = component.RadiusScale * powerCoreRadiusScale
+			expectedRadiusScales[component.Position] = clusterPowerCoreRadiusScale(o, component.RadiusScale)
 		}
 	}
 	components := make(map[hexgrid.GridPosition]hexgrid.GridComponent, len(plan.InterclusterComponents))

@@ -202,7 +202,7 @@ func buildBoard(
 					hexgrid.GridComponent{
 						Position:    target,
 						Style:       hexgrid.ComponentStyleSingle,
-						RadiusScale: componentRadiusScales[target] * powerCoreRadiusScale,
+						RadiusScale: clusterPowerCoreRadiusScale(o, componentRadiusScales[target]),
 					},
 				)
 				endpointCores[target] = true
@@ -270,7 +270,7 @@ func buildBoard(
 					plan.InterclusterComponents = append(plan.InterclusterComponents, hexgrid.GridComponent{
 						Position:    position,
 						Style:       hexgrid.ComponentStyleSingle,
-						RadiusScale: componentRadiusScales[position] * powerCoreRadiusScale,
+						RadiusScale: clusterPowerCoreRadiusScale(o, componentRadiusScales[position]),
 					})
 					seenEndpoints[position] = true
 				}
@@ -297,6 +297,14 @@ func sortClustersByX(clusters []clusterPlan, o Options) {
 			clusters[j-1], clusters[j] = clusters[j], clusters[j-1]
 		}
 	}
+}
+
+
+func clusterPowerCoreRadiusScale(o Options, componentRadiusScale float64) float64 {
+	if o.ComponentMinRadius == 0 && o.ComponentMaxRadius == 0 {
+		return powerCoreRadiusScale
+	}
+	return componentRadiusScale * powerCoreRadiusScale
 }
 
 func randomLines(rng *rand.Rand, maximum int) int {

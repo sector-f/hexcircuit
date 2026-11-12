@@ -67,17 +67,16 @@ func powerSourcePositions(o Options) (top, bottom []hexgrid.GridPosition, err er
 		return nil, nil, fmt.Errorf("canvas is too short to fit distinct top and bottom power-source rows")
 	}
 	contacts := append(append([]hexgrid.GridPosition(nil), top...), bottom...)
-	minimumContactSpacing := 2*o.ComponentRadius + o.ComponentStrokeWidth
 	for i, a := range contacts {
 		pointA := gridgeom.PositionToPoint(a.Q, a.R, o.Width, o.Height, o.Pitch, "pointy")
 		for _, b := range contacts[i+1:] {
 			pointB := gridgeom.PositionToPoint(b.Q, b.R, o.Width, o.Height, o.Pitch, "pointy")
-			distance := math.Hypot(pointA.X-pointB.X, pointA.Y-pointB.Y)
-			if distance+1e-9 < minimumContactSpacing {
-				return nil, nil, fmt.Errorf(
-					"power-source contacts at (%d, %d) and (%d, %d) overlap: centers are %.6g inches apart, need at least %.6g",
-					a.Q, a.R, b.Q, b.R, distance, minimumContactSpacing,
-				)
+			if regularHexagonsOverlap(
+				pointA.X, pointA.Y, o.ComponentRadius,
+				pointB.X, pointB.Y, o.ComponentRadius,
+				o.ComponentStrokeWidth,
+			) {
+				return nil, nil, fmt.Errorf("power-source contacts at (%d, %d) and (%d, %d) overlap", a.Q, a.R, b.Q, b.R)
 			}
 		}
 	}
@@ -695,7 +694,7 @@ func growCluster(
 	cluster.Components = append(cluster.Components, placedComponent{
 		Position:    hub,
 		Style:       hexgrid.ComponentStyleTriple,
-		RadiusScale: clusterComponentRadiusScale(o, rng),
+		RadiusScale: clusterComponentRadiusScale(o, rng, true),
 		ClusterID:   clusterID,
 	})
 	local := map[hexgrid.GridPosition]bool{hub: true}
@@ -751,7 +750,7 @@ func growCluster(
 		cluster.Components = append(cluster.Components, placedComponent{
 			Position:    candidate,
 			Style:       randomComponentStyle(rng),
-			RadiusScale: clusterComponentRadiusScale(o, rng),
+			RadiusScale: clusterComponentRadiusScale(o, rng, false),
 			Parent:      &parent,
 			ClusterID:   clusterID,
 		})
@@ -761,13 +760,35 @@ func growCluster(
 }
 
 
-func clusterComponentRadiusScale(o Options, rng *rand.Rand) float64 {
+func clusterComponentRadiusScale(o Options, rng *rand.Rand, first bool) float64 {
+	// Preserve the pre-range output when callers leave both new options unset.
+	if o.ComponentMinRadius == 0 && o.ComponentMaxRadius == 0 {
+		if first {
+			return 1
+		}
+		return 0.72 + rng.Float64()*0.22
+	}
 	minimum, maximum := clusterComponentRadiusBounds(o)
 	radius := minimum
 	if maximum > minimum {
 		radius += rng.Float64() * (maximum - minimum)
 	}
 	return radius / o.ComponentRadius
+}
+
+// regularHexagonsOverlap uses the separating-axis theorem for aligned pointy-top
+// regular hexagons. The three unique edge-normal axes are 0, 60, and 120 degrees.
+// strokeWidth is the total extra separation required by both centered strokes.
+func regularHexagonsOverlap(ax, ay, ar, bx, by, br, strokeWidth float64) bool {
+	dx, dy := bx-ax, by-ay
+	minimumProjection := math.Sqrt(3)/2*(ar+br) + strokeWidth
+	for _, angle := range [...]float64{0, math.Pi / 3, 2 * math.Pi / 3} {
+		projection := math.Abs(dx*math.Cos(angle) + dy*math.Sin(angle))
+		if projection+1e-9 >= minimumProjection {
+			return false
+		}
+	}
+	return true
 }
 
 func adjacentToOtherCluster(candidate hexgrid.GridPosition, occupied map[hexgrid.GridPosition]int, clusterID int) bool {
