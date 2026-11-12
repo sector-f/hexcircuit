@@ -47,9 +47,9 @@ type boardPlan struct {
 }
 
 // Generate constructs and renders a PCB-inspired illustration.
-// It returns the SVG, the number of rendered base-layer components (cluster
-// components plus every configured top- and bottom-row source contact), the
-// number of rendered trace bundles (signal, power, inter-cluster, and decorative), and any generation error.
+// It returns the SVG, the number of rendered components (cluster components
+// plus every configured top- and bottom-row source contact), the number of
+// rendered trace bundles (signal, power, inter-cluster, and decorative), and any generation error.
 func Generate(options Options) (string, int, int, error) {
 	o, err := normalizeOptions(options)
 	if err != nil {
@@ -376,7 +376,10 @@ func renderBoard(o Options, plan boardPlan) (string, error) {
 		accent.GlowOpacity = o.AccentGlowOpacity
 		accent.Background = "none"
 		accent.Grid.StrokeWidth = 0
-		centerSVG, err := hexgrid.Render(hexgrid.Scene{Options: accent, Components: accentClusterCenters})
+		centerSVG, err := hexgrid.Render(hexgrid.Scene{
+			Options:    accent,
+			Components: accentClusterCenters,
+		})
 		if err != nil {
 			return "", fmt.Errorf("render accent cluster centers: %w", err)
 		}

@@ -484,18 +484,24 @@ func TestGenerateIsDeterministicForExplicitSeed(t *testing.T) {
 func TestAccentClusterCentersUseAccentLayerWithoutChangingComponentCount(t *testing.T) {
 	o := DefaultOptions()
 	o.AccentClusterCenters = true
-	o.Seed = 713
+	o.Seed = 912
 	o.SeedSet = true
 	top, bottom, err := powerSourcePositions(o)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	plan, err := buildBoard(o, rand.New(rand.NewSource(o.Seed)), top, bottom)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	wantCount := o.ComponentCount + len(top) + len(bottom)
 	if len(plan.Components) != wantCount {
 		t.Fatalf("planned component count = %d, want %d", len(plan.Components), wantCount)
 	}
 	svg, err := renderBoard(o, plan)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !strings.Contains(svg, `id="cluster-centers-components"`) {
 		t.Fatal("rendered SVG is missing the accent cluster-center component layer")
 	}
@@ -504,7 +510,9 @@ func TestAccentClusterCentersUseAccentLayerWithoutChangingComponentCount(t *test
 	}
 	o.AccentClusterCenters = false
 	withoutAccent, err := renderBoard(o, plan)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	if strings.Contains(withoutAccent, `id="cluster-centers-components"`) {
 		t.Fatal("disabled accent cluster centers unexpectedly rendered an overlay layer")
 	}
