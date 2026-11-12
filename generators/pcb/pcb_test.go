@@ -1330,6 +1330,16 @@ func TestInterClusterTraceSeedRendersEndpointComponents(t *testing.T) {
 			expectedRadiusScales[component.Position] = clusterPowerCoreRadiusScale(o, component.RadiusScale)
 		}
 	}
+	accentCoreScales := make(map[hexgrid.GridPosition]float64)
+	for _, core := range append(append([]hexgrid.GridComponent(nil), plan.PowerCores...), plan.InterclusterComponents...) {
+		radiusScale := core.RadiusScale
+		if radiusScale == 0 {
+			radiusScale = 1
+		}
+		if radiusScale > accentCoreScales[core.Position] {
+			accentCoreScales[core.Position] = radiusScale
+		}
+	}
 	baseComponents := make(map[hexgrid.GridPosition]hexgrid.GridComponent, len(plan.Components))
 	for _, component := range plan.Components {
 		baseComponents[component.Position] = component
@@ -1342,6 +1352,26 @@ func TestInterClusterTraceSeedRendersEndpointComponents(t *testing.T) {
 		}
 		if base.Style == hexgrid.ComponentStyleTriple {
 			t.Errorf("inter-cluster endpoint %v retains triple style in the base layer", endpoint.Position)
+		}
+	}
+
+	for position, coreScale := range accentCoreScales {
+		base, ok := baseComponents[position]
+		if !ok {
+			t.Errorf("accent core at %v has no base-layer component", position)
+			continue
+		}
+		if want := accentCoreStyleWithClearance(o, base.Style, base.RadiusScale, coreScale); base.Style != want {
+			t.Errorf("base component at %v has style %q, which does not leave the required accent-core clearance (want at most %q)",
+				position, base.Style, want)
+		}
+	}
+	for _, cluster := range plan.Clusters {
+		for _, component := range cluster.Components {
+			if base, ok := baseComponents[component.Position]; ok && component.Style != base.Style {
+				t.Errorf("cluster component at %v has style %q, base layer has %q",
+					component.Position, component.Style, base.Style)
+			}
 		}
 	}
 
