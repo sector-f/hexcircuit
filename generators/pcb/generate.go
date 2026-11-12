@@ -334,27 +334,23 @@ func renderBoard(o Options, plan boardPlan) (string, error) {
 	base.TraceSpacing = o.TraceSpacing
 	base.NodeRadius = o.NodeRadius
 
+	// Keep every component in the base scene. GridTrace validation requires
+	// each trace's Start position to contain a component, and the existing
+	// placement tree has traces that start at the first component in a cluster.
+	// The accent overlay below recolors those same center components afterward.
 	baseComponents := plan.Components
 	var accentClusterCenters []hexgrid.GridComponent
 	if o.AccentClusterCenters {
-		centerPositions := make(map[hexgrid.GridPosition]bool, len(plan.Clusters))
 		for _, cluster := range plan.Clusters {
 			if len(cluster.Components) == 0 {
 				continue
 			}
 			center := cluster.Components[0]
-			centerPositions[center.Position] = true
 			accentClusterCenters = append(accentClusterCenters, hexgrid.GridComponent{
 				Position:    center.Position,
 				Style:       center.Style,
 				RadiusScale: center.RadiusScale,
 			})
-		}
-		baseComponents = make([]hexgrid.GridComponent, 0, len(plan.Components)-len(accentClusterCenters))
-		for _, component := range plan.Components {
-			if !centerPositions[component.Position] {
-				baseComponents = append(baseComponents, component)
-			}
 		}
 	}
 
@@ -368,26 +364,6 @@ func renderBoard(o Options, plan boardPlan) (string, error) {
 		return "", fmt.Errorf("render base layer: %w", err)
 	}
 	combined := baseSVG
-	if len(accentClusterCenters) > 0 {
-		accent := base
-		accent.Color = o.AccentColor
-		accent.GlowEnabled = o.AccentGlow
-		accent.GlowBlurRadius = o.AccentGlowBlurRadius
-		accent.GlowOpacity = o.AccentGlowOpacity
-		accent.Background = "none"
-		accent.Grid.StrokeWidth = 0
-		centerSVG, err := hexgrid.Render(hexgrid.Scene{
-			Options:    accent,
-			Components: accentClusterCenters,
-		})
-		if err != nil {
-			return "", fmt.Errorf("render accent cluster centers: %w", err)
-		}
-		combined, err = appendSVGLayerNamed(combined, centerSVG, "cluster-centers")
-		if err != nil {
-			return "", err
-		}
-	}
 	if len(plan.PowerTraces) > 0 {
 		accent := base
 		accent.Color = o.AccentColor
@@ -426,6 +402,29 @@ func renderBoard(o Options, plan boardPlan) (string, error) {
 			return "", fmt.Errorf("render inter-cluster trace layer: %w", err)
 		}
 		combined, err = appendSVGLayerNamed(combined, interClusterSVG, "inter-cluster")
+		if err != nil {
+			return "", err
+		}
+	}
+
+	// Draw the center components last so they remain visually dominant over
+	// power-entry cores and optional inter-cluster endpoint overlays.
+	if len(accentClusterCenters) > 0 {
+		accent := base
+		accent.Color = o.AccentColor
+		accent.GlowEnabled = o.AccentGlow
+		accent.GlowBlurRadius = o.AccentGlowBlurRadius
+		accent.GlowOpacity = o.AccentGlowOpacity
+		accent.Background = "none"
+		accent.Grid.StrokeWidth = 0
+		centerSVG, err := hexgrid.Render(hexgrid.Scene{
+			Options:    accent,
+			Components: accentClusterCenters,
+		})
+		if err != nil {
+			return "", fmt.Errorf("render accent cluster centers: %w", err)
+		}
+		combined, err = appendSVGLayerNamed(combined, centerSVG, "cluster-centers")
 		if err != nil {
 			return "", err
 		}
