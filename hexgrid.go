@@ -10,6 +10,9 @@ type GridPosition struct {
 	Q, R int
 }
 
+// hexSideCount is the number of sides on each cell in the grid.
+const hexSideCount = 6
+
 // ComponentStyle selects how many concentric hexagon outlines make up a component.
 type ComponentStyle uint8
 

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/sector-f/hexgrid/geometry"
+	"github.com/sector-f/hexgrid/internal/gridgeom"
 )
 
 func TestSceneBuildsComponentsAndParallelTrace(t *testing.T) {

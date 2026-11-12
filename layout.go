@@ -363,6 +363,54 @@ func geometryComponentStyle(style ComponentStyle) (geometry.ComponentStyle, bool
 	}
 }
 
+func validateOptions(o Options) error {
+	positive := []struct {
+		name  string
+		value float64
+	}{
+		{"canvas width", o.Width},
+		{"canvas height", o.Height},
+		{"grid pitch", o.Grid.Pitch},
+		{"grid radius", o.Grid.Radius},
+		{"component radius", o.ComponentRadius},
+		{"component stroke width", o.ComponentStrokeWidth},
+		{"trace stroke width", o.TraceStrokeWidth},
+		{"terminal radius", o.NodeRadius},
+	}
+	for _, item := range positive {
+		if !isFinite(item.value) || item.value <= 0 {
+			return fmt.Errorf("%s must be finite and greater than zero", item.name)
+		}
+	}
+	if !isFinite(o.Grid.StrokeWidth) || o.Grid.StrokeWidth < 0 {
+		return fmt.Errorf("grid stroke width must be finite and greater than or equal to zero")
+	}
+	if !isFinite(o.GlowBlurRadius) || o.GlowBlurRadius < 0 {
+		return fmt.Errorf("glow blur radius must be finite and greater than or equal to zero")
+	}
+	if !isFinite(o.GlowOpacity) || o.GlowOpacity < 0 || o.GlowOpacity > 1 {
+		return fmt.Errorf("glow opacity must be between 0 and 1")
+	}
+	if o.GlowEnabled && (o.GlowBlurRadius == 0 || o.GlowOpacity == 0) {
+		return fmt.Errorf("enabled glow requires a positive blur radius and opacity")
+	}
+	if o.Orientation != "pointy" && o.Orientation != "flat" {
+		return fmt.Errorf("orientation must be either %q or %q", "pointy", "flat")
+	}
+	if o.TraceSpacing < 0 || !isFinite(o.TraceSpacing) {
+		return fmt.Errorf("trace spacing must be finite and greater than or equal to zero")
+	}
+	if !isFinite(o.ComponentMiddleHexagonScale) || !isFinite(o.ComponentInnerHexagonScale) ||
+		o.ComponentMiddleHexagonScale <= 0 || o.ComponentMiddleHexagonScale >= 1 ||
+		o.ComponentInnerHexagonScale <= 0 || o.ComponentInnerHexagonScale >= o.ComponentMiddleHexagonScale {
+		return fmt.Errorf("component inner scales must satisfy 0 < inner-inner < inner < 1")
+	}
+	if o.Color == "" {
+		return fmt.Errorf("stroke color cannot be empty")
+	}
+	return nil
+}
+
 // areOnSameGridAxis reports whether two distinct axial coordinates are collinear
 // along one of the six legal hex-grid directions. The distance may span multiple cells.
 func areOnSameGridAxis(a, b GridPosition) bool {
