@@ -126,7 +126,7 @@ When `--constrain-components-to-power-source-span` is enabled, every ordinary co
 
 Power-source count flags describe the number of physical contact components on each edge, not the number that will be active. Active contacts are assigned to clusters according to the configured minimum and maximum feeds per cluster; multiple feeds within a cluster are routed to different components before destinations are reused. In `separated` mode, neighboring physical contacts are placed two lattice cells apart. In `adjacent` mode, they occupy neighboring lattice cells.
 
-The base color is used for ordinary components, all source-contact outlines (including unused contacts), and signal traces. The optional background grid uses the grid color, which defaults to the base color unless --grid-color is set. The accent color is used for power feeds and their connected power-entry cores at source contacts and selected destination components, plus optional inter-cluster traces. The background hexagonal field is disabled by default; enable it with `--show-background-grid`. Base and accent neon glow are independently disabled by default. Use `--base-glow` and `--accent-glow` to enable them separately; each has its own blur-radius and opacity settings. Glow does not affect the background grid.
+The base color is used for ordinary components, all source-contact outlines (including unused contacts), and signal traces. Cluster component sizes vary randomly within the configured radius range, while all power-source contacts retain the fixed component radius. The optional background grid uses the grid color, which defaults to the base color unless --grid-color is set. The accent color is used for power feeds and their connected power-entry cores at source contacts and selected destination components, plus optional inter-cluster traces. The background hexagonal field is disabled by default; enable it with `--show-background-grid`. Base and accent neon glow are independently disabled by default. Use `--base-glow` and `--accent-glow` to enable them separately; each has its own blur-radius and opacity settings. Glow does not affect the background grid.
 
 The generator uses randomized placement and routing. It first makes up to `--route-attempts` complete mandatory power-feed routing passes for each placement, and it tries up to `--generation-attempts` complete board generations if randomized placement/routing is exhausted. The latter defaults to 4 total attempts, including the original seed. Fallback seeds are derived deterministically from the first seed, so supplying an integer `--seed` keeps the entire retry sequence reproducible for the same generator version and options. Static validation and geometry errors are not retried. Without `--seed`, each run selects a fresh master seed.
 
@@ -169,12 +169,14 @@ Run `./pcb-cli --help` for the complete flag list and defaults reported by the p
 | `--constrain-components-to-power-source-span` | `false` | Restrict components and all routes to the horizontal span between the leftmost and rightmost active power contacts. |
 | `--constrain-layout-to-power-source-trapezoid` | `false` | Restrict components and all routes to the trapezoid connecting the left/right extents of the top and bottom source rows. Requires both rows. |
 | `--pitch` | `0.50` | Center-to-center spacing of neighboring grid positions. |
-| `--component-radius` | `0.26` | Circumradius of full-size component hexagons. |
+| `--component-radius` | `0.26` | Fixed circumradius for power-source contacts and fallback cluster size. |
+| `--component-min-radius` | `0.18` | Minimum randomized cluster-component circumradius; zero falls back to `--component-radius`. |
+| `--component-max-radius` | `0.24` | Maximum randomized cluster-component circumradius; zero falls back to `--component-radius`. |
 | `--component-stroke-width` | `0.012` | Component outline width. |
 | `--component-middle-hexagon-scale` | `0.60` | Middle component hexagon size relative to the outer radius. |
 | `--component-inner-hexagon-scale` | `0.34` | Inner component hexagon size relative to the outer radius. |
 
-The inner and middle scales must satisfy `0 < inner < middle < 1`. The pitch must be greater than 1.4 times the component radius. The minimum cluster size must be at least one, and `component-count` must be large enough to satisfy the requested minimum across all clusters.
+The inner and middle scales must satisfy `0 < inner < middle < 1`. Every cluster component receives a random radius within the configured minimum/maximum range. Power-source contacts always use `--component-radius`; a zero minimum or maximum also falls back to that radius. The pitch must exceed twice the largest cluster-component radius plus the component stroke width; adjacent power-source contacts also require enough pitch to keep their fixed-size outlines apart. The minimum cluster size must be at least one, and `component-count` must be large enough to satisfy the requested minimum across all clusters.
 
 ### Traces and terminal pads
 

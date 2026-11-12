@@ -49,6 +49,8 @@ type generateRequest struct {
 	MinPowerSourcesPerCluster             int     `json:"minPowerSourcesPerCluster"`
 	MaxPowerSourcesPerCluster             int     `json:"maxPowerSourcesPerCluster"`
 	ComponentRadius                       float64 `json:"componentRadius"`
+	ComponentMinRadius                    float64 `json:"componentMinRadius"`
+	ComponentMaxRadius                    float64 `json:"componentMaxRadius"`
 	ComponentStrokeWidth                  float64 `json:"componentStrokeWidth"`
 	ComponentMiddleHexagonScale           float64 `json:"componentMiddleHexagonScale"`
 	ComponentInnerHexagonScale            float64 `json:"componentInnerHexagonScale"`
@@ -277,6 +279,19 @@ func (r generateRequest) options() (pcb.Options, error) {
 	if r.ConstrainLayoutToPowerSourceTrapezoid && (r.TopPowerSourceCount == 0 || r.BottomPowerSourceCount == 0) {
 		return pcb.Options{}, fmt.Errorf("the trapezoid constraint requires both top and bottom power-source rows")
 	}
+	if !nonnegativeFinite(r.ComponentMinRadius) || !nonnegativeFinite(r.ComponentMaxRadius) {
+		return pcb.Options{}, fmt.Errorf("minimum and maximum component radii cannot be negative")
+	}
+	minimumComponentRadius, maximumComponentRadius := r.ComponentMinRadius, r.ComponentMaxRadius
+	if minimumComponentRadius == 0 {
+		minimumComponentRadius = r.ComponentRadius
+	}
+	if maximumComponentRadius == 0 {
+		maximumComponentRadius = r.ComponentRadius
+	}
+	if minimumComponentRadius > maximumComponentRadius {
+		return pcb.Options{}, fmt.Errorf("minimum component radius cannot exceed maximum component radius")
+	}
 	if !positiveFinite(r.Pitch) || !positiveFinite(r.ComponentRadius) ||
 		!positiveFinite(r.ComponentStrokeWidth) || !positiveFinite(r.TraceStrokeWidth) ||
 		!positiveFinite(r.TraceSpacing) || !positiveFinite(r.NodeRadius) ||
@@ -332,6 +347,8 @@ func (r generateRequest) options() (pcb.Options, error) {
 		GenerationAttempts:                    generationAttempts,
 		Pitch:                                 r.Pitch,
 		ComponentRadius:                       r.ComponentRadius,
+		ComponentMinRadius:                    r.ComponentMinRadius,
+		ComponentMaxRadius:                    r.ComponentMaxRadius,
 		ComponentStrokeWidth:                  r.ComponentStrokeWidth,
 		ComponentMiddleHexagonScale:           r.ComponentMiddleHexagonScale,
 		ComponentInnerHexagonScale:            r.ComponentInnerHexagonScale,

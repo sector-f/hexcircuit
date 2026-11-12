@@ -480,6 +480,121 @@ func TestGenerateIsDeterministicForExplicitSeed(t *testing.T) {
 	}
 }
 
+
+func TestNormalizeOptionsValidatesComponentRadiusBounds(t *testing.T) {
+	tests := []struct {
+		name string
+		edit func(*Options)
+	}{
+		{"negative minimum", func(o *Options) { o.ComponentMinRadius = -0.1 }},
+		{"negative maximum", func(o *Options) { o.ComponentMaxRadius = -0.1 }},
+		{"minimum exceeds maximum", func(o *Options) { o.ComponentMinRadius = 0.25; o.ComponentMaxRadius = 0.20 }},
+		{"infinite maximum", func(o *Options) { o.ComponentMaxRadius = math.Inf(1) }},
+		{"NaN minimum", func(o *Options) { o.ComponentMinRadius = math.NaN() }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			o := DefaultOptions()
+			test.edit(&o)
+			if _, err := normalizeOptions(o); err == nil {
+				t.Fatal("expected invalid component-radius bounds to be rejected")
+			}
+		})
+	}
+}
+
+func TestComponentRadiusBoundsFallBackToComponentRadius(t *testing.T) {
+	o := DefaultOptions()
+	o.ComponentMinRadius = 0
+	o.ComponentMaxRadius = 0
+	minimum, maximum := clusterComponentRadiusBounds(o)
+	if minimum != o.ComponentRadius || maximum != o.ComponentRadius {
+		t.Fatalf("zero bounds resolved to (%g, %g), want ComponentRadius %g", minimum, maximum, o.ComponentRadius)
+	}
+
+	o.ComponentMinRadius = 0.18
+	minimum, maximum = clusterComponentRadiusBounds(o)
+	if minimum != 0.18 || maximum != o.ComponentRadius {
+		t.Fatalf("partial bounds resolved to (%g, %g), want (0.18, %g)", minimum, o.ComponentRadius, o.ComponentRadius)
+	}
+}
+
+func TestClusterComponentsUseConfiguredRandomRadiusRange(t *testing.T) {
+	o := DefaultOptions()
+	o.ComponentMinRadius = 0.16
+	o.ComponentMaxRadius = 0.24
+	o.Seed = 912
+	o.SeedSet = true
+	top, bottom, err := powerSourcePositions(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := buildBoard(o, rand.New(rand.NewSource(o.Seed)), top, bottom)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	seenRadii := make(map[float64]bool)
+	for _, cluster := range plan.Clusters {
+		for _, component := range cluster.Components {
+			radius := component.RadiusScale * o.ComponentRadius
+			if radius < o.ComponentMinRadius-1e-9 || radius > o.ComponentMaxRadius+1e-9 {
+				t.Errorf("cluster component at %v has radius %.6g outside [%.6g, %.6g]",
+					component.Position, radius, o.ComponentMinRadius, o.ComponentMaxRadius)
+			}
+			seenRadii[radius] = true
+		}
+	}
+	if len(seenRadii) < 2 {
+		t.Fatalf("cluster components did not receive different radii: %v", seenRadii)
+	}
+}
+
+func TestPowerSourceComponentsKeepFixedRadius(t *testing.T) {
+	o := DefaultOptions()
+	o.ComponentMinRadius = 0.16
+	o.ComponentMaxRadius = 0.24
+	top, bottom, err := powerSourcePositions(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := buildBoard(o, rand.New(rand.NewSource(912)), top, bottom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, component := range plan.Components[o.ComponentCount:] {
+		if component.RadiusScale != 0 {
+			t.Errorf("power-source component at %v has radius scale %g; want fixed ComponentRadius", component.Position, component.RadiusScale)
+		}
+	}
+}
+
+func TestNormalizeOptionsRejectsOverlappingComponentSizes(t *testing.T) {
+	o := DefaultOptions()
+	o.ComponentMinRadius = 0.20
+	o.ComponentMaxRadius = 0.25
+	if _, err := normalizeOptions(o); err == nil {
+		t.Fatal("expected pitch that permits component overlap to be rejected")
+	}
+
+	o.Pitch = 0.52
+	if _, err := normalizeOptions(o); err != nil {
+		t.Fatalf("increased pitch should accommodate component radii: %v", err)
+	}
+}
+
+func TestAdjacentPowerSourcesRequireNonOverlappingPitch(t *testing.T) {
+	o := DefaultOptions()
+	o.PowerSourceSpacing = PowerSourceSpacingAdjacent
+	if _, err := normalizeOptions(o); err == nil {
+		t.Fatal("expected adjacent source contacts to require more pitch")
+	}
+	o.Pitch = 0.54
+	if _, err := normalizeOptions(o); err != nil {
+		t.Fatalf("increased pitch should accommodate adjacent source contacts: %v", err)
+	}
+}
+
 func TestPowerSourceSelectionVariesAcrossSeeds(t *testing.T) {
 	top, bottom := makePositions(13, 0), makePositions(13, 10)
 	seen := make(map[string]bool)

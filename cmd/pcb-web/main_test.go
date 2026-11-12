@@ -20,6 +20,8 @@ func validRequest() generateRequest {
 		MinComponentsPerCluster:   o.MinComponentsPerCluster,
 		MinPowerSourcesPerCluster: o.MinPowerSourcesPerCluster, MaxPowerSourcesPerCluster: o.MaxPowerSourcesPerCluster,
 		ComponentRadius:             o.ComponentRadius,
+		ComponentMinRadius:          o.ComponentMinRadius,
+		ComponentMaxRadius:          o.ComponentMaxRadius,
 		ComponentStrokeWidth:        o.ComponentStrokeWidth,
 		ComponentMiddleHexagonScale: o.ComponentMiddleHexagonScale,
 		ComponentInnerHexagonScale:  o.ComponentInnerHexagonScale,
@@ -43,6 +45,8 @@ func TestGenerateRequestMapsToPCBOptions(t *testing.T) {
 	req.BaseColor = "#123456"
 	req.GridColor = "#fedcba"
 	req.AccentColor = "#abcdef"
+	req.ComponentMinRadius = 0.17
+	req.ComponentMaxRadius = 0.23
 	req.TopPowerSourceCount = 8
 	req.BottomPowerSourceCount = 9
 	req.PowerSourceSpacing = "adjacent"
@@ -80,6 +84,10 @@ func TestGenerateRequestMapsToPCBOptions(t *testing.T) {
 		t.Fatalf("accent glow settings = (%v, %v, %v), want (%v, %v, %v)",
 			got.AccentGlow, got.AccentGlowBlurRadius, got.AccentGlowOpacity,
 			req.AccentGlow, req.AccentGlowBlurRadius, req.AccentGlowOpacity)
+	}
+	if got.ComponentMinRadius != req.ComponentMinRadius || got.ComponentMaxRadius != req.ComponentMaxRadius {
+		t.Fatalf("component radius bounds = (%g, %g), want (%g, %g)",
+			got.ComponentMinRadius, got.ComponentMaxRadius, req.ComponentMinRadius, req.ComponentMaxRadius)
 	}
 	if got.MinPowerSourcesPerCluster != 1 || got.MaxPowerSourcesPerCluster != 1 {
 		t.Fatalf("power-source range = %d..%d, want 1..1", got.MinPowerSourcesPerCluster, got.MaxPowerSourcesPerCluster)
@@ -204,6 +212,9 @@ func TestGenerateRequestRejectsInvalidOptions(t *testing.T) {
 		{"too many power feeds", func(r *generateRequest) { r.MaxPowerSourcesPerCluster = 7 }},
 		{"trapezoid without both rows", func(r *generateRequest) { r.ConstrainLayoutToPowerSourceTrapezoid = true; r.TopPowerSourceCount = 0 }},
 		{"invalid component scales", func(r *generateRequest) { r.ComponentInnerHexagonScale = 0.8 }},
+		{"negative minimum component radius", func(r *generateRequest) { r.ComponentMinRadius = -0.1 }},
+		{"negative maximum component radius", func(r *generateRequest) { r.ComponentMaxRadius = -0.1 }},
+		{"minimum component radius exceeds maximum", func(r *generateRequest) { r.ComponentMinRadius = 0.25; r.ComponentMaxRadius = 0.20 }},
 		{"negative route attempts", func(r *generateRequest) { r.RouteAttempts = -1 }},
 		{"too many route attempts", func(r *generateRequest) { r.RouteAttempts = 1001 }},
 		{"negative generation attempts", func(r *generateRequest) { r.GenerationAttempts = -1 }},
@@ -243,7 +254,7 @@ func TestHandleIndexRendersPCBInterface(t *testing.T) {
 	if got := response.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
 		t.Fatalf("content type = %q, want HTML", got)
 	}
-	for _, want := range []string{"PCB Layout Generator", "constrainLayoutToPowerSourceTrapezoid", "powerSourceSpacing", "minPowerSourcesPerCluster", "maxPowerSourcesPerCluster", "interClusterTraces", "decorativeTraceCount", "decorativeTraceMinLength", "decorativeTraceMaxLength", "decorativeTraceMaxBends", "gridColor", "routeAttempts", "generationAttempts", "baseGlowEnabled", "baseGlowBlurRadius", "baseGlowOpacity", "accentGlowEnabled", "accentGlowBlurRadius", "accentGlowOpacity"} {
+	for _, want := range []string{"PCB Layout Generator", "constrainLayoutToPowerSourceTrapezoid", "powerSourceSpacing", "minPowerSourcesPerCluster", "maxPowerSourcesPerCluster", "interClusterTraces", "decorativeTraceCount", "decorativeTraceMinLength", "decorativeTraceMaxLength", "decorativeTraceMaxBends", "gridColor", "routeAttempts", "generationAttempts", "componentMinRadius", "componentMaxRadius", "baseGlowEnabled", "baseGlowBlurRadius", "baseGlowOpacity", "accentGlowEnabled", "accentGlowBlurRadius", "accentGlowOpacity"} {
 		if !bytes.Contains(response.Body.Bytes(), []byte(want)) {
 			t.Errorf("rendered HTML is missing %q", want)
 		}

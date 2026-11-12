@@ -177,7 +177,7 @@ func placeClusters(
 		o.Height,
 		o.Pitch,
 		"pointy",
-		o.ComponentRadius+o.ComponentStrokeWidth/2,
+		maximumLayoutComponentRadius(o)+o.ComponentStrokeWidth/2,
 	)
 	var topY, bottomY float64
 	if len(topSources) > 0 {
@@ -322,7 +322,7 @@ func placeClusters(
 			}
 			cluster, err := growCluster(
 				clusterID, center, sizes[clusterID], eligible, occupied,
-				map[hexgrid.GridPosition]bool{}, rng,
+				map[hexgrid.GridPosition]bool{}, rng, o,
 			)
 			if err != nil {
 				failed = true
@@ -674,12 +674,13 @@ func growCluster(
 	occupied map[hexgrid.GridPosition]int,
 	reservedCells map[hexgrid.GridPosition]bool,
 	rng *rand.Rand,
+	o Options,
 ) (clusterPlan, error) {
 	cluster := clusterPlan{ID: clusterID, Hub: hub}
 	cluster.Components = append(cluster.Components, placedComponent{
 		Position:    hub,
 		Style:       hexgrid.ComponentStyleTriple,
-		RadiusScale: 1,
+		RadiusScale: clusterComponentRadiusScale(o, rng),
 		ClusterID:   clusterID,
 	})
 	local := map[hexgrid.GridPosition]bool{hub: true}
@@ -735,13 +736,23 @@ func growCluster(
 		cluster.Components = append(cluster.Components, placedComponent{
 			Position:    candidate,
 			Style:       randomComponentStyle(rng),
-			RadiusScale: 0.72 + rng.Float64()*0.22,
+			RadiusScale: clusterComponentRadiusScale(o, rng),
 			Parent:      &parent,
 			ClusterID:   clusterID,
 		})
 		local[candidate] = true
 	}
 	return cluster, nil
+}
+
+
+func clusterComponentRadiusScale(o Options, rng *rand.Rand) float64 {
+	minimum, maximum := clusterComponentRadiusBounds(o)
+	radius := minimum
+	if maximum > minimum {
+		radius += rng.Float64() * (maximum - minimum)
+	}
+	return radius / o.ComponentRadius
 }
 
 func adjacentToOtherCluster(candidate hexgrid.GridPosition, occupied map[hexgrid.GridPosition]int, clusterID int) bool {

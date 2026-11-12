@@ -189,12 +189,14 @@
           <div class="field"><label for="minComponentsPerCluster">Minimum components</label><input id="minComponentsPerCluster" type="number" min="1" max="500" step="1" value="1" required></div>
           <div class="field"><label for="minPowerSourcesPerCluster">Minimum power feeds</label><input id="minPowerSourcesPerCluster" type="number" min="0" max="6" step="1" value="1" required></div>
           <div class="field"><label for="maxPowerSourcesPerCluster">Maximum power feeds</label><input id="maxPowerSourcesPerCluster" type="number" min="0" max="6" step="1" value="1" required></div>
-          <div class="field"><label for="componentRadius">Component radius (in)</label><input id="componentRadius" type="number" min="0.001" step="0.01" value="0.26" required></div>
+          <div class="field"><label for="componentRadius">Power-source radius (in)</label><input id="componentRadius" type="number" min="0.001" step="0.01" value="0.26" required></div>
+          <div class="field"><label for="componentMinRadius">Minimum cluster radius (in)</label><input id="componentMinRadius" type="number" min="0" step="0.01" value="0.18" required></div>
+          <div class="field"><label for="componentMaxRadius">Maximum cluster radius (in)</label><input id="componentMaxRadius" type="number" min="0" step="0.01" value="0.24" required></div>
           <div class="field"><label for="componentStrokeWidth">Component stroke (in)</label><input id="componentStrokeWidth" type="number" min="0.001" step="0.001" value="0.012" required></div>
           <div class="field"><label for="componentMiddleHexagonScale">Middle hex scale</label><input id="componentMiddleHexagonScale" type="number" min="0.001" max="0.999" step="0.01" value="0.60" required></div>
           <div class="field"><label for="componentInnerHexagonScale">Inner hex scale</label><input id="componentInnerHexagonScale" type="number" min="0.001" max="0.999" step="0.01" value="0.34" required></div>
         </div>
-        <div class="hint">Inner scale must be smaller than middle scale. Component count excludes power-source contacts. Power feeds are randomized between the configured minimum and maximum; 0 allows a cluster to have no power connection.</div>
+        <div class="hint">Inner scale must be smaller than middle scale. Cluster component radii are randomized between the configured bounds. A zero bound falls back to the power-source radius; power contacts always share that fixed radius. Component count excludes power-source contacts. Power feeds are randomized between the configured minimum and maximum; 0 allows a cluster to have no power connection.</div>
 
         <div class="section-title">Power-source rows</div>
         <div class="fields">
@@ -334,6 +336,8 @@
           minPowerSourcesPerCluster: number('minPowerSourcesPerCluster'),
           maxPowerSourcesPerCluster: number('maxPowerSourcesPerCluster'),
           componentRadius: number('componentRadius'),
+          componentMinRadius: number('componentMinRadius'),
+          componentMaxRadius: number('componentMaxRadius'),
           componentStrokeWidth: number('componentStrokeWidth'),
           componentMiddleHexagonScale: number('componentMiddleHexagonScale'),
           componentInnerHexagonScale: number('componentInnerHexagonScale'),

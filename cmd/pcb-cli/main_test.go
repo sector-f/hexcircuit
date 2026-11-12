@@ -16,6 +16,8 @@ func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 		"--bottom-power-source-count=11",
 		"--power-source-spacing=adjacent",
 		"--power-source-style=double",
+		"--component-min-radius=0.17",
+		"--component-max-radius=0.23",
 		"--constrain-components-to-power-source-span",
 		"--constrain-layout-to-power-source-trapezoid",
 		"--inter-cluster-traces",
@@ -56,6 +58,9 @@ func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 	if !opts.Generator.AccentGlow || opts.Generator.AccentGlowBlurRadius != 0.08 || opts.Generator.AccentGlowOpacity != 0.7 {
 		t.Errorf("accent glow settings = (%v, %v, %v), want (true, 0.08, 0.7)",
 			opts.Generator.AccentGlow, opts.Generator.AccentGlowBlurRadius, opts.Generator.AccentGlowOpacity)
+	}
+	if opts.Generator.ComponentMinRadius != 0.17 || opts.Generator.ComponentMaxRadius != 0.23 {
+		t.Errorf("component radius range = %g..%g, want 0.17..0.23", opts.Generator.ComponentMinRadius, opts.Generator.ComponentMaxRadius)
 	}
 	if opts.Generator.PowerSourceSpacing != pcb.PowerSourceSpacingAdjacent {
 		t.Errorf("power-source spacing = %q, want adjacent", opts.Generator.PowerSourceSpacing)

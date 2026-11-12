@@ -106,8 +106,13 @@ type Options struct {
 
 	// Pitch is the center-to-center spacing of neighboring axial grid positions.
 	Pitch float64
-	// ComponentRadius is the circumradius of a full-size component hexagon.
+	// ComponentRadius is the fixed circumradius used for power-source contacts
+	// and the fallback for either cluster-component radius bound.
 	ComponentRadius float64
+	// ComponentMinRadius and ComponentMaxRadius bound randomized cluster-component
+	// circumradii. A zero bound falls back to ComponentRadius.
+	ComponentMinRadius float64
+	ComponentMaxRadius float64
 	// ComponentStrokeWidth is the outline width of component hexagons, in inches.
 	ComponentStrokeWidth float64
 	// ComponentMiddleHexagonScale and ComponentInnerHexagonScale set the sizes
@@ -192,6 +197,8 @@ func DefaultOptions() Options {
 		GenerationAttempts:                    4,
 		Pitch:                                 0.50,
 		ComponentRadius:                       0.26,
+		ComponentMinRadius:                    0.18,
+		ComponentMaxRadius:                    0.24,
 		ComponentStrokeWidth:                  0.012,
 		ComponentMiddleHexagonScale:           0.60,
 		ComponentInnerHexagonScale:            0.34,
@@ -287,6 +294,21 @@ func normalizeOptions(o Options) (Options, error) {
 		o.ComponentInnerHexagonScale >= o.ComponentMiddleHexagonScale {
 		return o, fmt.Errorf("component inner scales must satisfy 0 < inner < middle < 1")
 	}
+	for _, item := range []struct {
+		name  string
+		value float64
+	}{
+		{"minimum component radius", o.ComponentMinRadius},
+		{"maximum component radius", o.ComponentMaxRadius},
+	} {
+		if !isFinite(item.value) || item.value < 0 {
+			return o, fmt.Errorf("%s must be finite and greater than or equal to zero", item.name)
+		}
+	}
+	minimumComponentRadius, maximumComponentRadius := clusterComponentRadiusBounds(o)
+	if minimumComponentRadius > maximumComponentRadius {
+		return o, fmt.Errorf("minimum component radius (%g) cannot exceed maximum component radius (%g)", minimumComponentRadius, maximumComponentRadius)
+	}
 	if o.ComponentCount < 1 {
 		return o, fmt.Errorf("component count must be at least 1")
 	}
@@ -348,8 +370,12 @@ func normalizeOptions(o Options) (Options, error) {
 	if o.ConnectorInset >= o.Height/2 {
 		return o, fmt.Errorf("connector inset must be less than half the canvas height")
 	}
-	if o.Pitch <= o.ComponentRadius*1.4 {
-		return o, fmt.Errorf("pitch must be greater than 1.4 times the component radius")
+	minimumComponentSpacing := 2*maximumComponentRadius + o.ComponentStrokeWidth
+	if o.PowerSourceSpacing == PowerSourceSpacingAdjacent {
+		minimumComponentSpacing = math.Max(minimumComponentSpacing, 2*o.ComponentRadius+o.ComponentStrokeWidth)
+	}
+	if o.Pitch <= minimumComponentSpacing {
+		return o, fmt.Errorf("pitch must be greater than %.6g to prevent component overlap (maximum cluster radius %.6g)", minimumComponentSpacing, maximumComponentRadius)
 	}
 	maximumBundleReach := float64(o.MaxParallel-1)*o.TraceSpacing/2 + o.NodeRadius + o.TraceStrokeWidth/2
 	powerCoreApothem := o.ComponentRadius * powerCoreRadiusScale * math.Sqrt(3) / 2
@@ -372,6 +398,25 @@ func normalizeOptions(o Options) (Options, error) {
 		}
 	}
 	return o, nil
+}
+
+
+func clusterComponentRadiusBounds(o Options) (float64, float64) {
+	minimum, maximum := o.ComponentMinRadius, o.ComponentMaxRadius
+	if minimum == 0 {
+		minimum = o.ComponentRadius
+	}
+	if maximum == 0 {
+		maximum = o.ComponentRadius
+	}
+	return minimum, maximum
+}
+
+// maximumLayoutComponentRadius includes cluster components and fixed-size
+// power-source contacts when calculating canvas-edge clearance.
+func maximumLayoutComponentRadius(o Options) float64 {
+	_, clusterMaximum := clusterComponentRadiusBounds(o)
+	return math.Max(o.ComponentRadius, clusterMaximum)
 }
 
 func validScale(value float64) bool {
