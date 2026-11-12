@@ -109,3 +109,41 @@ func TestChoosePowerTargetsPrefersOuterComponents(t *testing.T) {
 		t.Fatalf("singleton cluster power target = %v, want hub position %v", singleton, hub)
 	}
 }
+
+func TestAddExtraSignalConnectionsCanLinkOuterComponents(t *testing.T) {
+	o := DefaultOptions()
+	o.Connections = 1
+	hub := hexgrid.GridPosition{Q: 0, R: 0}
+	first := hexgrid.GridPosition{Q: 1, R: 0}
+	second := hexgrid.GridPosition{Q: 2, R: 0}
+	parent := first
+	cluster := clusterPlan{
+		Hub: hub,
+		Components: []placedComponent{
+			{Position: hub},
+			{Position: first, Parent: &hub},
+			{Position: second, Parent: &parent},
+		},
+	}
+	allowed := map[hexgrid.GridPosition]bool{
+		hub: true, first: true, second: true,
+	}
+	blocked := map[hexgrid.GridPosition]bool{
+		hub: true, first: true, second: true,
+	}
+	traces, err := addExtraSignalConnections(
+		o, rand.New(rand.NewSource(9)), []clusterPlan{cluster},
+		allowed, blocked, make(map[hexgrid.GridPosition]bool),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(traces) != 1 {
+		t.Fatalf("got %d optional outer-component traces, want 1", len(traces))
+	}
+	trace := traces[0]
+	endpoint := trace.Path[len(trace.Path)-1]
+	if trace.Start == hub || endpoint == hub {
+		t.Fatalf("optional trace should connect two outer components, got %v to %v", trace.Start, endpoint)
+	}
+}

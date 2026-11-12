@@ -332,7 +332,7 @@ func addExtraSignalConnections(
 		for i := 0; i < len(cluster.Components); i++ {
 			for j := i + 1; j < len(cluster.Components); j++ {
 				a, b := cluster.Components[i].Position, cluster.Components[j].Position
-				if hasTreeEdge(cluster, a, b) {
+				if a == cluster.Hub || b == cluster.Hub {
 					continue
 				}
 				candidates = append(candidates, pair{a: a, b: b})
@@ -424,15 +424,3 @@ func addInterClusterConnections(
 	return traces
 }
 
-func hasTreeEdge(cluster clusterPlan, a, b hexgrid.GridPosition) bool {
-	for _, component := range cluster.Components {
-		if component.Parent == nil {
-			continue
-		}
-		parent := *component.Parent
-		if parent == a && component.Position == b || parent == b && component.Position == a {
-			return true
-		}
-	}
-	return false
-}

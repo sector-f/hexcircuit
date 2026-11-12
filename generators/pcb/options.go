@@ -82,8 +82,8 @@ type Options struct {
 	// The current generator supports at most six feeds per cluster.
 	MinPowerSourcesPerCluster int
 	MaxPowerSourcesPerCluster int
-	// Connections is the target number of additional signal connections beyond the
-	// spanning-tree connections required to connect every multi-component cluster.
+	// Connections is the target number of optional outer-component links beyond
+	// the mandatory hub-to-component spokes in each cluster.
 	Connections int
 	// DecorativeTraceCount is the best-effort target number of decorative traces.
 	// Zero disables decorative traces.
