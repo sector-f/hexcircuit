@@ -65,7 +65,7 @@ func addDecorativeTraces(
 	sources := decorativeTraceSourcePaths(powerRoutes, interClusterTraces, nil)
 	return addDecorativeTraceGroups(
 		o, rng, startGroups, sources, o.DecorativeTraceCount,
-		allowed, blocked, reserved, false,
+		allowed, blocked, reserved, true,
 	)
 }
 

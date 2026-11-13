@@ -2254,8 +2254,13 @@ func TestGeneratedTraceFamiliesAvoidAcuteFreeSpaceTurns(t *testing.T) {
 	for i, trace := range plan.InterClusterTraces {
 		check(fmt.Sprintf("inter-cluster trace %d", i), expandCompressedTrace(trace))
 	}
+	decorativeStarts := make(map[hexgrid.GridPosition]bool, len(plan.DecorativeTraces))
 	for i, trace := range plan.DecorativeTraces {
 		check(fmt.Sprintf("decorative trace %d", i), expandCompressedTrace(trace))
+		if decorativeStarts[trace.Start] {
+			t.Errorf("multiple decorative traces originate from component %v", trace.Start)
+		}
+		decorativeStarts[trace.Start] = true
 	}
 	for i, trace := range plan.DecorativePowerTraces {
 		check(fmt.Sprintf("decorative power trace %d", i), expandCompressedTrace(trace))

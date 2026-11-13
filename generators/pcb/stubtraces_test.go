@@ -2,7 +2,6 @@ package pcb
 
 import (
 	"math/rand"
-	"reflect"
 	"testing"
 
 	"github.com/sector-f/hexgrid"
@@ -230,7 +229,7 @@ func TestDecorativeTraceTargetsCanExceedLeafCount(t *testing.T) {
 	}
 }
 
-func TestDecorativeTraceCanProduceMultipleBranchesFromOneSourceComponent(t *testing.T) {
+func TestDecorativeTraceUsesAtMostOneTracePerComponent(t *testing.T) {
 	o := DefaultOptions()
 	o.DecorativeTraceCount = 2
 	o.DecorativeTraceMinLength = 4
@@ -266,16 +265,11 @@ func TestDecorativeTraceCanProduceMultipleBranchesFromOneSourceComponent(t *test
 		[][]hexgrid.GridPosition{upper, lower}, nil,
 		allowed, blocked, reserved,
 	)
-	if len(traces) != 2 {
-		t.Fatalf("got %d decorative traces from one source component, want 2", len(traces))
+	if len(traces) != 1 {
+		t.Fatalf("got %d decorative traces from one source component, want at most one", len(traces))
 	}
-	for i, trace := range traces {
-		if trace.Start != start {
-			t.Errorf("trace %d starts at %v, want shared source component %v", i, trace.Start, start)
-		}
-	}
-	if reflect.DeepEqual(expandCompressedTrace(traces[0]), expandCompressedTrace(traces[1])) {
-		t.Fatal("multiple branches from one component produced duplicate routes")
+	if traces[0].Start != start {
+		t.Fatalf("trace starts at %v, want source component %v", traces[0].Start, start)
 	}
 }
 
