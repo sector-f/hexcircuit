@@ -2221,7 +2221,7 @@ func TestBuildBoardAddsDecorativePowerTracesFromUnusedContacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Generate with decorative power traces: %v", err)
 	}
-	wantCount := len(plan.SignalTraces) + len(plan.PowerTraces) + len(plan.InterClusterTraces) + len(plan.DecorativeTraces) + len(plan.DecorativePowerTraces) + len(plan.DecorativePowerTraces)
+	wantCount := len(plan.SignalTraces) + len(plan.PowerTraces) + len(plan.InterClusterTraces) + len(plan.DecorativeTraces) + len(plan.DecorativePowerTraces)
 	if count != wantCount {
 		t.Fatalf("Generate trace count = %d, want %d", count, wantCount)
 	}

@@ -40,8 +40,9 @@ type boardPlan struct {
 	InterclusterComponents []hexgrid.GridComponent
 	// InterClusterTraces remains separate from the power layer so its style can evolve independently.
 	InterClusterTraces []hexgrid.GridTrace
-	// DecorativeTraces are bent, base-color traces that end at hollow terminal pads.
-	DecorativeTraces      []hexgrid.GridTrace
+	// DecorativeTraces are base-color traces originating at cluster leaf components.
+	DecorativeTraces []hexgrid.GridTrace
+	// DecorativePowerTraces are base-color traces originating at unused physical power-source contacts.
 	DecorativePowerTraces []hexgrid.GridTrace
 	PowerRoutes      [][]hexgrid.GridPosition // Full cell paths, retained for no-crossing tests.
 	Clusters         []clusterPlan
