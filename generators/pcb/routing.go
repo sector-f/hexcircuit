@@ -144,17 +144,13 @@ func routingCellsWithinPowerSourceTrapezoid(
 	return filtered
 }
 
-// findRoute performs A* on the axial lattice. A route reserves every lattice
-// vertex it visits, so subsequent power routes cannot share a vertex or cross
-// an existing route. The sourceSide argument restricts the first step so a top
-// source exits downward and a bottom source exits upward.
 // findRoute performs turn-aware A* on the axial lattice. A route reserves
 // every lattice vertex it visits, so subsequent routes cannot share a vertex
 // or cross an existing route. Components are preferred as obstacles, but may
 // be used as concealed waypoints with a routing penalty. In empty space,
-// direction changes are limited
-// to one adjacent hex-grid axis (a 60-degree heading change); the sharper
-// 120-degree change is allowed only at a component. The sourceSide argument
+// direction changes are limited to one adjacent hex-grid axis (a 60-degree
+// heading change). The sharp 60-degree inside corner created by a 120-degree
+// heading change is allowed only at a component. The sourceSide argument
 // restricts the first step so a top source exits downward and a bottom source
 // exits upward.
 func findRoute(
