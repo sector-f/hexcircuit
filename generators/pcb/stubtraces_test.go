@@ -122,7 +122,7 @@ func TestDecorativeTraceTargetsCanExceedLeafCount(t *testing.T) {
 	}
 	sourceB := make([]hexgrid.GridPosition, 12)
 	for i := range sourceB {
-		sourceB[i] = hexgrid.GridPosition{Q: i, R: -2}
+		sourceB[i] = hexgrid.GridPosition{Q: -i, R: -2}
 	}
 	root := hexgrid.GridPosition{Q: 0, R: 0}
 	leaf := hexgrid.GridPosition{Q: 0, R: 1}
@@ -210,10 +210,10 @@ func TestDecorativeTraceCanParallelAnEarlierDecorativeRoute(t *testing.T) {
 	o.DecorativeTraceMaxBends = 3
 
 	firstDecorative := []hexgrid.GridPosition{
-		{Q: 0, R: 0}, {Q: 0, R: 1}, {Q: 1, R: 1}, {Q: 2, R: 1},
-		{Q: 3, R: 1}, {Q: 4, R: 1}, {Q: 5, R: 1},
+		{Q: 0, R: 1}, {Q: 1, R: 1}, {Q: 2, R: 1}, {Q: 3, R: 1},
+		{Q: 4, R: 1}, {Q: 5, R: 1}, {Q: 6, R: 1},
 	}
-	start := hexgrid.GridPosition{Q: 0, R: 2}
+	start := hexgrid.GridPosition{Q: 0, R: 0}
 	allowed := make(map[hexgrid.GridPosition]bool)
 	for q := -4; q <= 8; q++ {
 		for r := -4; r <= 8; r++ {
