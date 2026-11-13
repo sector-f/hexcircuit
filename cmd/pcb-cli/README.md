@@ -62,6 +62,7 @@ Generate a larger board with more clusters and larger minimum cluster sizes:
   --min-components-per-cluster 2 \
   --connections 26 \
   --decorative-trace-count 8 \
+  --decorative-power-trace-count 5 \
   --decorative-trace-min-length 4 \
   --decorative-trace-max-length 10 \
   --seed 42 \
@@ -117,6 +118,8 @@ The generator first assigns each cluster a random number of active contacts with
 Selected power-source contacts receive an accent-colored core and a power feed. Every configured physical contact is rendered. In `separated` mode, one empty lattice cell lies between neighboring contacts; in `adjacent` mode, contacts occupy neighboring cells.
 
 `--inter-cluster-traces` optionally enables a randomized number of accent-colored traces between components in different clusters. The generator may produce no such traces for a given seed or layout.
+
+`--decorative-power-trace-count` requests additional best-effort base-color bundles that start at physical power-source contacts not assigned to active power feeds. They use the same nearest-route and parallel-offset logic as ordinary decorative traces. The count is a target; contacts without a suitable nearby route are skipped. The default is `0` (disabled).
 
 `--decorative-trace-count` requests best-effort decorative base-color bundles that run alongside nearby power-feed or inter-cluster traces and end at hollow terminal pads. Each starts at a cluster leaf component, finds the nearest trace within two grid steps, steps onto a one-cell-offset copy, then follows that route. Decorative traces are generated after all other routes, and previously placed decorative traces can serve as sources for additional parallel runs. The default length range is 4–10 grid steps, with up to 3 bends; the line count is randomized up to `--max-parallel`. Paths blocked by components, existing power/inter-cluster/decorative routes, or the canvas boundary are skipped. Use `--decorative-trace-min-length` and `--decorative-trace-max-length` to configure the inclusive length range in grid steps, and `--decorative-trace-max-bends` to cap the number of bends. If no power-feed or inter-cluster routes exist, no decorative traces can be placed.
 
@@ -184,7 +187,8 @@ The inner and middle scales must satisfy `0 < inner < middle < 1`. Setting eithe
 | Flag | Default | Description |
 | --- | ---: | --- |
 | `--connections` | `18` | Target number of additional intra-cluster signal connections beyond mandatory spanning-tree connections. |
-| `--decorative-trace-count` | `0` | Best-effort count of decorative traces; zero disables them. |
+| `--decorative-trace-count` | `0` | Best-effort count of component-anchored decorative traces; zero disables them. |
+| `--decorative-power-trace-count` | `0` | Best-effort count of base-layer traces from unused power-source contacts; zero disables them. |
 | `--decorative-trace-min-length` | `4` | Minimum decorative trace length in grid steps. |
 | `--decorative-trace-max-length` | `10` | Maximum decorative trace length in grid steps. |
 | `--decorative-trace-max-bends` | `3` | Maximum number of direction changes per decorative trace. |

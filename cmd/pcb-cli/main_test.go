@@ -25,6 +25,7 @@ func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 		"--route-attempts=7",
 		"--generation-attempts=6",
 		"--decorative-trace-count=7",
+		"--decorative-power-trace-count=4",
 		"--decorative-trace-min-length=3",
 		"--decorative-trace-max-length=5",
 		"--decorative-trace-max-bends=2",
@@ -86,6 +87,9 @@ func TestParseOptionsSupportsPowerSourceAndPlacementOptions(t *testing.T) {
 	}
 	if opts.Generator.GenerationAttempts != 6 {
 		t.Errorf("generation attempts = %d, want 6", opts.Generator.GenerationAttempts)
+	}
+	if opts.Generator.DecorativePowerTraceCount != 4 {
+		t.Errorf("decorative power trace count = %d, want 4", opts.Generator.DecorativePowerTraceCount)
 	}
 	if opts.Generator.DecorativeTraceCount != 7 || opts.Generator.DecorativeTraceMinLength != 3 || opts.Generator.DecorativeTraceMaxLength != 5 || opts.Generator.DecorativeTraceMaxBends != 2 {
 		t.Errorf("decorative-trace options = (%d, %d, %d, %d), want (7, 3, 5, 2)",
