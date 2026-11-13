@@ -257,9 +257,6 @@ func decorativeParallelCandidates(
 ) []decorativeTraceCandidate {
 	candidates := make([]decorativeTraceCandidate, 0)
 	for _, source := range sourcePaths {
-		if len(source) < o.DecorativeTraceMinLength {
-			continue
-		}
 		for _, path := range [][]hexgrid.GridPosition{source, reversedCopy(source)} {
 			for sourceIndex := 0; sourceIndex < len(path)-1; sourceIndex++ {
 				distance := hexDistance(start, path[sourceIndex])
