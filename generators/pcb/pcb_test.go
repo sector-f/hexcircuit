@@ -1392,6 +1392,42 @@ func TestInterClusterTraceSeedRendersEndpointComponents(t *testing.T) {
 	}
 }
 
+func TestInterClusterTracesDoNotPassThroughUnrelatedComponents(t *testing.T) {
+	o := DefaultOptions()
+	o.Seed = 1365413531639368899
+	o.SeedSet = true
+	o.InterClusterTraces = true
+
+	top, bottom, err := powerSourcePositions(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := buildBoard(o, rand.New(rand.NewSource(o.Seed)), top, bottom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.InterClusterTraces) == 0 {
+		t.Fatal("regression seed did not produce an inter-cluster trace")
+	}
+
+	componentPositions := make(map[hexgrid.GridPosition]bool, len(plan.Components))
+	for _, component := range plan.Components {
+		componentPositions[component.Position] = true
+	}
+	for traceIndex, trace := range plan.InterClusterTraces {
+		path := expandCompressedTrace(trace)
+		if len(path) < 2 {
+			t.Fatalf("inter-cluster trace %d has an invalid path: %v", traceIndex, path)
+		}
+		for _, position := range path[1 : len(path)-1] {
+			if componentPositions[position] {
+				t.Errorf("inter-cluster trace %d passes through unrelated component at %v: %v",
+					traceIndex, position, path)
+			}
+		}
+	}
+}
+
 func TestDecorativeTracesDoNotChangePrimaryRoutes(t *testing.T) {
 	o := DefaultOptions()
 	o.Seed = 1365413531639368899
