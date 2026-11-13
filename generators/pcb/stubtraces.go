@@ -11,6 +11,7 @@ const decorativeTraceMaxSourceDistance = 2
 
 type decorativeTraceCandidate struct {
 	path           []hexgrid.GridPosition // Full cell path, including the source component.
+	sourcePath     []hexgrid.GridPosition // Existing path this candidate intentionally parallels.
 	sourceDistance int
 }
 
@@ -84,7 +85,7 @@ func addDecorativeTraces(
 				candidates := decorativeParallelCandidates(start, sources, o)
 				shuffleDecorativeCandidates(candidates, rng)
 				for _, candidate := range candidates {
-					if !decorativeTracePathIsClear(candidate.path, allowed, blocked, reserved) {
+					if !decorativeTracePathIsClear(candidate.path, allowed, blocked, reserved, candidate.sourcePath) {
 						continue
 					}
 					traces = append(traces, hexgrid.GridTrace{
@@ -194,6 +195,7 @@ func decorativeParallelCandidates(
 						}
 						candidates = append(candidates, decorativeTraceCandidate{
 							path:           candidatePath,
+							sourcePath:     path,
 							sourceDistance: distance,
 						})
 					}
@@ -266,6 +268,7 @@ func decorativeTraceBendCount(path []hexgrid.GridPosition) int {
 func decorativeTracePathIsClear(
 	path []hexgrid.GridPosition,
 	allowed, blocked, reserved map[hexgrid.GridPosition]bool,
+	sourcePath []hexgrid.GridPosition,
 ) bool {
 	if len(path) < 4 || !blocked[path[0]] {
 		return false
@@ -281,11 +284,17 @@ func decorativeTracePathIsClear(
 		visited[position] = true
 	}
 
-	// Keep the hollow terminal pad clear of components and existing routes.
+	// Keep the hollow terminal pad clear of components and unrelated routes.
+	// The source route itself is allowed to remain adjacent because the new
+	// trace is deliberately running parallel to it.
+	parallelSource := make(map[hexgrid.GridPosition]bool, len(sourcePath))
+	for _, position := range sourcePath {
+		parallelSource[position] = true
+	}
 	end := path[len(path)-1]
 	for _, direction := range axialDirections {
 		neighbor := addPosition(end, direction)
-		if blocked[neighbor] || reserved[neighbor] {
+		if blocked[neighbor] || reserved[neighbor] && !parallelSource[neighbor] {
 			return false
 		}
 	}
