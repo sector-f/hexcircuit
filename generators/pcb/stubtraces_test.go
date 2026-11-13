@@ -95,16 +95,51 @@ func TestDecorativeConnectorAllowsClearTwoStepPaths(t *testing.T) {
 	if len(paths) == 0 {
 		t.Fatal("no clear two-step connector found")
 	}
+	foundTwoStep := false
 	for _, path := range paths {
-		if len(path) != 3 || path[0] != start || path[2] != target {
-			t.Fatalf("invalid two-step connector: %v", path)
+		if len(path) < 3 || len(path) > decorativeTraceMaxConnectorLength+1 ||
+			path[0] != start || path[len(path)-1] != target {
+			t.Fatalf("invalid bounded connector: %v", path)
 		}
-		if !traceTurnAllowed(
-			directionIndex(subtractPosition(path[1], path[0])),
-			directionIndex(subtractPosition(path[2], path[1])),
-			false,
-		) {
+		if len(path) == 3 {
+			foundTwoStep = true
+		}
+		if !hasNoSharpTraceTurns(path, nil) {
 			t.Fatalf("connector contains a prohibited sharp turn: %v", path)
+		}
+	}
+	if !foundTwoStep {
+		t.Fatal("no two-step connector was returned")
+	}
+}
+
+func TestDecorativeConnectorDetoursAroundBlockedShortestPath(t *testing.T) {
+	start := hexgrid.GridPosition{Q: 0, R: 0}
+	target := hexgrid.GridPosition{Q: 2, R: 0}
+	allowed := make(map[hexgrid.GridPosition]bool)
+	for q := -2; q <= 4; q++ {
+		for r := -2; r <= 4; r++ {
+			allowed[hexgrid.GridPosition{Q: q, R: r}] = true
+		}
+	}
+	blocked := map[hexgrid.GridPosition]bool{
+		start: true,
+		{Q: 1, R: 0}: true,
+	}
+	paths := decorativeConnectorPaths(start, target, allowed, blocked, nil)
+	if len(paths) == 0 {
+		t.Fatal("no connector detoured around the blocked shortest-path cell")
+	}
+	for _, path := range paths {
+		if len(path) != 4 {
+			t.Fatalf("detour has %d steps, want exactly 3: %v", len(path)-1, path)
+		}
+		if path[1] == (hexgrid.GridPosition{Q: 1, R: 0}) ||
+			path[2] == (hexgrid.GridPosition{Q: 1, R: 0}) {
+			t.Fatalf("detour crossed the blocked shortest-path cell: %v", path)
+		}
+		if !hasNoSharpTraceTurns(path, nil) {
+			t.Fatalf("detour contains an acute turn: %v", path)
 		}
 	}
 }

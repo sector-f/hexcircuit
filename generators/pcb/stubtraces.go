@@ -9,7 +9,7 @@ import (
 
 const (
 	decorativeTraceMaxSourceDistance = 2
-	decorativeTraceMaxConnectorLength = 2
+	decorativeTraceMaxConnectorLength = 3
 )
 
 type decorativeTraceCandidate struct {
@@ -309,6 +309,10 @@ func decorativeParallelCandidates(
 // decorativeConnectorPaths returns all clear shortest paths of at most two
 // steps from a component to the first cell of a parallel run. Intermediate
 // cells may not cross components or any existing route.
+// decorativeConnectorPaths enumerates simple, turn-safe paths of at most
+// decorativeTraceMaxConnectorLength steps from a component to the first cell
+// of a parallel run. This includes short detours when the shortest connector
+// intersects a component or an existing route.
 func decorativeConnectorPaths(
 	start, target hexgrid.GridPosition,
 	allowed, blocked, reserved map[hexgrid.GridPosition]bool,
@@ -318,25 +322,48 @@ func decorativeConnectorPaths(
 		!allowed[target] || blocked[target] || reserved[target] {
 		return nil
 	}
-	if distance == 1 {
-		return [][]hexgrid.GridPosition{{start, target}}
-	}
 
-	connectors := make([][]hexgrid.GridPosition, 0, 2)
-	for _, firstDirection := range axialDirections {
-		middle := addPosition(start, firstDirection)
-		if hexDistance(middle, target) != 1 || !allowed[middle] ||
-			blocked[middle] || reserved[middle] {
+	connectors := make([][]hexgrid.GridPosition, 0, 4)
+	queue := [][]hexgrid.GridPosition{{start}}
+	for len(queue) > 0 {
+		path := queue[0]
+		queue = queue[1:]
+		if len(path)-1 >= decorativeTraceMaxConnectorLength {
 			continue
 		}
-		secondDirection := subtractPosition(target, middle)
-		if !isAxialDirection(secondDirection) ||
-			!traceTurnAllowed(directionIndex(firstDirection), directionIndex(secondDirection), false) {
-			continue
+		current := path[len(path)-1]
+		previousDirection := -1
+		if len(path) > 1 {
+			previousDirection = directionIndex(subtractPosition(current, path[len(path)-2]))
 		}
-		connectors = append(connectors, []hexgrid.GridPosition{start, middle, target})
+
+		for nextDirection, direction := range axialDirections {
+			next := addPosition(current, direction)
+			if previousDirection >= 0 && !traceTurnAllowed(previousDirection, nextDirection, false) {
+				continue
+			}
+			if next == target {
+				connector := append(append([]hexgrid.GridPosition(nil), path...), target)
+				connectors = append(connectors, connector)
+				continue
+			}
+			if !allowed[next] || blocked[next] || reserved[next] ||
+				containsGridPosition(path, next) {
+				continue
+			}
+			queue = append(queue, append(append([]hexgrid.GridPosition(nil), path...), next))
+		}
 	}
 	return connectors
+}
+
+func containsGridPosition(path []hexgrid.GridPosition, position hexgrid.GridPosition) bool {
+	for _, existing := range path {
+		if existing == position {
+			return true
+		}
+	}
+	return false
 }
 
 func shuffleDecorativeCandidates(candidates []decorativeTraceCandidate, rng *rand.Rand) {
