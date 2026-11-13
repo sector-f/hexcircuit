@@ -9,13 +9,8 @@ import (
 	"github.com/sector-f/hexgrid/internal/gridgeom"
 )
 
-type routeSearchState struct {
-	position          hexgrid.GridPosition
-	incomingDirection int // -1 for the initial state; otherwise an axialDirections index.
-}
-
 type routeQueueItem struct {
-	state    routeSearchState
+	position hexgrid.GridPosition
 	priority float64
 	index    int
 }
@@ -35,6 +30,39 @@ func (q *routePriorityQueue) Push(value any) {
 	*q = append(*q, item)
 }
 func (q *routePriorityQueue) Pop() any {
+	old := *q
+	last := old[len(old)-1]
+	old[len(old)-1] = nil
+	*q = old[:len(old)-1]
+	return last
+}
+
+type routeSearchState struct {
+	position          hexgrid.GridPosition
+	incomingDirection int // -1 for the initial state; otherwise an axialDirections index.
+}
+
+type turnAwareRouteQueueItem struct {
+	state    routeSearchState
+	priority float64
+	index    int
+}
+
+type turnAwareRoutePriorityQueue []*turnAwareRouteQueueItem
+
+func (q turnAwareRoutePriorityQueue) Len() int { return len(q) }
+func (q turnAwareRoutePriorityQueue) Less(i, j int) bool { return q[i].priority < q[j].priority }
+func (q turnAwareRoutePriorityQueue) Swap(i, j int) {
+	q[i], q[j] = q[j], q[i]
+	q[i].index = i
+	q[j].index = j
+}
+func (q *turnAwareRoutePriorityQueue) Push(value any) {
+	item := value.(*turnAwareRouteQueueItem)
+	item.index = len(*q)
+	*q = append(*q, item)
+}
+func (q *turnAwareRoutePriorityQueue) Pop() any {
 	old := *q
 	last := old[len(old)-1]
 	old[len(old)-1] = nil
@@ -153,7 +181,89 @@ func routingCellsWithinPowerSourceTrapezoid(
 // heading change is allowed only at a component. The sourceSide argument
 // restricts the first step so a top source exits downward and a bottom source
 // exits upward.
+// findRoute first tries the original shortest-path search. If that route
+// already satisfies the turn constraint, it is returned unchanged, preserving
+// established seeded layouts. Otherwise it runs a direction-aware search that
+// can route around sharp bends or use a component as a concealed waypoint.
 func findRoute(
+	start, goal hexgrid.GridPosition,
+	allowed, blocked, reserved map[hexgrid.GridPosition]bool,
+	sourceSide powerSide,
+	rng *rand.Rand,
+) ([]hexgrid.GridPosition, bool) {
+	if path, ok := findRouteUnconstrained(start, goal, allowed, blocked, reserved, sourceSide, rng); ok &&
+		hasNoSharpTraceTurns(path, blocked) {
+		return path, true
+	}
+	return findRouteTurnAware(start, goal, allowed, blocked, reserved, sourceSide, rng)
+}
+
+// findRouteUnconstrained is the original position-based A* search. Keeping it
+// intact avoids changing route selection or random-number consumption unless
+// the original route contains a sharp free-space corner.
+func findRouteUnconstrained(
+	start, goal hexgrid.GridPosition,
+	allowed, blocked, reserved map[hexgrid.GridPosition]bool,
+	sourceSide powerSide,
+	rng *rand.Rand,
+) ([]hexgrid.GridPosition, bool) {
+	if start == goal || !allowed[start] || !allowed[goal] {
+		return nil, false
+	}
+	if !blocked[start] || !blocked[goal] {
+		return nil, false
+	}
+
+	gScore := map[hexgrid.GridPosition]float64{start: 0}
+	cameFrom := make(map[hexgrid.GridPosition]hexgrid.GridPosition)
+	closed := make(map[hexgrid.GridPosition]bool)
+	frontier := &routePriorityQueue{}
+	heap.Init(frontier)
+	heap.Push(frontier, &routeQueueItem{position: start, priority: float64(hexDistance(start, goal))})
+
+	for frontier.Len() > 0 {
+		current := heap.Pop(frontier).(*routeQueueItem).position
+		if closed[current] {
+			continue
+		}
+		if current == goal {
+			return reconstructPath(start, goal, cameFrom), true
+		}
+		closed[current] = true
+
+		directions := append([]hexgrid.GridPosition(nil), axialDirections[:]...)
+		rng.Shuffle(len(directions), func(i, j int) { directions[i], directions[j] = directions[j], directions[i] })
+		for _, direction := range directions {
+			if current == start && !allowedPowerDeparture(direction, sourceSide) {
+				continue
+			}
+			neighbor := addPosition(current, direction)
+			if !allowed[neighbor] || closed[neighbor] {
+				continue
+			}
+			if neighbor != goal && blocked[neighbor] {
+				continue
+			}
+			if neighbor != goal && neighbor != start && reserved[neighbor] {
+				continue
+			}
+
+			stepCost := 1.0 + rng.Float64()*0.035
+			candidateScore := gScore[current] + stepCost
+			previous, exists := gScore[neighbor]
+			if exists && candidateScore >= previous {
+				continue
+			}
+			cameFrom[neighbor] = current
+			gScore[neighbor] = candidateScore
+			priority := candidateScore + float64(hexDistance(neighbor, goal))
+			heap.Push(frontier, &routeQueueItem{position: neighbor, priority: priority})
+		}
+	}
+	return nil, false
+}
+
+func findRouteTurnAware(
 	start, goal hexgrid.GridPosition,
 	allowed, blocked, reserved map[hexgrid.GridPosition]bool,
 	sourceSide powerSide,
@@ -170,15 +280,15 @@ func findRoute(
 	gScore := map[routeSearchState]float64{startState: 0}
 	cameFrom := make(map[routeSearchState]routeSearchState)
 	closed := make(map[routeSearchState]bool)
-	frontier := &routePriorityQueue{}
+	frontier := &turnAwareRoutePriorityQueue{}
 	heap.Init(frontier)
-	heap.Push(frontier, &routeQueueItem{
+	heap.Push(frontier, &turnAwareRouteQueueItem{
 		state:    startState,
 		priority: float64(hexDistance(start, goal)),
 	})
 
 	for frontier.Len() > 0 {
-		currentState := heap.Pop(frontier).(*routeQueueItem).state
+		currentState := heap.Pop(frontier).(*turnAwareRouteQueueItem).state
 		if closed[currentState] {
 			continue
 		}
@@ -230,7 +340,7 @@ func findRoute(
 			cameFrom[nextState] = currentState
 			gScore[nextState] = candidateScore
 			priority := candidateScore + float64(hexDistance(neighbor, goal))
-			heap.Push(frontier, &routeQueueItem{state: nextState, priority: priority})
+			heap.Push(frontier, &turnAwareRouteQueueItem{state: nextState, priority: priority})
 		}
 	}
 	return nil, false
