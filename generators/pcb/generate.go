@@ -41,7 +41,8 @@ type boardPlan struct {
 	// InterClusterTraces remains separate from the power layer so its style can evolve independently.
 	InterClusterTraces []hexgrid.GridTrace
 	// DecorativeTraces are bent, base-color traces that end at hollow terminal pads.
-	DecorativeTraces []hexgrid.GridTrace
+	DecorativeTraces      []hexgrid.GridTrace
+	DecorativePowerTraces []hexgrid.GridTrace
 	PowerRoutes      [][]hexgrid.GridPosition // Full cell paths, retained for no-crossing tests.
 	Clusters         []clusterPlan
 }
@@ -75,7 +76,7 @@ func Generate(options Options) (string, int, int, error) {
 	if err != nil {
 		return "", 0, 0, fmt.Errorf("render PCB: %w", err)
 	}
-	return svg, len(plan.Components), len(plan.SignalTraces) + len(plan.PowerTraces) + len(plan.InterClusterTraces) + len(plan.DecorativeTraces), nil
+	return svg, len(plan.Components), len(plan.SignalTraces) + len(plan.PowerTraces) + len(plan.InterClusterTraces) + len(plan.DecorativeTraces) + len(plan.DecorativePowerTraces), nil
 }
 
 // buildBoardWithSeedAttempts retries only failures caused by exhausted randomized
@@ -244,7 +245,7 @@ func buildBoard(
 	}
 
 	var signalRoutes map[hexgrid.GridPosition]bool
-	if o.Connections > 0 || o.InterClusterTraces || o.DecorativeTraceCount > 0 {
+	if o.Connections > 0 || o.InterClusterTraces || o.DecorativeTraceCount > 0 || o.DecorativePowerTraceCount > 0 {
 		signalRoutes = routingCellsWithinPowerSourceCorridor(
 			routingCellsWithoutPowerSourceRows(o, topSources, bottomSources), topSources, bottomSources, o,
 		)
@@ -295,7 +296,7 @@ func buildBoard(
 		}
 	}
 
-	if o.DecorativeTraceCount > 0 {
+	if o.DecorativeTraceCount > 0 || o.DecorativePowerTraceCount > 0 {
 		decorativeAllowed := signalRoutes
 		if decorativeAllowed == nil {
 			decorativeAllowed = routingCellsWithinPowerSourceCorridor(
@@ -318,10 +319,19 @@ func buildBoard(
 			}
 		}
 		decorativeReserved := decorativeRouteReservations(plan.PowerRoutes, plan.InterClusterTraces, plan.SignalTraces)
-		plan.DecorativeTraces = addDecorativeTraces(
-			o, rng, clusters, plan.PowerRoutes, plan.InterClusterTraces,
-			decorativeAllowed, blocked, decorativeReserved,
-		)
+		if o.DecorativeTraceCount > 0 {
+			plan.DecorativeTraces = addDecorativeTraces(
+				o, rng, clusters, plan.PowerRoutes, plan.InterClusterTraces,
+				decorativeAllowed, blocked, decorativeReserved,
+			)
+		}
+		if o.DecorativePowerTraceCount > 0 {
+			unusedSources := unusedPowerSourcePositions(topSources, bottomSources, clusters)
+			plan.DecorativePowerTraces = addDecorativePowerTraces(
+				o, rng, unusedSources, plan.PowerRoutes, plan.InterClusterTraces,
+				plan.DecorativeTraces, decorativeAllowed, blocked, decorativeReserved,
+			)
+		}
 	}
 
 	adjustBaseComponentStylesForAccentCores(o, plan.Components, plan.Clusters, plan.PowerCores, plan.InterclusterComponents)
@@ -394,6 +404,7 @@ func renderBoard(o Options, plan boardPlan) (string, error) {
 	base.NodeRadius = o.NodeRadius
 
 	baseTraces := append(append([]hexgrid.GridTrace(nil), plan.SignalTraces...), plan.DecorativeTraces...)
+	baseTraces = append(baseTraces, plan.DecorativePowerTraces...)
 	baseSVG, err := hexgrid.Render(hexgrid.Scene{
 		Options:    base,
 		Components: plan.Components,

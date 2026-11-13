@@ -88,6 +88,9 @@ type Options struct {
 	// DecorativeTraceCount is the best-effort target number of decorative traces.
 	// Zero disables decorative traces.
 	DecorativeTraceCount int
+	// DecorativePowerTraceCount is the best-effort target number of base-layer traces from unused physical power contacts.
+	// Zero disables decorative power traces.
+	DecorativePowerTraceCount int
 	// DecorativeTraceMinLength and DecorativeTraceMaxLength bound trace length in grid steps.
 	DecorativeTraceMinLength int
 	DecorativeTraceMaxLength int
@@ -191,6 +194,7 @@ func DefaultOptions() Options {
 		MaxPowerSourcesPerCluster:             1,
 		Connections:                           18,
 		DecorativeTraceCount:                  0,
+		DecorativePowerTraceCount:              0,
 		DecorativeTraceMinLength:              4,
 		DecorativeTraceMaxLength:              10,
 		DecorativeTraceMaxBends:               3,
@@ -341,6 +345,9 @@ func normalizeOptions(o Options) (Options, error) {
 	}
 	if o.DecorativeTraceCount < 0 || o.DecorativeTraceCount > maxDecorativeTraceCount {
 		return o, fmt.Errorf("decorative-trace count must be between 0 and %d", maxDecorativeTraceCount)
+	}
+	if o.DecorativePowerTraceCount < 0 || o.DecorativePowerTraceCount > maxDecorativeTraceCount {
+		return o, fmt.Errorf("decorative-power-trace count must be between 0 and %d", maxDecorativeTraceCount)
 	}
 	if o.DecorativeTraceMinLength < 3 || o.DecorativeTraceMaxLength < o.DecorativeTraceMinLength || o.DecorativeTraceMaxLength > 100 {
 		return o, fmt.Errorf("decorative-trace lengths must satisfy 3 <= minimum <= maximum <= 100 grid steps")

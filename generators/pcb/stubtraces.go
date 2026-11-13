@@ -30,11 +30,79 @@ func addDecorativeTraces(
 	if o.DecorativeTraceCount <= 0 || len(clusters) == 0 {
 		return nil
 	}
-	if reserved == nil {
-		reserved = make(map[hexgrid.GridPosition]bool)
+
+	startGroups := make([][]hexgrid.GridPosition, len(clusters))
+	for clusterIndex, cluster := range clusters {
+		children := make(map[hexgrid.GridPosition]int, len(cluster.Components))
+		for _, component := range cluster.Components {
+			if component.Parent != nil {
+				children[*component.Parent]++
+			}
+		}
+		for _, component := range cluster.Components {
+			if children[component.Position] == 0 {
+				startGroups[clusterIndex] = append(startGroups[clusterIndex], component.Position)
+			}
+		}
+	}
+	sources := decorativeTraceSourcePaths(powerRoutes, interClusterTraces, nil)
+	return addDecorativeTraceGroups(
+		o, rng, startGroups, sources, o.DecorativeTraceCount,
+		allowed, blocked, reserved,
+	)
+}
+
+// addDecorativePowerTraces adds base-color decorations from configured physical
+// source contacts that were not assigned to active power feeds. Existing normal
+// decorative traces are eligible as parallel source routes.
+func addDecorativePowerTraces(
+	o Options,
+	rng *rand.Rand,
+	unusedPowerSources []hexgrid.GridPosition,
+	powerRoutes [][]hexgrid.GridPosition,
+	interClusterTraces []hexgrid.GridTrace,
+	priorDecorativeTraces []hexgrid.GridTrace,
+	allowed, blocked, reserved map[hexgrid.GridPosition]bool,
+) []hexgrid.GridTrace {
+	if o.DecorativePowerTraceCount <= 0 || len(unusedPowerSources) == 0 {
+		return nil
+	}
+	sources := decorativeTraceSourcePaths(powerRoutes, interClusterTraces, priorDecorativeTraces)
+	return addDecorativeTraceGroups(
+		o, rng, [][]hexgrid.GridPosition{append([]hexgrid.GridPosition(nil), unusedPowerSources...)},
+		sources, o.DecorativePowerTraceCount,
+		allowed, blocked, reserved,
+	)
+}
+
+// unusedPowerSourcePositions returns all physical contacts that were not assigned
+// to a cluster's active power-feed list.
+func unusedPowerSourcePositions(
+	topSources, bottomSources []hexgrid.GridPosition,
+	clusters []clusterPlan,
+) []hexgrid.GridPosition {
+	active := make(map[hexgrid.GridPosition]bool)
+	for _, cluster := range clusters {
+		for _, source := range cluster.PowerSources {
+			active[source.Position] = true
+		}
 	}
 
-	sources := make([][]hexgrid.GridPosition, 0, len(powerRoutes)+len(interClusterTraces)+o.DecorativeTraceCount)
+	unused := make([]hexgrid.GridPosition, 0, len(topSources)+len(bottomSources)-len(active))
+	for _, source := range append(append([]hexgrid.GridPosition(nil), topSources...), bottomSources...) {
+		if !active[source] {
+			unused = append(unused, source)
+		}
+	}
+	return unused
+}
+
+func decorativeTraceSourcePaths(
+	powerRoutes [][]hexgrid.GridPosition,
+	interClusterTraces []hexgrid.GridTrace,
+	decorativeTraces []hexgrid.GridTrace,
+) [][]hexgrid.GridPosition {
+	sources := make([][]hexgrid.GridPosition, 0, len(powerRoutes)+len(interClusterTraces)+len(decorativeTraces))
 	for _, path := range powerRoutes {
 		if len(path) >= 2 {
 			sources = append(sources, append([]hexgrid.GridPosition(nil), path...))
@@ -45,40 +113,49 @@ func addDecorativeTraces(
 			sources = append(sources, path)
 		}
 	}
+	for _, trace := range decorativeTraces {
+		if path := expandCompressedTrace(trace); len(path) >= 2 {
+			sources = append(sources, path)
+		}
+	}
+	return sources
+}
 
-	byCluster := make([][]hexgrid.GridPosition, len(clusters))
-	for clusterIndex, cluster := range clusters {
-		children := make(map[hexgrid.GridPosition]int, len(cluster.Components))
-		for _, component := range cluster.Components {
-			if component.Parent != nil {
-				children[*component.Parent]++
-			}
-		}
-		for _, component := range cluster.Components {
-			if children[component.Position] == 0 {
-				byCluster[clusterIndex] = append(byCluster[clusterIndex], component.Position)
-			}
-		}
-		rng.Shuffle(len(byCluster[clusterIndex]), func(i, j int) {
-			byCluster[clusterIndex][i], byCluster[clusterIndex][j] = byCluster[clusterIndex][j], byCluster[clusterIndex][i]
+func addDecorativeTraceGroups(
+	o Options,
+	rng *rand.Rand,
+	startGroups [][]hexgrid.GridPosition,
+	sources [][]hexgrid.GridPosition,
+	count int,
+	allowed, blocked, reserved map[hexgrid.GridPosition]bool,
+) []hexgrid.GridTrace {
+	if count <= 0 || len(startGroups) == 0 || len(sources) == 0 {
+		return nil
+	}
+	if reserved == nil {
+		reserved = make(map[hexgrid.GridPosition]bool)
+	}
+
+	for i := range startGroups {
+		rng.Shuffle(len(startGroups[i]), func(a, b int) {
+			startGroups[i][a], startGroups[i][b] = startGroups[i][b], startGroups[i][a]
 		})
 	}
-
-	clusterOrder := make([]int, len(clusters))
-	for i := range clusterOrder {
-		clusterOrder[i] = i
+	groupOrder := make([]int, len(startGroups))
+	for i := range groupOrder {
+		groupOrder[i] = i
 	}
-	rng.Shuffle(len(clusterOrder), func(i, j int) {
-		clusterOrder[i], clusterOrder[j] = clusterOrder[j], clusterOrder[i]
+	rng.Shuffle(len(groupOrder), func(i, j int) {
+		groupOrder[i], groupOrder[j] = groupOrder[j], groupOrder[i]
 	})
 
 	usedStarts := make(map[hexgrid.GridPosition]bool)
-	traces := make([]hexgrid.GridTrace, 0, o.DecorativeTraceCount)
-	for len(traces) < o.DecorativeTraceCount {
+	traces := make([]hexgrid.GridTrace, 0, count)
+	for len(traces) < count {
 		progress := false
-		for _, clusterIndex := range clusterOrder {
-			addedThisCluster := false
-			for _, start := range byCluster[clusterIndex] {
+		for _, groupIndex := range groupOrder {
+			addedThisGroup := false
+			for _, start := range startGroups[groupIndex] {
 				if usedStarts[start] {
 					continue
 				}
@@ -98,17 +175,17 @@ func addDecorativeTraces(
 					for _, position := range candidate.path[1:] {
 						reserved[position] = true
 					}
-					// Accepted decorations become sources for later leaf components.
+					// Each accepted decoration becomes a source for later traces.
 					sources = append(sources, append([]hexgrid.GridPosition(nil), candidate.path...))
 					progress = true
-					addedThisCluster = true
+					addedThisGroup = true
 					break
 				}
-				if addedThisCluster || len(traces) >= o.DecorativeTraceCount {
+				if addedThisGroup || len(traces) >= count {
 					break
 				}
 			}
-			if len(traces) >= o.DecorativeTraceCount {
+			if len(traces) >= count {
 				break
 			}
 		}
