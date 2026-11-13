@@ -2136,6 +2136,8 @@ func TestNormalizeOptionsRejectsInvalidDecorativeTraceSettings(t *testing.T) {
 	}{
 		{"negative count", func(o *Options) { o.DecorativeTraceCount = -1 }},
 		{"count too large", func(o *Options) { o.DecorativeTraceCount = maxDecorativeTraceCount + 1 }},
+		{"negative decorative power count", func(o *Options) { o.DecorativePowerTraceCount = -1 }},
+		{"decorative power count too large", func(o *Options) { o.DecorativePowerTraceCount = maxDecorativeTraceCount + 1 }},
 		{"minimum below three", func(o *Options) { o.DecorativeTraceMinLength = 2 }},
 		{"too many bends", func(o *Options) { o.DecorativeTraceMaxBends = 11 }},
 		{"maximum below minimum", func(o *Options) { o.DecorativeTraceMaxLength = o.DecorativeTraceMinLength - 1 }},
@@ -2178,6 +2180,50 @@ func TestBuildBoardDoesNotAddDecorativeTracesWithoutExistingRoutes(t *testing.T)
 	}
 	if len(plan.DecorativeTraces) != 0 {
 		t.Fatalf("got %d decorative traces without any power or inter-cluster source routes, want none", len(plan.DecorativeTraces))
+	}
+}
+
+func TestBuildBoardAddsDecorativePowerTracesFromUnusedContacts(t *testing.T) {
+	o := DefaultOptions()
+	o.DecorativePowerTraceCount = 4
+	o.Seed, o.SeedSet = 431, true
+	top, bottom, err := powerSourcePositions(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := buildBoard(o, rand.New(rand.NewSource(o.Seed)), top, bottom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unused := unusedPowerSourcePositions(top, bottom, plan.Clusters)
+	if len(unused) == 0 {
+		t.Fatal("fixture has no unused physical power-source contacts")
+	}
+	for i, trace := range plan.DecorativePowerTraces {
+		found := false
+		for _, source := range unused {
+			if trace.Start == source {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("decorative power trace %d starts at %v, which is not an unused source contact", i, trace.Start)
+		}
+		if trace.HideTerminal || len(trace.Path) < 2 {
+			t.Errorf("decorative power trace %d has invalid free-ended geometry: %+v", i, trace)
+		}
+	}
+	if len(plan.DecorativePowerTraces) > o.DecorativePowerTraceCount {
+		t.Fatalf("got %d decorative power traces, exceeding best-effort target %d", len(plan.DecorativePowerTraces), o.DecorativePowerTraceCount)
+	}
+	_, _, count, err := Generate(o)
+	if err != nil {
+		t.Fatalf("Generate with decorative power traces: %v", err)
+	}
+	wantCount := len(plan.SignalTraces) + len(plan.PowerTraces) + len(plan.InterClusterTraces) + len(plan.DecorativeTraces) + len(plan.DecorativePowerTraces) + len(plan.DecorativePowerTraces)
+	if count != wantCount {
+		t.Fatalf("Generate trace count = %d, want %d", count, wantCount)
 	}
 }
 

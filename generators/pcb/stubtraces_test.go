@@ -153,6 +153,93 @@ func TestDecorativeTerminalMayAdjoinOnlyItsParallelSourceRoute(t *testing.T) {
 	}
 }
 
+func TestUnusedPowerSourcePositionsExcludeAssignedFeeds(t *testing.T) {
+	top := []hexgrid.GridPosition{{Q: 0, R: -8}, {Q: 2, R: -8}, {Q: 4, R: -8}}
+	bottom := []hexgrid.GridPosition{{Q: 0, R: 8}, {Q: 2, R: 8}}
+	clusters := []clusterPlan{
+		{PowerSources: []powerSource{{Position: top[1]}}},
+		{PowerSources: []powerSource{{Position: bottom[0]}}},
+	}
+	got := unusedPowerSourcePositions(top, bottom, clusters)
+	want := []hexgrid.GridPosition{top[0], top[2], bottom[1]}
+	if len(got) != len(want) {
+		t.Fatalf("got %d unused contacts, want %d: %v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("unused contact %d = %v, want %v", i, got[i], want[i])
+		}
+	}
+}
+
+func TestAddDecorativePowerTracesStartAtUnusedPowerContacts(t *testing.T) {
+	o := DefaultOptions()
+	o.DecorativePowerTraceCount = 1
+	o.DecorativeTraceMinLength = 4
+	o.DecorativeTraceMaxLength = 4
+	o.DecorativeTraceMaxBends = 3
+
+	powerPath := make([]hexgrid.GridPosition, 11)
+	for i := range powerPath {
+		powerPath[i] = hexgrid.GridPosition{Q: i, R: 2}
+	}
+	unused := hexgrid.GridPosition{Q: 0, R: 0}
+	activeSource := powerPath[0]
+	activeTarget := powerPath[len(powerPath)-1]
+	allowed := make(map[hexgrid.GridPosition]bool)
+	for q := -3; q <= 14; q++ {
+		for r := -3; r <= 6; r++ {
+			allowed[hexgrid.GridPosition{Q: q, R: r}] = true
+		}
+	}
+	blocked := map[hexgrid.GridPosition]bool{
+		unused: true, activeSource: true, activeTarget: true,
+	}
+	reserved := decorativeRouteReservations([][]hexgrid.GridPosition{powerPath}, nil)
+
+	traces := addDecorativePowerTraces(
+		o, rand.New(rand.NewSource(12)), []hexgrid.GridPosition{unused},
+		[][]hexgrid.GridPosition{powerPath}, nil, nil,
+		allowed, blocked, reserved,
+	)
+	if len(traces) != 1 {
+		t.Fatalf("got %d decorative power traces, want 1", len(traces))
+	}
+	trace := traces[0]
+	if trace.Start != unused {
+		t.Fatalf("decorative power trace starts at %v, want unused contact %v", trace.Start, unused)
+	}
+	if trace.HideTerminal {
+		t.Fatal("decorative power trace should have a hollow terminal pad")
+	}
+	full := expandCompressedTrace(trace)
+	if len(full) != o.DecorativeTraceMinLength+1 {
+		t.Fatalf("decorative power trace has %d steps, want %d", len(full)-1, o.DecorativeTraceMinLength)
+	}
+	if !decorativeTraceFollowsSource(full, [][]hexgrid.GridPosition{powerPath}) {
+		t.Fatalf("decorative power trace does not parallel the existing power route: %v", full)
+	}
+}
+
+func TestAddDecorativePowerTracesAreBestEffortAndDisabledByDefault(t *testing.T) {
+	o := DefaultOptions()
+	start := hexgrid.GridPosition{Q: 0, R: 0}
+	path := []hexgrid.GridPosition{{Q: 0, R: 5}, {Q: 1, R: 5}, {Q: 2, R: 5}, {Q: 3, R: 5}}
+	allowed := map[hexgrid.GridPosition]bool{start: true}
+	blocked := map[hexgrid.GridPosition]bool{start: true}
+	if got := addDecorativePowerTraces(o, rand.New(rand.NewSource(1)), []hexgrid.GridPosition{start}, [][]hexgrid.GridPosition{path}, nil, nil, allowed, blocked, nil); len(got) != 0 {
+		t.Fatalf("default-disabled decorative power traces produced %d routes", len(got))
+	}
+	o.DecorativePowerTraceCount = 2
+	got := addDecorativePowerTraces(o, rand.New(rand.NewSource(1)), []hexgrid.GridPosition{start}, [][]hexgrid.GridPosition{path}, nil, nil, allowed, blocked, nil)
+	if len(got) != 0 {
+		t.Fatalf("unroutable unused contact produced %d traces, want best-effort skip", len(got))
+	}
+	if got := addDecorativePowerTraces(o, rand.New(rand.NewSource(1)), nil, [][]hexgrid.GridPosition{path}, nil, nil, allowed, blocked, nil); len(got) != 0 {
+		t.Fatalf("no unused sources produced %d decorative power traces", len(got))
+	}
+}
+
 func TestAddDecorativeTracesSkipsWhenNoNearbyRouteExists(t *testing.T) {
 	o := DefaultOptions()
 	o.DecorativeTraceCount = 3
