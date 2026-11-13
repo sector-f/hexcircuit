@@ -144,6 +144,45 @@ func TestDecorativeConnectorDetoursAroundBlockedShortestPath(t *testing.T) {
 	}
 }
 
+func TestDecorativeTraceCanReachOffsetLaneWhenSourceSegmentIsFourCellsAway(t *testing.T) {
+	o := DefaultOptions()
+	o.DecorativeTraceMinLength = 4
+	o.DecorativeTraceMaxLength = 4
+	o.DecorativeTraceMaxBends = 3
+
+	source := make([]hexgrid.GridPosition, 6)
+	for i := range source {
+		source[i] = hexgrid.GridPosition{Q: i, R: 4}
+	}
+	start := hexgrid.GridPosition{Q: 0, R: 0}
+	allowed := make(map[hexgrid.GridPosition]bool)
+	for q := -4; q <= 8; q++ {
+		for r := -2; r <= 8; r++ {
+			allowed[hexgrid.GridPosition{Q: q, R: r}] = true
+		}
+	}
+	blocked := map[hexgrid.GridPosition]bool{
+		start: true, source[0]: true, source[len(source)-1]: true,
+	}
+	reserved := decorativeRouteReservations([][]hexgrid.GridPosition{source}, nil)
+
+	traces := addDecorativeTraceGroups(
+		o, rand.New(rand.NewSource(6)),
+		[][]hexgrid.GridPosition{{start}}, [][]hexgrid.GridPosition{source},
+		1, allowed, blocked, reserved,
+	)
+	if len(traces) != 1 {
+		t.Fatalf("got %d decorative traces, want one parallel trace from the four-cell-away source segment", len(traces))
+	}
+	path := expandCompressedTrace(traces[0])
+	if len(path)-1 != o.DecorativeTraceMinLength {
+		t.Fatalf("decorative trace has %d steps, want %d: %v", len(path)-1, o.DecorativeTraceMinLength, path)
+	}
+	if !decorativeTraceFollowsSource(path, [][]hexgrid.GridPosition{source}) {
+		t.Fatalf("decorative trace does not parallel the nearby source route: %v", path)
+	}
+}
+
 func TestDecorativeTraceTargetsCanExceedLeafCount(t *testing.T) {
 	o := DefaultOptions()
 	o.DecorativeTraceCount = 3

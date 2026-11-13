@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	decorativeTraceMaxSourceDistance = 2
+	decorativeTraceMaxSourceDistance = 4
 	decorativeTraceMaxConnectorLength = 3
 )
 
@@ -306,9 +306,6 @@ func decorativeParallelCandidates(
 	return candidates
 }
 
-// decorativeConnectorPaths returns all clear shortest paths of at most two
-// steps from a component to the first cell of a parallel run. Intermediate
-// cells may not cross components or any existing route.
 // decorativeConnectorPaths enumerates simple, turn-safe paths of at most
 // decorativeTraceMaxConnectorLength steps from a component to the first cell
 // of a parallel run. This includes short detours when the shortest connector
