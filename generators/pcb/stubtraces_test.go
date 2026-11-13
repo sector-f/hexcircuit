@@ -121,6 +121,38 @@ func TestDecorativeRouteReservationsIncludeSignalTraces(t *testing.T) {
 	}
 }
 
+func TestDecorativeTerminalMayAdjoinOnlyItsParallelSourceRoute(t *testing.T) {
+	path := []hexgrid.GridPosition{
+		{Q: 0, R: 0}, {Q: 0, R: 1}, {Q: 1, R: 1}, {Q: 2, R: 1},
+	}
+	source := []hexgrid.GridPosition{
+		{Q: 0, R: 2}, {Q: 1, R: 2}, {Q: 2, R: 2},
+	}
+	allowed := map[hexgrid.GridPosition]bool{
+		{Q: 0, R: 0}: true, {Q: 0, R: 1}: true,
+		{Q: 1, R: 1}: true, {Q: 2, R: 1}: true,
+	}
+	blocked := map[hexgrid.GridPosition]bool{{Q: 0, R: 0}: true}
+	reserved := map[hexgrid.GridPosition]bool{
+		{Q: 0, R: 2}: true, {Q: 1, R: 2}: true, {Q: 2, R: 2}: true,
+	}
+
+	if !decorativeTracePathIsClear(path, allowed, blocked, reserved, source) {
+		t.Fatal("terminal clearance rejected adjacency to the route being paralleled")
+	}
+
+	reserved[hexgrid.GridPosition{Q: 3, R: 1}] = true
+	if decorativeTracePathIsClear(path, allowed, blocked, reserved, source) {
+		t.Fatal("terminal clearance accepted adjacency to an unrelated route")
+	}
+	delete(reserved, hexgrid.GridPosition{Q: 3, R: 1})
+
+	blocked[hexgrid.GridPosition{Q: 3, R: 1}] = true
+	if decorativeTracePathIsClear(path, allowed, blocked, reserved, source) {
+		t.Fatal("terminal clearance accepted adjacency to another component")
+	}
+}
+
 func TestAddDecorativeTracesSkipsWhenNoNearbyRouteExists(t *testing.T) {
 	o := DefaultOptions()
 	o.DecorativeTraceCount = 3
