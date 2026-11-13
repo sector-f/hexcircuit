@@ -61,7 +61,7 @@ func TestFindRouteAvoidsAcuteTurnsInEmptySpace(t *testing.T) {
 	}
 }
 
-func TestFindRouteCanTurnSharplyThroughAComponent(t *testing.T) {
+func TestFindRouteDoesNotUseUnrelatedComponentsAsWaypoints(t *testing.T) {
 	start := hexgrid.GridPosition{Q: 0, R: 0}
 	component := hexgrid.GridPosition{Q: -1, R: 1}
 	goal := hexgrid.GridPosition{Q: -1, R: -1}
@@ -77,20 +77,36 @@ func TestFindRouteCanTurnSharplyThroughAComponent(t *testing.T) {
 		start: true, component: true, goal: true,
 	}
 
+	if got, ok := findRoute(start, goal, allowed, blocked, nil, powerSideTop, rand.New(rand.NewSource(4))); ok {
+		t.Fatalf("route unexpectedly passed through an unrelated component: %v", got)
+	}
+}
+
+func TestFindRouteDetoursAroundUnrelatedComponents(t *testing.T) {
+	start := hexgrid.GridPosition{Q: 0, R: 0}
+	component := hexgrid.GridPosition{Q: -1, R: 1}
+	goal := hexgrid.GridPosition{Q: -1, R: -1}
+	allowed := make(map[hexgrid.GridPosition]bool)
+	for q := -4; q <= 4; q++ {
+		for r := -4; r <= 4; r++ {
+			allowed[hexgrid.GridPosition{Q: q, R: r}] = true
+		}
+	}
+	blocked := map[hexgrid.GridPosition]bool{
+		start: true, component: true, goal: true,
+	}
+
 	got, ok := findRoute(start, goal, allowed, blocked, nil, powerSideTop, rand.New(rand.NewSource(4)))
 	if !ok {
-		t.Fatal("route through component was rejected")
+		t.Fatal("route should have been able to detour around the component")
+	}
+	for _, position := range got[1 : len(got)-1] {
+		if blocked[position] {
+			t.Fatalf("route used blocked component %v as an intermediate waypoint: %v", position, got)
+		}
 	}
 	if !hasNoSharpTraceTurns(got, blocked) {
-		t.Fatalf("route through component retained an acute empty-space turn: %v", got)
-	}
-	if len(got) != len(path) {
-		t.Fatalf("route has %d positions, want %d: %v", len(got), len(path), got)
-	}
-	for i := range path {
-		if got[i] != path[i] {
-			t.Fatalf("route position %d = %v, want %v", i, got[i], path[i])
-		}
+		t.Fatalf("detour contains a sharp free-space turn: %v", got)
 	}
 }
 

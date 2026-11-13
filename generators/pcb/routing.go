@@ -174,11 +174,11 @@ func routingCellsWithinPowerSourceTrapezoid(
 
 // findRoute performs turn-aware A* on the axial lattice. A route reserves
 // every lattice vertex it visits, so subsequent routes cannot share a vertex
-// or cross an existing route. Components are preferred as obstacles, but may
-// be used as concealed waypoints with a routing penalty. In empty space,
+// or cross an existing route. Components are hard obstacles except for the
+// selected source and destination. In empty space,
 // direction changes are limited to one adjacent hex-grid axis (a 60-degree
 // heading change). The sharp 60-degree inside corner created by a 120-degree
-// heading change is allowed only at a component. The sourceSide argument
+// heading change is never used at an empty routing cell. The sourceSide argument
 // restricts the first step so a top source exits downward and a bottom source
 // exits upward.
 // findRoute first tries the original shortest-path search. If that route
@@ -311,7 +311,9 @@ func findRouteTurnAware(
 				continue
 			}
 			neighbor := addPosition(current, direction)
-			if !allowed[neighbor] {
+			if !allowed[neighbor] || (neighbor != goal && blocked[neighbor]) {
+				// Components are hard obstacles except for the explicit route
+				// endpoints. Never use another component as a hidden waypoint.
 				continue
 			}
 			if neighbor != goal && neighbor != start && reserved[neighbor] {
@@ -327,11 +329,6 @@ func findRouteTurnAware(
 			}
 
 			stepCost := 1.0 + rng.Float64()*0.035
-			if blocked[neighbor] && neighbor != goal {
-				// Prefer routing around components, but permit a path to pass
-				// through one when that is the only clean way to continue.
-				stepCost += 1.5
-			}
 			candidateScore := gScore[currentState] + stepCost
 			previous, exists := gScore[nextState]
 			if exists && candidateScore >= previous {
