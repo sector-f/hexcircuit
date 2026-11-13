@@ -26,7 +26,8 @@ func validRequest() generateRequest {
 		ComponentStrokeWidth:        o.ComponentStrokeWidth,
 		ComponentMiddleHexagonScale: o.ComponentMiddleHexagonScale,
 		ComponentInnerHexagonScale:  o.ComponentInnerHexagonScale,
-		Connections:                 o.Connections, DecorativeTraceCount: o.DecorativeTraceCount,
+		Connections: o.Connections, DecorativeTraceCount: o.DecorativeTraceCount,
+		DecorativePowerTraceCount: o.DecorativePowerTraceCount,
 		DecorativeTraceMinLength: o.DecorativeTraceMinLength, DecorativeTraceMaxLength: o.DecorativeTraceMaxLength,
 		InterClusterTraces: o.InterClusterTraces, MaxParallel: o.MaxParallel,
 		RouteAttempts: o.RouteAttempts, GenerationAttempts: o.GenerationAttempts, Pitch: o.Pitch,
@@ -57,6 +58,7 @@ func TestGenerateRequestMapsToPCBOptions(t *testing.T) {
 	req.ConstrainLayoutToPowerSourceTrapezoid = true
 	req.InterClusterTraces = true
 	req.DecorativeTraceCount = 5
+	req.DecorativePowerTraceCount = 3
 	req.DecorativeTraceMinLength = 3
 	req.DecorativeTraceMaxLength = 6
 	req.DecorativeTraceMaxBends = 2
@@ -108,6 +110,9 @@ func TestGenerateRequestMapsToPCBOptions(t *testing.T) {
 	}
 	if !got.InterClusterTraces {
 		t.Fatal("inter-cluster trace option was not mapped")
+	}
+	if got.DecorativePowerTraceCount != req.DecorativePowerTraceCount {
+		t.Fatalf("decorative power-trace count = %d, want %d", got.DecorativePowerTraceCount, req.DecorativePowerTraceCount)
 	}
 	if got.DecorativeTraceCount != req.DecorativeTraceCount || got.DecorativeTraceMinLength != req.DecorativeTraceMinLength || got.DecorativeTraceMaxLength != req.DecorativeTraceMaxLength || got.DecorativeTraceMaxBends != req.DecorativeTraceMaxBends {
 		t.Fatalf("decorative-trace options = (%d, %d, %d), want (%d, %d, %d)",
@@ -227,6 +232,8 @@ func TestGenerateRequestRejectsInvalidOptions(t *testing.T) {
 		{"too many generation attempts", func(r *generateRequest) { r.GenerationAttempts = 21 }},
 		{"negative decorative-trace count", func(r *generateRequest) { r.DecorativeTraceCount = -1 }},
 		{"decorative-trace count too large", func(r *generateRequest) { r.DecorativeTraceCount = 1001 }},
+		{"negative decorative-power-trace count", func(r *generateRequest) { r.DecorativePowerTraceCount = -1 }},
+		{"decorative-power-trace count too large", func(r *generateRequest) { r.DecorativePowerTraceCount = 1001 }},
 		{"decorative-trace minimum too short", func(r *generateRequest) { r.DecorativeTraceMinLength = 2 }},
 		{"decorative-trace max bends too large", func(r *generateRequest) { r.DecorativeTraceMaxBends = 11 }},
 		{"decorative-trace maximum below minimum", func(r *generateRequest) { r.DecorativeTraceMinLength = 4; r.DecorativeTraceMaxLength = 3 }},
@@ -260,7 +267,7 @@ func TestHandleIndexRendersPCBInterface(t *testing.T) {
 	if got := response.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
 		t.Fatalf("content type = %q, want HTML", got)
 	}
-	for _, want := range []string{"PCB Layout Generator", "constrainLayoutToPowerSourceTrapezoid", "powerSourceSpacing", "minPowerSourcesPerCluster", "maxPowerSourcesPerCluster", "interClusterTraces", "decorativeTraceCount", "decorativeTraceMinLength", "decorativeTraceMaxLength", "decorativeTraceMaxBends", "gridColor", "routeAttempts", "generationAttempts", "componentMinRadius", "componentMaxRadius", "powerSourceComponentRadius", "baseGlowEnabled", "baseGlowBlurRadius", "baseGlowOpacity", "accentGlowEnabled", "accentGlowBlurRadius", "accentGlowOpacity"} {
+	for _, want := range []string{"PCB Layout Generator", "constrainLayoutToPowerSourceTrapezoid", "powerSourceSpacing", "minPowerSourcesPerCluster", "maxPowerSourcesPerCluster", "interClusterTraces", "decorativeTraceCount", "decorativePowerTraceCount", "decorativeTraceMinLength", "decorativeTraceMaxLength", "decorativeTraceMaxBends", "gridColor", "routeAttempts", "generationAttempts", "componentMinRadius", "componentMaxRadius", "powerSourceComponentRadius", "baseGlowEnabled", "baseGlowBlurRadius", "baseGlowOpacity", "accentGlowEnabled", "accentGlowBlurRadius", "accentGlowOpacity"} {
 		if !bytes.Contains(response.Body.Bytes(), []byte(want)) {
 			t.Errorf("rendered HTML is missing %q", want)
 		}

@@ -57,6 +57,7 @@ type generateRequest struct {
 	ComponentInnerHexagonScale            float64 `json:"componentInnerHexagonScale"`
 	Connections                           int     `json:"connections"`
 	DecorativeTraceCount                  int     `json:"decorativeTraceCount"`
+	DecorativePowerTraceCount              int     `json:"decorativePowerTraceCount"`
 	DecorativeTraceMinLength              int     `json:"decorativeTraceMinLength"`
 	DecorativeTraceMaxLength              int     `json:"decorativeTraceMaxLength"`
 	DecorativeTraceMaxBends               int     `json:"decorativeTraceMaxBends"`
@@ -199,6 +200,9 @@ func (r generateRequest) options() (pcb.Options, error) {
 	}
 	if r.DecorativeTraceCount < 0 || r.DecorativeTraceCount > 1000 {
 		return pcb.Options{}, fmt.Errorf("decorative-trace count must be between 0 and 1000")
+	}
+	if r.DecorativePowerTraceCount < 0 || r.DecorativePowerTraceCount > 1000 {
+		return pcb.Options{}, fmt.Errorf("decorative-power-trace count must be between 0 and 1000")
 	}
 	if r.MaxParallel < 1 || r.MaxParallel > 3 {
 		return pcb.Options{}, fmt.Errorf("maximum parallel tracks must be between 1 and 3")
@@ -346,6 +350,7 @@ func (r generateRequest) options() (pcb.Options, error) {
 		MaxPowerSourcesPerCluster:             r.MaxPowerSourcesPerCluster,
 		Connections:                           r.Connections,
 		DecorativeTraceCount:                  r.DecorativeTraceCount,
+		DecorativePowerTraceCount:              r.DecorativePowerTraceCount,
 		DecorativeTraceMinLength:              decorativeTraceMinLength,
 		DecorativeTraceMaxLength:              decorativeTraceMaxLength,
 		DecorativeTraceMaxBends:               decorativeTraceMaxBends,
