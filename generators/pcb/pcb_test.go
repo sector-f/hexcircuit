@@ -2152,7 +2152,7 @@ func TestNormalizeOptionsRejectsInvalidDecorativeTraceSettings(t *testing.T) {
 	}
 }
 
-func TestBuildBoardAddsDecorativeTraces(t *testing.T) {
+func TestBuildBoardDoesNotAddDecorativeTracesWithoutExistingRoutes(t *testing.T) {
 	o := DefaultOptions()
 	o.ComponentCount = 12
 	o.ClusterCount = 3
@@ -2161,8 +2161,10 @@ func TestBuildBoardAddsDecorativeTraces(t *testing.T) {
 	o.TopPowerSourceCount = 0
 	o.BottomPowerSourceCount = 0
 	o.Connections = 0
+	o.InterClusterTraces = false
 	o.DecorativeTraceCount = 3
 	o.Seed, o.SeedSet = 381, true
+
 	top, bottom, err := powerSourcePositions(o)
 	if err != nil {
 		t.Fatal(err)
@@ -2171,27 +2173,11 @@ func TestBuildBoardAddsDecorativeTraces(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(plan.DecorativeTraces) == 0 {
-		t.Fatal("decorative-trace option did not produce any decorative stubs")
+	if len(plan.PowerTraces) != 0 || len(plan.InterClusterTraces) != 0 {
+		t.Fatal("test fixture unexpectedly produced a primary route source")
 	}
-	if len(plan.DecorativeTraces) > o.DecorativeTraceCount {
-		t.Fatalf("got %d decorative traces, exceeding target %d", len(plan.DecorativeTraces), o.DecorativeTraceCount)
-	}
-	for _, trace := range plan.DecorativeTraces {
-		if trace.HideTerminal || trace.Lines < 1 || trace.Lines > o.MaxParallel || len(trace.Path) < 2 {
-			t.Errorf("unexpected decorative trace: %+v", trace)
-		}
-	}
-	svg, _, traceCount, err := Generate(o)
-	if err != nil {
-		t.Fatalf("generate board with decorative traces: %v", err)
-	}
-	if svg == "" {
-		t.Fatal("generation returned an empty SVG")
-	}
-	wantTraceCount := len(plan.SignalTraces) + len(plan.PowerTraces) + len(plan.InterClusterTraces) + len(plan.DecorativeTraces)
-	if traceCount != wantTraceCount {
-		t.Fatalf("Generate trace count = %d, want %d including decorative traces", traceCount, wantTraceCount)
+	if len(plan.DecorativeTraces) != 0 {
+		t.Fatalf("got %d decorative traces without any power or inter-cluster source routes, want none", len(plan.DecorativeTraces))
 	}
 }
 

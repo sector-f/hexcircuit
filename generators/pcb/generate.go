@@ -243,8 +243,9 @@ func buildBoard(
 		}
 	}
 
+	var signalRoutes map[hexgrid.GridPosition]bool
 	if o.Connections > 0 || o.InterClusterTraces || o.DecorativeTraceCount > 0 {
-		signalRoutes := routingCellsWithinPowerSourceCorridor(
+		signalRoutes = routingCellsWithinPowerSourceCorridor(
 			routingCellsWithoutPowerSourceRows(o, topSources, bottomSources), topSources, bottomSources, o,
 		)
 		activeSources := make([]powerSource, 0)
