@@ -65,7 +65,7 @@ func addDecorativeTraces(
 	sources := decorativeTraceSourcePaths(powerRoutes, interClusterTraces, nil)
 	return addDecorativeTraceGroups(
 		o, rng, startGroups, sources, o.DecorativeTraceCount,
-		allowed, blocked, reserved,
+		allowed, blocked, reserved, false,
 	)
 }
 
@@ -92,7 +92,7 @@ func addDecorativePowerTraces(
 	return addDecorativeTraceGroups(
 		o, rng, [][]hexgrid.GridPosition{starts},
 		sources, o.DecorativePowerTraceCount,
-		allowed, blocked, reserved,
+		allowed, blocked, reserved, true,
 	)
 }
 
@@ -149,6 +149,7 @@ func addDecorativeTraceGroups(
 	sources [][]hexgrid.GridPosition,
 	count int,
 	allowed, blocked, reserved map[hexgrid.GridPosition]bool,
+	oneTracePerStart bool,
 ) []hexgrid.GridTrace {
 	if count <= 0 || len(startGroups) == 0 || len(sources) == 0 {
 		return nil
@@ -166,6 +167,7 @@ func addDecorativeTraceGroups(
 	})
 
 	traces := make([]hexgrid.GridTrace, 0, count)
+	usedStarts := make(map[hexgrid.GridPosition]bool)
 	round := 0
 	for len(traces) < count {
 		progress := false
@@ -178,6 +180,9 @@ func addDecorativeTraceGroups(
 			startOffset := round % len(starts)
 			for startIndex := 0; startIndex < len(starts); startIndex++ {
 				start := starts[(startOffset+startIndex)%len(starts)]
+				if oneTracePerStart && usedStarts[start] {
+					continue
+				}
 				candidates := decorativeParallelCandidates(start, sources, o, allowed, blocked, reserved)
 				shuffleDecorativeCandidates(candidates, rng)
 				for _, candidate := range candidates {
@@ -190,6 +195,9 @@ func addDecorativeTraceGroups(
 						Lines:        randomLines(rng, o.MaxParallel),
 						HideTerminal: false,
 					})
+					if oneTracePerStart {
+						usedStarts[start] = true
+					}
 					for _, position := range candidate.path[1:] {
 						reserved[position] = true
 					}

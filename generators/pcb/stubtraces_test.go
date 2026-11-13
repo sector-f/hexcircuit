@@ -169,7 +169,7 @@ func TestDecorativeTraceCanReachOffsetLaneWhenSourceSegmentIsFourCellsAway(t *te
 	traces := addDecorativeTraceGroups(
 		o, rand.New(rand.NewSource(6)),
 		[][]hexgrid.GridPosition{{start}}, [][]hexgrid.GridPosition{source},
-		1, allowed, blocked, reserved,
+		1, allowed, blocked, reserved, false,
 	)
 	if len(traces) != 1 {
 		t.Fatalf("got %d decorative traces, want one parallel trace from the four-cell-away source segment", len(traces))
@@ -427,9 +427,9 @@ func TestAddDecorativePowerTracesStartAtUnusedPowerContacts(t *testing.T) {
 	}
 }
 
-func TestDecorativePowerTraceCanProduceMultipleBranchesFromOneUnusedContact(t *testing.T) {
+func TestDecorativePowerTraceUsesAtMostOneTracePerUnusedContact(t *testing.T) {
 	o := DefaultOptions()
-	o.DecorativePowerTraceCount = 2
+	o.DecorativePowerTraceCount = 3
 	o.DecorativeTraceMinLength = 4
 	o.DecorativeTraceMaxLength = 4
 	o.DecorativeTraceMaxBends = 3
@@ -440,36 +440,54 @@ func TestDecorativePowerTraceCanProduceMultipleBranchesFromOneUnusedContact(t *t
 		upper[i] = hexgrid.GridPosition{Q: i, R: 2}
 		lower[i] = hexgrid.GridPosition{Q: -i, R: -2}
 	}
-	unused := hexgrid.GridPosition{Q: 0, R: 0}
+	unusedUpper := hexgrid.GridPosition{Q: 0, R: 0}
+	unusedLower := hexgrid.GridPosition{Q: 0, R: -4}
 	allowed := make(map[hexgrid.GridPosition]bool)
-	for q := -4; q <= 12; q++ {
-		for r := -5; r <= 5; r++ {
+	for q := -5; q <= 12; q++ {
+		for r := -7; r <= 5; r++ {
 			allowed[hexgrid.GridPosition{Q: q, R: r}] = true
 		}
 	}
 	blocked := map[hexgrid.GridPosition]bool{
-		unused: true,
+		unusedUpper: true, unusedLower: true,
 		upper[0]: true, upper[len(upper)-1]: true,
 		lower[0]: true, lower[len(lower)-1]: true,
 	}
 	reserved := decorativeRouteReservations([][]hexgrid.GridPosition{upper, lower}, nil)
 
-	traces := addDecorativePowerTraces(
-		o, rand.New(rand.NewSource(91)), []hexgrid.GridPosition{unused},
-		[][]hexgrid.GridPosition{upper, lower}, nil, nil,
-		allowed, blocked, reserved,
-	)
-	if len(traces) != 2 {
-		t.Fatalf("got %d decorative power traces from one unused contact, want 2", len(traces))
-	}
-	for i, trace := range traces {
-		if trace.Start != unused {
-			t.Errorf("trace %d starts at %v, want unused contact %v", i, trace.Start, unused)
+	t.Run("multiple contacts each receive at most one", func(t *testing.T) {
+		traces := addDecorativePowerTraces(
+			o, rand.New(rand.NewSource(91)), []hexgrid.GridPosition{unusedUpper, unusedLower},
+			[][]hexgrid.GridPosition{upper, lower}, nil, nil,
+			allowed, blocked, reserved,
+		)
+		if len(traces) != 2 {
+			t.Fatalf("got %d traces from two unused contacts, want one per contact", len(traces))
 		}
-	}
-	if reflect.DeepEqual(expandCompressedTrace(traces[0]), expandCompressedTrace(traces[1])) {
-		t.Fatal("multiple power decorations from one contact produced duplicate routes")
-	}
+		seen := make(map[hexgrid.GridPosition]int)
+		for _, trace := range traces {
+			seen[trace.Start]++
+		}
+		for _, source := range []hexgrid.GridPosition{unusedUpper, unusedLower} {
+			if seen[source] != 1 {
+				t.Errorf("unused source %v produced %d traces, want exactly one", source, seen[source])
+			}
+		}
+	})
+
+	t.Run("one contact cannot satisfy multiple trace count", func(t *testing.T) {
+		traces := addDecorativePowerTraces(
+			o, rand.New(rand.NewSource(91)), []hexgrid.GridPosition{unusedUpper},
+			[][]hexgrid.GridPosition{upper, lower}, nil, nil,
+			allowed, blocked, decorativeRouteReservations([][]hexgrid.GridPosition{upper, lower}, nil),
+		)
+		if len(traces) != 1 {
+			t.Fatalf("got %d traces from one unused contact, want at most one", len(traces))
+		}
+		if traces[0].Start != unusedUpper {
+			t.Fatalf("trace starts at %v, want %v", traces[0].Start, unusedUpper)
+		}
+	})
 }
 
 func TestAddDecorativePowerTracesAreBestEffortAndDisabledByDefault(t *testing.T) {
