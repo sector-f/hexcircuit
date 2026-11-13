@@ -229,6 +229,70 @@ func TestDecorativeTraceTargetsCanExceedLeafCount(t *testing.T) {
 	}
 }
 
+func TestDecorativeTraceLineCountDoesNotDependOnRequestedTraceCount(t *testing.T) {
+	o := DefaultOptions()
+	o.Seed = 8675309
+	o.SeedSet = true
+	o.MaxParallel = 3
+	o.DecorativeTraceMinLength = 4
+	o.DecorativeTraceMaxLength = 6
+	o.DecorativeTraceMaxBends = 3
+
+	source := make([]hexgrid.GridPosition, 10)
+	for i := range source {
+		source[i] = hexgrid.GridPosition{Q: i, R: 2}
+	}
+	start := hexgrid.GridPosition{Q: 0, R: 0}
+	starts := [][]hexgrid.GridPosition{{start}}
+	allowed := make(map[hexgrid.GridPosition]bool)
+	for q := -4; q <= 14; q++ {
+		for r := -4; r <= 8; r++ {
+			allowed[hexgrid.GridPosition{Q: q, R: r}] = true
+		}
+	}
+	blocked := map[hexgrid.GridPosition]bool{start: true, source[0]: true, source[len(source)-1]: true}
+
+	one := addDecorativeTraceGroups(
+		o, rand.New(rand.NewSource(17)), starts, [][]hexgrid.GridPosition{source},
+		1, allowed, blocked, decorativeRouteReservations([][]hexgrid.GridPosition{source}, nil), true,
+	)
+	many := addDecorativeTraceGroups(
+		o, rand.New(rand.NewSource(17)), starts, [][]hexgrid.GridPosition{source},
+		4, allowed, blocked, decorativeRouteReservations([][]hexgrid.GridPosition{source}, nil), true,
+	)
+	if len(one) != 1 || len(many) == 0 {
+		t.Fatalf("test fixture did not produce a trace: one=%d many=%d", len(one), len(many))
+	}
+	if one[0].Start != many[0].Start || !reflect.DeepEqual(one[0].Path, many[0].Path) {
+		t.Fatalf("first trace path changed with requested count: one=%+v many=%+v", one[0], many[0])
+	}
+	if one[0].Lines != many[0].Lines {
+		t.Fatalf("same decorative route changed line count with requested count: one=%d many=%d", one[0].Lines, many[0].Lines)
+	}
+}
+
+func TestDecorativeTraceLineCountIsStableForTheSameSeedAndRoute(t *testing.T) {
+	o := DefaultOptions()
+	o.Seed = -1234567
+	o.MaxParallel = 3
+	trace := hexgrid.GridTrace{
+		Start: hexgrid.GridPosition{Q: 2, R: -1},
+		Path: []hexgrid.GridPosition{
+			{Q: 3, R: -1},
+			{Q: 5, R: 0},
+		},
+	}
+	first := decorativeTraceLineCount(o, trace)
+	for i := 0; i < 20; i++ {
+		if got := decorativeTraceLineCount(o, trace); got != first {
+			t.Fatalf("stable line count changed from %d to %d", first, got)
+		}
+	}
+	if first < 1 || first > o.MaxParallel {
+		t.Fatalf("decorative trace line count %d outside [1, %d]", first, o.MaxParallel)
+	}
+}
+
 func TestDecorativeTraceUsesAtMostOneTracePerComponent(t *testing.T) {
 	o := DefaultOptions()
 	o.DecorativeTraceCount = 2

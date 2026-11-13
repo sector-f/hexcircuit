@@ -68,8 +68,14 @@ func Generate(options Options) (string, int, int, error) {
 		return "", 0, 0, err
 	}
 	plan, err := buildBoardWithSeedAttempts(o.GenerationAttempts, seed, func(attemptSeed int64) (boardPlan, error) {
+		// Pass the effective attempt seed through Options so stable per-route
+		// decorative properties use the same seed as the generated layout,
+		// including when generation selected a seed automatically.
+		attemptOptions := o
+		attemptOptions.Seed = attemptSeed
+		attemptOptions.SeedSet = true
 		rng := rand.New(rand.NewSource(attemptSeed))
-		return buildBoard(o, rng, topSources, bottomSources)
+		return buildBoard(attemptOptions, rng, topSources, bottomSources)
 	})
 	if err != nil {
 		return "", 0, 0, err
@@ -365,11 +371,14 @@ func clusterPowerCoreRadiusScale(o Options, componentRadiusScale float64) float6
 }
 
 func randomLines(rng *rand.Rand, maximum int) int {
+	return linesFromRoll(rng.Intn(100), maximum)
+}
+
+func linesFromRoll(roll, maximum int) int {
 	if maximum <= 1 {
 		return 1
 	}
 	// Favor single and double tracks while retaining occasional dense bundles.
-	roll := rng.Intn(100)
 	if maximum >= 3 && roll >= 88 {
 		return 3
 	}

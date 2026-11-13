@@ -1,6 +1,8 @@
 package pcb
 
 import (
+	"encoding/binary"
+	"hash/fnv"
 	"math/rand"
 	"sort"
 
@@ -189,12 +191,13 @@ func addDecorativeTraceGroups(
 					if !decorativeTracePathIsClear(candidate.path, allowed, blocked, reserved, candidate.sourcePath) {
 						continue
 					}
-					traces = append(traces, hexgrid.GridTrace{
+					trace := hexgrid.GridTrace{
 						Start:        start,
 						Path:         compressPath(candidate.path),
-						Lines:        randomLines(rng, o.MaxParallel),
 						HideTerminal: false,
-					})
+					}
+					trace.Lines = decorativeTraceLineCount(o, trace)
+					traces = append(traces, trace)
 					if oneTracePerStart {
 						usedStarts[start] = true
 					}
@@ -369,6 +372,29 @@ func containsGridPosition(path []hexgrid.GridPosition, position hexgrid.GridPosi
 		}
 	}
 	return false
+}
+
+// decorativeTraceLineCount assigns a stable bundle size to a decorative route.
+// It depends on the effective generation seed and route geometry, not on
+// the order in which other decorative traces are requested or accepted.
+// MaxParallel remains an upper bound.
+func decorativeTraceLineCount(o Options, trace hexgrid.GridTrace) int {
+	if o.MaxParallel <= 1 {
+		return 1
+	}
+
+	h := fnv.New64a()
+	_, _ = h.Write([]byte("pcb-decorative-trace-lines-v1"))
+	var value [8]byte
+	binary.LittleEndian.PutUint64(value[:], uint64(o.Seed))
+	_, _ = h.Write(value[:])
+	for _, position := range expandCompressedTrace(trace) {
+		binary.LittleEndian.PutUint64(value[:], uint64(int64(position.Q)))
+		_, _ = h.Write(value[:])
+		binary.LittleEndian.PutUint64(value[:], uint64(int64(position.R)))
+		_, _ = h.Write(value[:])
+	}
+	return linesFromRoll(int(h.Sum64()%100), o.MaxParallel)
 }
 
 func shuffleDecorativeCandidates(candidates []decorativeTraceCandidate, rng *rand.Rand) {

@@ -2219,6 +2219,53 @@ func TestBuildBoardDoesNotAddDecorativeTracesWithoutExistingRoutes(t *testing.T)
 	}
 }
 
+func TestDecorativeTraceBundleSizesAreStableWhenTargetChanges(t *testing.T) {
+	base := DefaultOptions()
+	base.Seed, base.SeedSet = 20261113, true
+	base.InterClusterTraces = true
+	base.DecorativeTraceCount = 1
+	base.DecorativePowerTraceCount = 1
+
+	top, bottom, err := powerSourcePositions(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	one, err := buildBoard(base, rand.New(rand.NewSource(base.Seed)), top, bottom)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	more := base
+	more.DecorativeTraceCount = 5
+	more.DecorativePowerTraceCount = 5
+	many, err := buildBoard(more, rand.New(rand.NewSource(more.Seed)), top, bottom)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	byPath := make(map[string]int, len(many.DecorativeTraces)+len(many.DecorativePowerTraces))
+	key := func(trace hexgrid.GridTrace) string {
+		return fmt.Sprintf("%v:%v", trace.Start, expandCompressedTrace(trace))
+	}
+	for _, trace := range many.DecorativeTraces {
+		byPath[key(trace)] = trace.Lines
+	}
+	for _, trace := range many.DecorativePowerTraces {
+		byPath[key(trace)] = trace.Lines
+	}
+	check := func(category string, traces []hexgrid.GridTrace) {
+		t.Helper()
+		for _, trace := range traces {
+			if lines, ok := byPath[key(trace)]; ok && lines != trace.Lines {
+				t.Errorf("%s trace at %v changed from %d to %d lines when target count increased",
+					category, trace.Start, trace.Lines, lines)
+			}
+		}
+	}
+	check("decorative", one.DecorativeTraces)
+	check("decorative power", one.DecorativePowerTraces)
+}
+
 func TestGeneratedTraceFamiliesAvoidAcuteFreeSpaceTurns(t *testing.T) {
 	o := DefaultOptions()
 	o.InterClusterTraces = true
