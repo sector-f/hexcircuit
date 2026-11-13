@@ -2213,7 +2213,7 @@ func TestGeneratedTraceFamiliesAvoidAcuteFreeSpaceTurns(t *testing.T) {
 		check(fmt.Sprintf("power route %d", i), path)
 	}
 	for i, trace := range plan.SignalTraces {
-		check(fmt.Sprintf("signal trace %d", i), append([]hexgrid.GridPosition{trace.Start}, trace.Path...))
+		check(fmt.Sprintf("signal trace %d", i), expandCompressedTrace(trace))
 	}
 	for i, trace := range plan.InterClusterTraces {
 		check(fmt.Sprintf("inter-cluster trace %d", i), expandCompressedTrace(trace))

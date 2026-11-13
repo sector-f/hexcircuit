@@ -150,7 +150,9 @@ func routingCellsWithinPowerSourceTrapezoid(
 // source exits downward and a bottom source exits upward.
 // findRoute performs turn-aware A* on the axial lattice. A route reserves
 // every lattice vertex it visits, so subsequent routes cannot share a vertex
-// or cross an existing route. In empty space, direction changes are limited
+// or cross an existing route. Components are preferred as obstacles, but may
+// be used as concealed waypoints with a routing penalty. In empty space,
+// direction changes are limited
 // to one adjacent hex-grid axis (a 60-degree heading change); the sharper
 // 120-degree change is allowed only at a component. The sourceSide argument
 // restricts the first step so a top source exits downward and a bottom source
@@ -203,7 +205,7 @@ func findRoute(
 				continue
 			}
 			neighbor := addPosition(current, direction)
-			if !allowed[neighbor] || neighbor != goal && blocked[neighbor] {
+			if !allowed[neighbor] {
 				continue
 			}
 			if neighbor != goal && neighbor != start && reserved[neighbor] {
@@ -219,6 +221,11 @@ func findRoute(
 			}
 
 			stepCost := 1.0 + rng.Float64()*0.035
+			if blocked[neighbor] && neighbor != goal {
+				// Prefer routing around components, but permit a path to pass
+				// through one when that is the only clean way to continue.
+				stepCost += 1.5
+			}
 			candidateScore := gScore[currentState] + stepCost
 			previous, exists := gScore[nextState]
 			if exists && candidateScore >= previous {

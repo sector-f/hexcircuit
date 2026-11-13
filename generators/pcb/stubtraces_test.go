@@ -240,6 +240,27 @@ func TestAddDecorativePowerTracesAreBestEffortAndDisabledByDefault(t *testing.T)
 	}
 }
 
+func TestDecorativeTraceMayMakeSharpTurnOnlyAtAComponent(t *testing.T) {
+	path := []hexgrid.GridPosition{
+		{Q: 0, R: 0}, {Q: 1, R: 0}, {Q: 0, R: 1}, {Q: -1, R: 2},
+	}
+	allowed := make(map[hexgrid.GridPosition]bool)
+	for _, position := range path {
+		allowed[position] = true
+	}
+	blocked := map[hexgrid.GridPosition]bool{
+		path[0]: true, path[1]: true,
+	}
+	if !decorativeTracePathIsClear(path, allowed, blocked, nil, nil) {
+		t.Fatal("decorative trace with a component transition was rejected")
+	}
+
+	delete(blocked, path[1])
+	if decorativeTracePathIsClear(path, allowed, blocked, nil, nil) {
+		t.Fatal("decorative trace with a sharp free-space turn was accepted")
+	}
+}
+
 func TestAddDecorativeTracesSkipsWhenNoNearbyRouteExists(t *testing.T) {
 	o := DefaultOptions()
 	o.DecorativeTraceCount = 3

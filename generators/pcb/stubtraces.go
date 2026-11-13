@@ -354,8 +354,12 @@ func decorativeTracePathIsClear(
 	visited[path[0]] = true
 	for i, position := range path[1:] {
 		previous := path[i]
+		pathIndex := i + 1
 		if hexDistance(previous, position) != 1 ||
 			!allowed[position] || reserved[position] || visited[position] {
+			return false
+		}
+		if blocked[position] && !hasSharpTurnAt(path, pathIndex) {
 			return false
 		}
 		visited[position] = true
@@ -376,6 +380,22 @@ func decorativeTracePathIsClear(
 		}
 	}
 	return true
+}
+
+func hasSharpTurnAt(path []hexgrid.GridPosition, index int) bool {
+	if index <= 0 || index >= len(path)-1 {
+		return false
+	}
+	incoming := directionIndex(subtractPosition(path[index], path[index-1]))
+	outgoing := directionIndex(subtractPosition(path[index+1], path[index]))
+	if incoming < 0 || outgoing < 0 {
+		return false
+	}
+	difference := absInt(incoming - outgoing)
+	if difference > len(axialDirections)/2 {
+		difference = len(axialDirections) - difference
+	}
+	return difference == 2
 }
 
 func isAxialDirection(direction hexgrid.GridPosition) bool {
