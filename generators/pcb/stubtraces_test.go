@@ -178,8 +178,10 @@ func TestDecorativeTraceCanReachOffsetLaneWhenSourceSegmentIsFourCellsAway(t *te
 	if len(path)-1 != o.DecorativeTraceMinLength {
 		t.Fatalf("decorative trace has %d steps, want %d: %v", len(path)-1, o.DecorativeTraceMinLength, path)
 	}
-	if !decorativeTraceFollowsSource(path, [][]hexgrid.GridPosition{source}) {
-		t.Fatalf("decorative trace does not parallel the nearby source route: %v", path)
+	offset := subtractPosition(path[3], source[0])
+	if hexDistance(offset, hexgrid.GridPosition{}) != 1 ||
+		path[4] != addPosition(source[1], offset) {
+		t.Fatalf("decorative trace does not follow the one-cell-offset source route after its connector: %v", path)
 	}
 }
 
