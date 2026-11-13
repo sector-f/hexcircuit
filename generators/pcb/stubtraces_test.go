@@ -88,7 +88,8 @@ func TestDecorativeTraceCanParallelAnEarlierDecorativeRoute(t *testing.T) {
 	o.DecorativeTraceMaxBends = 3
 
 	firstDecorative := []hexgrid.GridPosition{
-		{Q: 0, R: 0}, {Q: 0, R: 1}, {Q: 1, R: 1}, {Q: 2, R: 1}, {Q: 3, R: 1},
+		{Q: 0, R: 0}, {Q: 0, R: 1}, {Q: 1, R: 1}, {Q: 2, R: 1},
+		{Q: 3, R: 1}, {Q: 4, R: 1}, {Q: 5, R: 1},
 	}
 	start := hexgrid.GridPosition{Q: 0, R: 2}
 	candidates := decorativeParallelCandidates(start, [][]hexgrid.GridPosition{firstDecorative}, o)
