@@ -2,6 +2,7 @@ package pcb
 
 import (
 	"math/rand"
+	"reflect"
 	"testing"
 
 	"github.com/sector-f/hexgrid"
@@ -81,37 +82,30 @@ func TestAddDecorativeTracesParallelToNearestPowerAndInterclusterRoutes(t *testi
 	}
 }
 
-func TestDecorativeTraceCandidatesCanConnectFromTwoCellsAway(t *testing.T) {
-	o := DefaultOptions()
-	o.DecorativeTraceMinLength = 4
-	o.DecorativeTraceMaxLength = 6
-	o.DecorativeTraceMaxBends = 3
-
-	source := make([]hexgrid.GridPosition, 10)
-	for i := range source {
-		source[i] = hexgrid.GridPosition{Q: i, R: 2}
-	}
+func TestDecorativeConnectorAllowsClearTwoStepPaths(t *testing.T) {
 	start := hexgrid.GridPosition{Q: 0, R: 0}
+	target := hexgrid.GridPosition{Q: 1, R: 1}
 	allowed := make(map[hexgrid.GridPosition]bool)
-	for q := -3; q <= 14; q++ {
-		for r := -3; r <= 6; r++ {
+	for q := -2; q <= 3; q++ {
+		for r := -2; r <= 3; r++ {
 			allowed[hexgrid.GridPosition{Q: q, R: r}] = true
 		}
 	}
-	blocked := map[hexgrid.GridPosition]bool{start: true, source[0]: true, source[len(source)-1]: true}
-	reserved := decorativeRouteReservations([][]hexgrid.GridPosition{source}, nil)
-
-	candidates := decorativeParallelCandidates(start, [][]hexgrid.GridPosition{source}, o, allowed, blocked, reserved)
-	foundTwoStepConnector := false
-	for _, candidate := range candidates {
-		if len(candidate.path) >= 2 && hexDistance(candidate.path[1], start) == 1 &&
-			hexDistance(candidate.path[2], start) == 2 {
-			foundTwoStepConnector = true
-			break
-		}
+	paths := decorativeConnectorPaths(start, target, allowed, map[hexgrid.GridPosition]bool{start: true}, nil)
+	if len(paths) == 0 {
+		t.Fatal("no clear two-step connector found")
 	}
-	if !foundTwoStepConnector {
-		t.Fatal("no candidate used a clear two-step connector to a nearby parallel run")
+	for _, path := range paths {
+		if len(path) != 3 || path[0] != start || path[2] != target {
+			t.Fatalf("invalid two-step connector: %v", path)
+		}
+		if !traceTurnAllowed(
+			directionIndex(subtractPosition(path[1], path[0])),
+			directionIndex(subtractPosition(path[2], path[1])),
+			false,
+		) {
+			t.Fatalf("connector contains a prohibited sharp turn: %v", path)
+		}
 	}
 }
 
@@ -128,7 +122,7 @@ func TestDecorativeTraceTargetsCanExceedLeafCount(t *testing.T) {
 	}
 	sourceB := make([]hexgrid.GridPosition, 12)
 	for i := range sourceB {
-		sourceB[i] = hexgrid.GridPosition{Q: i, R: -3}
+		sourceB[i] = hexgrid.GridPosition{Q: i, R: -2}
 	}
 	root := hexgrid.GridPosition{Q: 0, R: 0}
 	leaf := hexgrid.GridPosition{Q: 0, R: 1}
@@ -160,6 +154,55 @@ func TestDecorativeTraceTargetsCanExceedLeafCount(t *testing.T) {
 	}
 }
 
+func TestDecorativeTraceCanProduceMultipleBranchesFromOneSourceComponent(t *testing.T) {
+	o := DefaultOptions()
+	o.DecorativeTraceCount = 2
+	o.DecorativeTraceMinLength = 4
+	o.DecorativeTraceMaxLength = 4
+	o.DecorativeTraceMaxBends = 3
+
+	upper := make([]hexgrid.GridPosition, 9)
+	lower := make([]hexgrid.GridPosition, 9)
+	for i := range upper {
+		upper[i] = hexgrid.GridPosition{Q: i, R: 2}
+		lower[i] = hexgrid.GridPosition{Q: i, R: -2}
+	}
+	start := hexgrid.GridPosition{Q: 0, R: 0}
+	clusters := []clusterPlan{{
+		ID: 0,
+		Components: []placedComponent{{Position: start}},
+	}}
+	allowed := make(map[hexgrid.GridPosition]bool)
+	for q := -4; q <= 12; q++ {
+		for r := -5; r <= 5; r++ {
+			allowed[hexgrid.GridPosition{Q: q, R: r}] = true
+		}
+	}
+	blocked := map[hexgrid.GridPosition]bool{
+		start: true,
+		upper[0]: true, upper[len(upper)-1]: true,
+		lower[0]: true, lower[len(lower)-1]: true,
+	}
+	reserved := decorativeRouteReservations([][]hexgrid.GridPosition{upper, lower}, nil)
+
+	traces := addDecorativeTraces(
+		o, rand.New(rand.NewSource(91)), clusters,
+		[][]hexgrid.GridPosition{upper, lower}, nil,
+		allowed, blocked, reserved,
+	)
+	if len(traces) != 2 {
+		t.Fatalf("got %d decorative traces from one source component, want 2", len(traces))
+	}
+	for i, trace := range traces {
+		if trace.Start != start {
+			t.Errorf("trace %d starts at %v, want shared source component %v", i, trace.Start, start)
+		}
+	}
+	if reflect.DeepEqual(expandCompressedTrace(traces[0]), expandCompressedTrace(traces[1])) {
+		t.Fatal("multiple branches from one component produced duplicate routes")
+	}
+}
+
 func TestDecorativeTraceCanParallelAnEarlierDecorativeRoute(t *testing.T) {
 	o := DefaultOptions()
 	o.DecorativeTraceMinLength = 4
@@ -171,7 +214,15 @@ func TestDecorativeTraceCanParallelAnEarlierDecorativeRoute(t *testing.T) {
 		{Q: 3, R: 1}, {Q: 4, R: 1}, {Q: 5, R: 1},
 	}
 	start := hexgrid.GridPosition{Q: 0, R: 2}
-	candidates := decorativeParallelCandidates(start, [][]hexgrid.GridPosition{firstDecorative}, o, map[hexgrid.GridPosition]bool{start: true}, map[hexgrid.GridPosition]bool{start: true}, nil)
+	allowed := make(map[hexgrid.GridPosition]bool)
+	for q := -4; q <= 8; q++ {
+		for r := -4; r <= 8; r++ {
+			allowed[hexgrid.GridPosition{Q: q, R: r}] = true
+		}
+	}
+	blocked := map[hexgrid.GridPosition]bool{start: true, firstDecorative[0]: true, firstDecorative[len(firstDecorative)-1]: true}
+	reserved := decorativeRouteReservations([][]hexgrid.GridPosition{firstDecorative}, nil)
+	candidates := decorativeParallelCandidates(start, [][]hexgrid.GridPosition{firstDecorative}, o, allowed, blocked, reserved)
 	foundParallel := false
 	for _, candidate := range candidates {
 		if decorativeTraceFollowsSource(candidate.path, [][]hexgrid.GridPosition{firstDecorative}) {

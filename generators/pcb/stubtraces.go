@@ -45,16 +45,22 @@ func addDecorativeTraces(
 		// Leaf components are visually preferable origins, so try them first.
 		// Internal components remain eligible when the requested count exceeds
 		// what can be placed from leaves alone.
+	leafStarts := make([]hexgrid.GridPosition, 0, len(cluster.Components))
+		internalStarts := make([]hexgrid.GridPosition, 0, len(cluster.Components))
 		for _, component := range cluster.Components {
 			if children[component.Position] == 0 {
-				startGroups[clusterIndex] = append(startGroups[clusterIndex], component.Position)
+				leafStarts = append(leafStarts, component.Position)
+			} else {
+				internalStarts = append(internalStarts, component.Position)
 			}
 		}
-		for _, component := range cluster.Components {
-			if children[component.Position] > 0 {
-				startGroups[clusterIndex] = append(startGroups[clusterIndex], component.Position)
-			}
-		}
+		rng.Shuffle(len(leafStarts), func(i, j int) {
+			leafStarts[i], leafStarts[j] = leafStarts[j], leafStarts[i]
+		})
+		rng.Shuffle(len(internalStarts), func(i, j int) {
+			internalStarts[i], internalStarts[j] = internalStarts[j], internalStarts[i]
+		})
+		startGroups[clusterIndex] = append(leafStarts, internalStarts...)
 	}
 	sources := decorativeTraceSourcePaths(powerRoutes, interClusterTraces, nil)
 	return addDecorativeTraceGroups(
