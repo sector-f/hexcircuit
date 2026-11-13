@@ -146,8 +146,8 @@ func TestDecorativeConnectorDetoursAroundBlockedShortestPath(t *testing.T) {
 
 func TestDecorativeTraceCanReachOffsetLaneWhenSourceSegmentIsFourCellsAway(t *testing.T) {
 	o := DefaultOptions()
-	o.DecorativeTraceMinLength = 4
-	o.DecorativeTraceMaxLength = 4
+	o.DecorativeTraceMinLength = 5
+	o.DecorativeTraceMaxLength = 5
 	o.DecorativeTraceMaxBends = 3
 
 	source := make([]hexgrid.GridPosition, 6)
