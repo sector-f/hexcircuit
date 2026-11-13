@@ -63,11 +63,11 @@ func TestFindRouteAvoidsAcuteTurnsInEmptySpace(t *testing.T) {
 
 func TestFindRouteCanTurnSharplyThroughAComponent(t *testing.T) {
 	start := hexgrid.GridPosition{Q: 0, R: 0}
-	component := hexgrid.GridPosition{Q: 1, R: 0}
-	goal := hexgrid.GridPosition{Q: -1, R: 2}
+	component := hexgrid.GridPosition{Q: -1, R: 1}
+	goal := hexgrid.GridPosition{Q: -1, R: -1}
 	path := []hexgrid.GridPosition{
 		start, component,
-		{Q: 0, R: 1}, goal,
+		{Q: -1, R: 0}, goal,
 	}
 	allowed := make(map[hexgrid.GridPosition]bool)
 	for _, position := range path {
@@ -77,36 +77,65 @@ func TestFindRouteCanTurnSharplyThroughAComponent(t *testing.T) {
 		start: true, component: true, goal: true,
 	}
 
-	got, ok := findRoute(start, goal, allowed, blocked, nil, powerSideAny, rand.New(rand.NewSource(4)))
+	got, ok := findRoute(start, goal, allowed, blocked, nil, powerSideTop, rand.New(rand.NewSource(4)))
 	if !ok {
 		t.Fatal("route through component was rejected")
 	}
 	if !hasNoSharpTraceTurns(got, blocked) {
 		t.Fatalf("route through component retained an acute empty-space turn: %v", got)
 	}
-	foundComponent := false
-	for _, position := range got {
-		if position == component {
-			foundComponent = true
-		}
+	if len(got) != len(path) {
+		t.Fatalf("route has %d positions, want %d: %v", len(got), len(path), got)
 	}
-	if !foundComponent {
-		t.Fatalf("route did not use the required component transition: %v", got)
+	for i := range path {
+		if got[i] != path[i] {
+			t.Fatalf("route position %d = %v, want %v", i, got[i], path[i])
+		}
 	}
 }
 
 func TestFindRouteRejectsSharpTurnWithoutComponent(t *testing.T) {
 	start := hexgrid.GridPosition{Q: 0, R: 0}
-	turn := hexgrid.GridPosition{Q: 1, R: 0}
-	goal := hexgrid.GridPosition{Q: -1, R: 2}
-	path := []hexgrid.GridPosition{start, turn, {Q: 0, R: 1}, goal}
+	turn := hexgrid.GridPosition{Q: -1, R: 1}
+	goal := hexgrid.GridPosition{Q: -1, R: -1}
+	path := []hexgrid.GridPosition{start, turn, {Q: -1, R: 0}, goal}
 	allowed := make(map[hexgrid.GridPosition]bool)
 	for _, position := range path {
 		allowed[position] = true
 	}
 	blocked := map[hexgrid.GridPosition]bool{start: true, goal: true}
-	if _, ok := findRoute(start, goal, allowed, blocked, nil, powerSideAny, rand.New(rand.NewSource(4))); ok {
+	if _, ok := findRoute(start, goal, allowed, blocked, nil, powerSideTop, rand.New(rand.NewSource(4))); ok {
 		t.Fatal("route accepted a forced acute turn in an empty cell")
+	}
+}
+
+func TestFindRoutePreservesLegacyPathWhenItHasNoSharpTurns(t *testing.T) {
+	start := hexgrid.GridPosition{Q: 0, R: 0}
+	goal := hexgrid.GridPosition{Q: 5, R: 2}
+	allowed := make(map[hexgrid.GridPosition]bool)
+	for q := -4; q <= 10; q++ {
+		for r := -4; r <= 8; r++ {
+			allowed[hexgrid.GridPosition{Q: q, R: r}] = true
+		}
+	}
+	blocked := map[hexgrid.GridPosition]bool{start: true, goal: true}
+
+	legacy, legacyOK := findRouteUnconstrained(
+		start, goal, allowed, blocked, nil, powerSideAny, rand.New(rand.NewSource(27)),
+	)
+	if !legacyOK || !hasNoSharpTraceTurns(legacy, blocked) {
+		t.Fatalf("test seed did not produce a legacy-compatible route: %v", legacy)
+	}
+	got, ok := findRoute(
+		start, goal, allowed, blocked, nil, powerSideAny, rand.New(rand.NewSource(27)),
+	)
+	if !ok || len(got) != len(legacy) {
+		t.Fatalf("findRoute() = %v, %v; legacy = %v", got, ok, legacy)
+	}
+	for i := range legacy {
+		if got[i] != legacy[i] {
+			t.Fatalf("findRoute() changed valid legacy path at %d: got %v, want %v", i, got, legacy[i])
+		}
 	}
 }
 
