@@ -2227,6 +2227,38 @@ func TestBuildBoardAddsDecorativePowerTracesFromUnusedContacts(t *testing.T) {
 	}
 }
 
+func TestRenderBoardIncludesDecorativePowerTracesInBaseLayer(t *testing.T) {
+	o := DefaultOptions()
+	start := hexgrid.GridPosition{Q: 0, R: 0}
+	plan := boardPlan{
+		Components: []hexgrid.GridComponent{
+			{Position: start, Style: hexgrid.ComponentStyleSingle},
+		},
+		DecorativePowerTraces: []hexgrid.GridTrace{
+			{
+				Start:        start,
+				Path:         []hexgrid.GridPosition{{Q: 1, R: 0}, {Q: 3, R: 0}},
+				Lines:        1,
+				HideTerminal: false,
+			},
+		},
+	}
+	withTrace, err := renderBoard(o, plan)
+	if err != nil {
+		t.Fatalf("render decorative power trace: %v", err)
+	}
+	withoutTrace, err := renderBoard(o, boardPlan{Components: plan.Components})
+	if err != nil {
+		t.Fatalf("render base component without decorative power trace: %v", err)
+	}
+	if withTrace == withoutTrace {
+		t.Fatal("decorative power trace did not change the rendered SVG")
+	}
+	if strings.Contains(withTrace, "id=\"power-traces\"") || strings.Contains(withTrace, "id=\"inter-cluster-traces\"") {
+		t.Fatal("decorative power trace was incorrectly rendered on an accent layer")
+	}
+}
+
 func TestPowerSourceComponentRadiusIsIndependentAndChecksContactOverlap(t *testing.T) {
 	o := DefaultOptions()
 	o.PowerSourceSpacing = PowerSourceSpacingAdjacent

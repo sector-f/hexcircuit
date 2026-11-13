@@ -44,14 +44,15 @@ type boardPlan struct {
 	DecorativeTraces []hexgrid.GridTrace
 	// DecorativePowerTraces are base-color traces originating at unused physical power-source contacts.
 	DecorativePowerTraces []hexgrid.GridTrace
-	PowerRoutes      [][]hexgrid.GridPosition // Full cell paths, retained for no-crossing tests.
-	Clusters         []clusterPlan
+	PowerRoutes           [][]hexgrid.GridPosition // Full cell paths, retained for no-crossing tests.
+	Clusters              []clusterPlan
 }
 
 // Generate constructs and renders a PCB-inspired illustration.
 // It returns the SVG, the number of rendered base-layer components (cluster
 // components plus every configured top- and bottom-row source contact), the
-// number of rendered trace bundles (signal, power, inter-cluster, and decorative), and any generation error.
+// number of rendered trace bundles (signal, power, inter-cluster, and both
+// decorative categories), and any generation error.
 func Generate(options Options) (string, int, int, error) {
 	o, err := normalizeOptions(options)
 	if err != nil {
