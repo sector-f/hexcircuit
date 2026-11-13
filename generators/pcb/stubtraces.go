@@ -368,11 +368,20 @@ func containsGridPosition(path []hexgrid.GridPosition, position hexgrid.GridPosi
 
 func shuffleDecorativeCandidates(candidates []decorativeTraceCandidate, rng *rand.Rand) {
 	sort.SliceStable(candidates, func(i, j int) bool {
-		return candidates[i].sourceDistance < candidates[j].sourceDistance
+		if candidates[i].sourceDistance != candidates[j].sourceDistance {
+			return candidates[i].sourceDistance < candidates[j].sourceDistance
+		}
+		if len(candidates[i].path) != len(candidates[j].path) {
+			return len(candidates[i].path) < len(candidates[j].path)
+		}
+		return decorativeTraceBendCount(candidates[i].path) < decorativeTraceBendCount(candidates[j].path)
 	})
 	for start := 0; start < len(candidates); {
 		end := start + 1
-		for end < len(candidates) && candidates[end].sourceDistance == candidates[start].sourceDistance {
+		for end < len(candidates) &&
+			candidates[end].sourceDistance == candidates[start].sourceDistance &&
+			len(candidates[end].path) == len(candidates[start].path) &&
+			decorativeTraceBendCount(candidates[end].path) == decorativeTraceBendCount(candidates[start].path) {
 			end++
 		}
 		rng.Shuffle(end-start, func(i, j int) {
