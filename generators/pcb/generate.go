@@ -317,7 +317,7 @@ func buildBoard(
 				decorativeAllowed = routingCellsWithinPowerSourceTrapezoid(decorativeAllowed, bounds, o)
 			}
 		}
-		decorativeReserved := decorativeRouteReservations(plan.PowerRoutes, plan.InterClusterTraces)
+		decorativeReserved := decorativeRouteReservations(plan.PowerRoutes, plan.InterClusterTraces, plan.SignalTraces)
 		plan.DecorativeTraces = addDecorativeTraces(
 			o, rng, clusters, plan.PowerRoutes, plan.InterClusterTraces,
 			decorativeAllowed, blocked, decorativeReserved,

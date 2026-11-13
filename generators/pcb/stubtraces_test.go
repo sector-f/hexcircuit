@@ -105,6 +105,22 @@ func TestDecorativeTraceCanParallelAnEarlierDecorativeRoute(t *testing.T) {
 	}
 }
 
+func TestDecorativeRouteReservationsIncludeSignalTraces(t *testing.T) {
+	signalTrace := hexgrid.GridTrace{
+		Start: hexgrid.GridPosition{Q: 0, R: 0},
+		Path:  []hexgrid.GridPosition{{Q: 0, R: 3}},
+		Lines: 1,
+	}
+	reserved := decorativeRouteReservations(nil, nil, []hexgrid.GridTrace{signalTrace})
+	for _, position := range []hexgrid.GridPosition{
+		{Q: 0, R: 0}, {Q: 0, R: 1}, {Q: 0, R: 2}, {Q: 0, R: 3},
+	} {
+		if !reserved[position] {
+			t.Errorf("signal trace cell %v was not reserved", position)
+		}
+	}
+}
+
 func TestAddDecorativeTracesSkipsWhenNoNearbyRouteExists(t *testing.T) {
 	o := DefaultOptions()
 	o.DecorativeTraceCount = 3
@@ -113,7 +129,7 @@ func TestAddDecorativeTracesSkipsWhenNoNearbyRouteExists(t *testing.T) {
 	allowed := make(map[hexgrid.GridPosition]bool)
 	for q := -5; q <= 8; q++ {
 		for r := -5; r <= 12; r++ {
-			allowed[hexgrid.GridPosition{Q: q, R: r} ] = true
+			allowed[hexgrid.GridPosition{Q: q, R: r}] = true
 		}
 	}
 	blocked := map[hexgrid.GridPosition]bool{

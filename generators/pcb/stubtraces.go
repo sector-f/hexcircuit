@@ -123,6 +123,7 @@ func addDecorativeTraces(
 func decorativeRouteReservations(
 	powerRoutes [][]hexgrid.GridPosition,
 	interClusterTraces []hexgrid.GridTrace,
+	signalTraceGroups ...[]hexgrid.GridTrace,
 ) map[hexgrid.GridPosition]bool {
 	reserved := make(map[hexgrid.GridPosition]bool)
 	for _, path := range powerRoutes {
@@ -133,6 +134,13 @@ func decorativeRouteReservations(
 	for _, trace := range interClusterTraces {
 		for _, position := range expandCompressedTrace(trace) {
 			reserved[position] = true
+		}
+	}
+	for _, traces := range signalTraceGroups {
+		for _, trace := range traces {
+			for _, position := range expandCompressedTrace(trace) {
+				reserved[position] = true
+			}
 		}
 	}
 	return reserved
@@ -271,6 +279,15 @@ func decorativeTracePathIsClear(
 			return false
 		}
 		visited[position] = true
+	}
+
+	// Keep the hollow terminal pad clear of components and existing routes.
+	end := path[len(path)-1]
+	for _, direction := range axialDirections {
+		neighbor := addPosition(end, direction)
+		if blocked[neighbor] || reserved[neighbor] {
+			return false
+		}
 	}
 	return true
 }
