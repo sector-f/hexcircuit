@@ -347,7 +347,7 @@ func decorativeTracePathIsClear(
 	allowed, blocked, reserved map[hexgrid.GridPosition]bool,
 	sourcePath []hexgrid.GridPosition,
 ) bool {
-	if len(path) < 4 || !blocked[path[0]] {
+	if len(path) < 4 || !blocked[path[0]] || !hasNoSharpTraceTurns(path, blocked) {
 		return false
 	}
 	visited := make(map[hexgrid.GridPosition]bool, len(path))
@@ -355,7 +355,7 @@ func decorativeTracePathIsClear(
 	for i, position := range path[1:] {
 		previous := path[i]
 		if hexDistance(previous, position) != 1 ||
-			!allowed[position] || blocked[position] || reserved[position] || visited[position] {
+			!allowed[position] || reserved[position] || visited[position] {
 			return false
 		}
 		visited[position] = true

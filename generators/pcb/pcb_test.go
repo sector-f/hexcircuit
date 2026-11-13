@@ -2183,6 +2183,49 @@ func TestBuildBoardDoesNotAddDecorativeTracesWithoutExistingRoutes(t *testing.T)
 	}
 }
 
+func TestGeneratedTraceFamiliesAvoidAcuteFreeSpaceTurns(t *testing.T) {
+	o := DefaultOptions()
+	o.InterClusterTraces = true
+	o.DecorativeTraceCount = 8
+	o.DecorativePowerTraceCount = 8
+	o.Seed, o.SeedSet = 731, true
+
+	top, bottom, err := powerSourcePositions(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := buildBoard(o, rand.New(rand.NewSource(o.Seed)), top, bottom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	components := make(map[hexgrid.GridPosition]bool, len(plan.Components))
+	for _, component := range plan.Components {
+		components[component.Position] = true
+	}
+
+	check := func(name string, path []hexgrid.GridPosition) {
+		t.Helper()
+		if !hasNoSharpTraceTurns(path, components) {
+			t.Errorf("%s contains an acute free-space turn: %v", name, path)
+		}
+	}
+	for i, path := range plan.PowerRoutes {
+		check(fmt.Sprintf("power route %d", i), path)
+	}
+	for i, trace := range plan.SignalTraces {
+		check(fmt.Sprintf("signal trace %d", i), append([]hexgrid.GridPosition{trace.Start}, trace.Path...))
+	}
+	for i, trace := range plan.InterClusterTraces {
+		check(fmt.Sprintf("inter-cluster trace %d", i), expandCompressedTrace(trace))
+	}
+	for i, trace := range plan.DecorativeTraces {
+		check(fmt.Sprintf("decorative trace %d", i), expandCompressedTrace(trace))
+	}
+	for i, trace := range plan.DecorativePowerTraces {
+		check(fmt.Sprintf("decorative power trace %d", i), expandCompressedTrace(trace))
+	}
+}
+
 func TestBuildBoardAddsDecorativePowerTracesFromUnusedContacts(t *testing.T) {
 	o := DefaultOptions()
 	o.DecorativePowerTraceCount = 4

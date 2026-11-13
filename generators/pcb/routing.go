@@ -9,8 +9,13 @@ import (
 	"github.com/sector-f/hexgrid/internal/gridgeom"
 )
 
+type routeSearchState struct {
+	position          hexgrid.GridPosition
+	incomingDirection int // -1 for the initial state; otherwise an axialDirections index.
+}
+
 type routeQueueItem struct {
-	position hexgrid.GridPosition
+	state    routeSearchState
 	priority float64
 	index    int
 }
@@ -143,6 +148,13 @@ func routingCellsWithinPowerSourceTrapezoid(
 // vertex it visits, so subsequent power routes cannot share a vertex or cross
 // an existing route. The sourceSide argument restricts the first step so a top
 // source exits downward and a bottom source exits upward.
+// findRoute performs turn-aware A* on the axial lattice. A route reserves
+// every lattice vertex it visits, so subsequent routes cannot share a vertex
+// or cross an existing route. In empty space, direction changes are limited
+// to one adjacent hex-grid axis (a 60-degree heading change); the sharper
+// 120-degree change is allowed only at a component. The sourceSide argument
+// restricts the first step so a top source exits downward and a bottom source
+// exits upward.
 func findRoute(
 	start, goal hexgrid.GridPosition,
 	allowed, blocked, reserved map[hexgrid.GridPosition]bool,
@@ -156,53 +168,151 @@ func findRoute(
 		return nil, false
 	}
 
-	gScore := map[hexgrid.GridPosition]float64{start: 0}
-	cameFrom := make(map[hexgrid.GridPosition]hexgrid.GridPosition)
-	closed := make(map[hexgrid.GridPosition]bool)
+	startState := routeSearchState{position: start, incomingDirection: -1}
+	gScore := map[routeSearchState]float64{startState: 0}
+	cameFrom := make(map[routeSearchState]routeSearchState)
+	closed := make(map[routeSearchState]bool)
 	frontier := &routePriorityQueue{}
 	heap.Init(frontier)
-	heap.Push(frontier, &routeQueueItem{position: start, priority: float64(hexDistance(start, goal))})
+	heap.Push(frontier, &routeQueueItem{
+		state:    startState,
+		priority: float64(hexDistance(start, goal)),
+	})
 
 	for frontier.Len() > 0 {
-		current := heap.Pop(frontier).(*routeQueueItem).position
-		if closed[current] {
+		currentState := heap.Pop(frontier).(*routeQueueItem).state
+		if closed[currentState] {
 			continue
 		}
+		current := currentState.position
 		if current == goal {
-			return reconstructPath(start, goal, cameFrom), true
+			path := reconstructRoutePath(startState, currentState, cameFrom)
+			return path, len(path) >= 2 && hasNoSharpTraceTurns(path, blocked)
 		}
-		closed[current] = true
+		closed[currentState] = true
 
-		directions := append([]hexgrid.GridPosition(nil), axialDirections[:]...)
-		rng.Shuffle(len(directions), func(i, j int) { directions[i], directions[j] = directions[j], directions[i] })
-		for _, direction := range directions {
+		directionOrder := []int{0, 1, 2, 3, 4, 5}
+		rng.Shuffle(len(directionOrder), func(i, j int) { directionOrder[i], directionOrder[j] = directionOrder[j], directionOrder[i] })
+		for _, directionIndex := range directionOrder {
+			direction := axialDirections[directionIndex]
 			if current == start && !allowedPowerDeparture(direction, sourceSide) {
 				continue
 			}
-			neighbor := addPosition(current, direction)
-			if !allowed[neighbor] || closed[neighbor] {
+			if currentState.incomingDirection >= 0 &&
+				!traceTurnAllowed(currentState.incomingDirection, directionIndex, blocked[current]) {
 				continue
 			}
-			if neighbor != goal && blocked[neighbor] {
+			neighbor := addPosition(current, direction)
+			if !allowed[neighbor] || neighbor != goal && blocked[neighbor] {
 				continue
 			}
 			if neighbor != goal && neighbor != start && reserved[neighbor] {
 				continue
 			}
+			if routePathContainsPosition(currentState, neighbor, cameFrom) {
+				continue
+			}
+
+			nextState := routeSearchState{position: neighbor, incomingDirection: directionIndex}
+			if closed[nextState] {
+				continue
+			}
 
 			stepCost := 1.0 + rng.Float64()*0.035
-			candidateScore := gScore[current] + stepCost
-			previous, exists := gScore[neighbor]
+			candidateScore := gScore[currentState] + stepCost
+			previous, exists := gScore[nextState]
 			if exists && candidateScore >= previous {
 				continue
 			}
-			cameFrom[neighbor] = current
-			gScore[neighbor] = candidateScore
+			cameFrom[nextState] = currentState
+			gScore[nextState] = candidateScore
 			priority := candidateScore + float64(hexDistance(neighbor, goal))
-			heap.Push(frontier, &routeQueueItem{position: neighbor, priority: priority})
+			heap.Push(frontier, &routeQueueItem{state: nextState, priority: priority})
 		}
 	}
 	return nil, false
+}
+
+// traceTurnAllowed prevents acute free-space corners. Consecutive axial
+// directions may stay the same or move to either adjacent direction in the
+// six-direction cycle. A component cell is exempt because the trace is
+// visually entering, crossing, or leaving that component.
+func traceTurnAllowed(previousDirection, nextDirection int, throughComponent bool) bool {
+	if throughComponent {
+		return true
+	}
+	if previousDirection < 0 || previousDirection >= len(axialDirections) ||
+		nextDirection < 0 || nextDirection >= len(axialDirections) {
+		return false
+	}
+	difference := absInt(previousDirection - nextDirection)
+	if difference > len(axialDirections)/2 {
+		difference = len(axialDirections) - difference
+	}
+	return difference <= 1
+}
+
+// hasNoSharpTraceTurns validates every free-space bend in a complete lattice path.
+// The components map marks positions where a turn is visually absorbed by a component.
+func hasNoSharpTraceTurns(path []hexgrid.GridPosition, components map[hexgrid.GridPosition]bool) bool {
+	for i := 1; i < len(path)-1; i++ {
+		if components[path[i]] {
+			continue
+		}
+		incoming := directionIndex(subtractPosition(path[i], path[i-1]))
+		outgoing := directionIndex(subtractPosition(path[i+1], path[i]))
+		if !traceTurnAllowed(incoming, outgoing, false) {
+			return false
+		}
+	}
+	return true
+}
+
+func directionIndex(direction hexgrid.GridPosition) int {
+	for i, candidate := range axialDirections {
+		if candidate == direction {
+			return i
+		}
+	}
+	return -1
+}
+
+func routePathContainsPosition(
+	current routeSearchState,
+	position hexgrid.GridPosition,
+	cameFrom map[routeSearchState]routeSearchState,
+) bool {
+	for {
+		if current.position == position {
+			return true
+		}
+		previous, ok := cameFrom[current]
+		if !ok {
+			return false
+		}
+		current = previous
+	}
+}
+
+func reconstructRoutePath(
+	start, goal routeSearchState,
+	cameFrom map[routeSearchState]routeSearchState,
+) []hexgrid.GridPosition {
+	states := []routeSearchState{goal}
+	current := goal
+	for current != start {
+		previous, ok := cameFrom[current]
+		if !ok {
+			return nil
+		}
+		current = previous
+		states = append(states, current)
+	}
+	path := make([]hexgrid.GridPosition, len(states))
+	for i := range states {
+		path[len(states)-1-i] = states[i].position
+	}
+	return path
 }
 
 func allowedPowerDeparture(direction hexgrid.GridPosition, side powerSide) bool {
