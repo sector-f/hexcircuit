@@ -2,90 +2,124 @@ package pcb
 
 import (
 	"math/rand"
+	"sort"
 
 	"github.com/sector-f/hexgrid"
 )
 
+const decorativeTraceMaxSourceDistance = 2
+
 type decorativeTraceCandidate struct {
-	path []hexgrid.GridPosition // Full cell path, including the source component.
+	path           []hexgrid.GridPosition // Full cell path, including the source component.
+	sourceDistance int
 }
 
-type decorativeTraceSource struct {
-	path         []hexgrid.GridPosition
-	allowReverse bool
-}
-
-// addDecorativeTraces adds free-ended base-color traces alongside existing power,
-// inter-cluster, and previously accepted decorative routes. Each new trace starts
-// at an existing route endpoint component, steps sideways, then follows a translated
-// section of the source route. Placement is best-effort.
+// addDecorativeTraces creates free-ended base-color traces from cluster leaf
+// components. Each leaf looks for a nearby segment of an existing power,
+// inter-cluster, or decorative trace, steps onto a one-cell-offset copy, and
+// follows that route's bends. Placement is best-effort.
 func addDecorativeTraces(
 	o Options,
 	rng *rand.Rand,
+	clusters []clusterPlan,
 	powerRoutes [][]hexgrid.GridPosition,
 	interClusterTraces []hexgrid.GridTrace,
 	allowed, blocked, reserved map[hexgrid.GridPosition]bool,
 ) []hexgrid.GridTrace {
-	if o.DecorativeTraceCount <= 0 {
+	if o.DecorativeTraceCount <= 0 || len(clusters) == 0 {
 		return nil
 	}
 	if reserved == nil {
 		reserved = make(map[hexgrid.GridPosition]bool)
 	}
 
-	sources := make([]decorativeTraceSource, 0, len(powerRoutes)+len(interClusterTraces))
+	sources := make([][]hexgrid.GridPosition, 0, len(powerRoutes)+len(interClusterTraces)+o.DecorativeTraceCount)
 	for _, path := range powerRoutes {
 		if len(path) >= 2 {
-			sources = append(sources, decorativeTraceSource{path: append([]hexgrid.GridPosition(nil), path...), allowReverse: true})
+			sources = append(sources, append([]hexgrid.GridPosition(nil), path...))
 		}
 	}
 	for _, trace := range interClusterTraces {
-		path := expandCompressedTrace(trace)
-		if len(path) >= 2 {
-			sources = append(sources, decorativeTraceSource{path: path, allowReverse: true})
+		if path := expandCompressedTrace(trace); len(path) >= 2 {
+			sources = append(sources, path)
 		}
 	}
 
-	candidates := make([]decorativeTraceCandidate, 0)
-	for _, source := range sources {
-		candidates = append(candidates, decorativeParallelCandidates(source.path, source.allowReverse, o)...)
+	byCluster := make([][]hexgrid.GridPosition, len(clusters))
+	for clusterIndex, cluster := range clusters {
+		children := make(map[hexgrid.GridPosition]int, len(cluster.Components))
+		for _, component := range cluster.Components {
+			if component.Parent != nil {
+				children[*component.Parent]++
+			}
+		}
+		for _, component := range cluster.Components {
+			if children[component.Position] == 0 {
+				byCluster[clusterIndex] = append(byCluster[clusterIndex], component.Position)
+			}
+		}
+		rng.Shuffle(len(byCluster[clusterIndex]), func(i, j int) {
+			byCluster[clusterIndex][i], byCluster[clusterIndex][j] = byCluster[clusterIndex][j], byCluster[clusterIndex][i]
+		})
 	}
-	rng.Shuffle(len(candidates), func(i, j int) {
-		candidates[i], candidates[j] = candidates[j], candidates[i]
+
+	clusterOrder := make([]int, len(clusters))
+	for i := range clusterOrder {
+		clusterOrder[i] = i
+	}
+	rng.Shuffle(len(clusterOrder), func(i, j int) {
+		clusterOrder[i], clusterOrder[j] = clusterOrder[j], clusterOrder[i]
 	})
 
+	usedStarts := make(map[hexgrid.GridPosition]bool)
 	traces := make([]hexgrid.GridTrace, 0, o.DecorativeTraceCount)
-	for next := 0; next < len(candidates) && len(traces) < o.DecorativeTraceCount; next++ {
-		candidate := candidates[next]
-		if !decorativeTracePathIsClear(candidate.path, allowed, blocked, reserved) {
-			continue
+	for len(traces) < o.DecorativeTraceCount {
+		progress := false
+		for _, clusterIndex := range clusterOrder {
+			addedThisCluster := false
+			for _, start := range byCluster[clusterIndex] {
+				if usedStarts[start] {
+					continue
+				}
+				candidates := decorativeParallelCandidates(start, sources, o)
+				shuffleDecorativeCandidates(candidates, rng)
+				for _, candidate := range candidates {
+					if !decorativeTracePathIsClear(candidate.path, allowed, blocked, reserved) {
+						continue
+					}
+					traces = append(traces, hexgrid.GridTrace{
+						Start:        start,
+						Path:         compressPath(candidate.path),
+						Lines:        randomLines(rng, o.MaxParallel),
+						HideTerminal: false,
+					})
+					usedStarts[start] = true
+					for _, position := range candidate.path[1:] {
+						reserved[position] = true
+					}
+					// Accepted decorations become sources for later leaf components.
+					sources = append(sources, append([]hexgrid.GridPosition(nil), candidate.path...))
+					progress = true
+					addedThisCluster = true
+					break
+				}
+				if addedThisCluster || len(traces) >= o.DecorativeTraceCount {
+					break
+				}
+			}
+			if len(traces) >= o.DecorativeTraceCount {
+				break
+			}
 		}
-
-		traces = append(traces, hexgrid.GridTrace{
-			Start:        candidate.path[0],
-			Path:         compressPath(candidate.path),
-			Lines:        randomLines(rng, o.MaxParallel),
-			HideTerminal: false,
-		})
-		for _, position := range candidate.path[1:] {
-			reserved[position] = true
+		if !progress {
+			break
 		}
-
-		// A newly placed decorative trace becomes a source for later traces.
-		// Only its component-backed start can anchor another route; its terminal
-		// pad is intentionally not treated as a component.
-		additional := decorativeParallelCandidates(candidate.path, false, o)
-		rng.Shuffle(len(additional), func(i, j int) {
-			additional[i], additional[j] = additional[j], additional[i]
-		})
-		candidates = append(candidates, additional...)
 	}
 	return traces
 }
 
-// decorativeRouteReservations returns the occupied cells belonging to power and
-// inter-cluster routes. Local intra-cluster signal edges are deliberately excluded;
-// decorative traces are designed to echo these two longer route families.
+// decorativeRouteReservations marks every cell used by power or inter-cluster
+// routes. Decorative paths are added to this map incrementally.
 func decorativeRouteReservations(
 	powerRoutes [][]hexgrid.GridPosition,
 	interClusterTraces []hexgrid.GridTrace,
@@ -104,70 +138,78 @@ func decorativeRouteReservations(
 	return reserved
 }
 
-// decorativeParallelCandidates creates one-cell-offset copies of a source route.
-// The first step leaves the existing component sideways; the remaining steps follow
-// the source path with an identical translation, preserving every bend.
+// decorativeParallelCandidates finds nearby source-route segments and creates
+// offset copies that can be reached from start in one lattice step. Closer source
+// segments are tried before more distant ones.
 func decorativeParallelCandidates(
-	sourcePath []hexgrid.GridPosition,
-	allowReverse bool,
+	start hexgrid.GridPosition,
+	sourcePaths [][]hexgrid.GridPosition,
 	o Options,
 ) []decorativeTraceCandidate {
-	if len(sourcePath) < o.DecorativeTraceMinLength {
-		return nil
-	}
-
-	orientations := [][]hexgrid.GridPosition{
-		append([]hexgrid.GridPosition(nil), sourcePath...),
-	}
-	if allowReverse {
-		reversed := append([]hexgrid.GridPosition(nil), sourcePath...)
-		reverseGridPath(reversed)
-		orientations = append(orientations, reversed)
-	}
-
 	candidates := make([]decorativeTraceCandidate, 0)
-	for _, path := range orientations {
-		firstDirection := subtractPosition(path[1], path[0])
-		directionIndex := -1
-		for i, direction := range axialDirections {
-			if direction == firstDirection {
-				directionIndex = i
-				break
-			}
-		}
-		if directionIndex < 0 {
+	for _, source := range sourcePaths {
+		if len(source) < o.DecorativeTraceMinLength {
 			continue
 		}
-
-		// Exclude offsets parallel to the source segment. The other four adjacent
-		// lattice directions place the decorative run on either side of the trace.
-		offsets := make([]hexgrid.GridPosition, 0, 4)
-		for i, direction := range axialDirections {
-			if i == directionIndex || i == (directionIndex+3)%len(axialDirections) {
-				continue
-			}
-			offsets = append(offsets, direction)
-		}
-
-		maxLength := o.DecorativeTraceMaxLength
-		if maxLength > len(path) {
-			maxLength = len(path)
-		}
-		for length := o.DecorativeTraceMinLength; length <= maxLength; length++ {
-			for _, offset := range offsets {
-				candidate := make([]hexgrid.GridPosition, 0, length+1)
-				candidate = append(candidate, path[0], addPosition(path[0], offset))
-				for i := 1; i < length; i++ {
-					candidate = append(candidate, addPosition(path[i], offset))
-				}
-				if decorativeTraceBendCount(candidate) > o.DecorativeTraceMaxBends {
+		for _, path := range [][]hexgrid.GridPosition{source, reversedCopy(source)} {
+			for sourceIndex := 0; sourceIndex < len(path)-1; sourceIndex++ {
+				distance := hexDistance(start, path[sourceIndex])
+				if distance > decorativeTraceMaxSourceDistance {
 					continue
 				}
-				candidates = append(candidates, decorativeTraceCandidate{path: candidate})
+				tangent := subtractPosition(path[sourceIndex+1], path[sourceIndex])
+				if !isAxialDirection(tangent) {
+					continue
+				}
+
+				maxLength := o.DecorativeTraceMaxLength
+				if remaining := len(path) - sourceIndex; maxLength > remaining {
+					maxLength = remaining
+				}
+				for _, offset := range axialDirections {
+					if offset == tangent || offset == negatePosition(tangent) {
+						continue
+					}
+					firstParallelCell := addPosition(path[sourceIndex], offset)
+					if hexDistance(start, firstParallelCell) != 1 {
+						continue
+					}
+
+					for runLength := o.DecorativeTraceMinLength; runLength <= maxLength; runLength++ {
+						candidatePath := make([]hexgrid.GridPosition, 0, runLength+1)
+						candidatePath = append(candidatePath, start, firstParallelCell)
+						for i := 1; i < runLength; i++ {
+							candidatePath = append(candidatePath, addPosition(path[sourceIndex+i], offset))
+						}
+						if decorativeTraceBendCount(candidatePath) > o.DecorativeTraceMaxBends {
+							continue
+						}
+						candidates = append(candidates, decorativeTraceCandidate{
+							path:           candidatePath,
+							sourceDistance: distance,
+						})
+					}
+				}
 			}
 		}
 	}
 	return candidates
+}
+
+func shuffleDecorativeCandidates(candidates []decorativeTraceCandidate, rng *rand.Rand) {
+	sort.SliceStable(candidates, func(i, j int) bool {
+		return candidates[i].sourceDistance < candidates[j].sourceDistance
+	})
+	for start := 0; start < len(candidates); {
+		end := start + 1
+		for end < len(candidates) && candidates[end].sourceDistance == candidates[start].sourceDistance {
+			end++
+		}
+		rng.Shuffle(end-start, func(i, j int) {
+			candidates[start+i], candidates[start+j] = candidates[start+j], candidates[start+i]
+		})
+		start = end
+	}
 }
 
 // expandCompressedTrace reconstructs every lattice cell along a GridTrace's
@@ -187,14 +229,7 @@ func expandCompressedTrace(trace hexgrid.GridTrace) []hexgrid.GridPosition {
 			Q: (waypoint.Q - current.Q) / distance,
 			R: (waypoint.R - current.R) / distance,
 		}
-		validDirection := false
-		for _, candidate := range axialDirections {
-			if candidate == direction {
-				validDirection = true
-				break
-			}
-		}
-		if !validDirection ||
+		if !isAxialDirection(direction) ||
 			current.Q+direction.Q*distance != waypoint.Q ||
 			current.R+direction.R*distance != waypoint.R {
 			return nil
@@ -240,10 +275,25 @@ func decorativeTracePathIsClear(
 	return true
 }
 
-func reverseGridPath(path []hexgrid.GridPosition) {
-	for left, right := 0, len(path)-1; left < right; left, right = left+1, right-1 {
-		path[left], path[right] = path[right], path[left]
+func isAxialDirection(direction hexgrid.GridPosition) bool {
+	for _, candidate := range axialDirections {
+		if candidate == direction {
+			return true
+		}
 	}
+	return false
+}
+
+func negatePosition(position hexgrid.GridPosition) hexgrid.GridPosition {
+	return hexgrid.GridPosition{Q: -position.Q, R: -position.R}
+}
+
+func reversedCopy(path []hexgrid.GridPosition) []hexgrid.GridPosition {
+	result := append([]hexgrid.GridPosition(nil), path...)
+	for left, right := 0, len(result)-1; left < right; left, right = left+1, right-1 {
+		result[left], result[right] = result[right], result[left]
+	}
+	return result
 }
 
 func subtractPosition(a, b hexgrid.GridPosition) hexgrid.GridPosition {

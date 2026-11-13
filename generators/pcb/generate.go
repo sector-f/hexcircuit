@@ -319,7 +319,7 @@ func buildBoard(
 		}
 		decorativeReserved := decorativeRouteReservations(plan.PowerRoutes, plan.InterClusterTraces)
 		plan.DecorativeTraces = addDecorativeTraces(
-			o, rng, plan.PowerRoutes, plan.InterClusterTraces,
+			o, rng, clusters, plan.PowerRoutes, plan.InterClusterTraces,
 			decorativeAllowed, blocked, decorativeReserved,
 		)
 	}
