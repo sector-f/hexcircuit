@@ -165,7 +165,7 @@ func TestDecorativeTraceCanProduceMultipleBranchesFromOneSourceComponent(t *test
 	lower := make([]hexgrid.GridPosition, 9)
 	for i := range upper {
 		upper[i] = hexgrid.GridPosition{Q: i, R: 2}
-		lower[i] = hexgrid.GridPosition{Q: i, R: -2}
+		lower[i] = hexgrid.GridPosition{Q: -i, R: -2}
 	}
 	start := hexgrid.GridPosition{Q: 0, R: 0}
 	clusters := []clusterPlan{{

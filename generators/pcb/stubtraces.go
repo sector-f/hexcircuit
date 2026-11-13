@@ -85,8 +85,12 @@ func addDecorativePowerTraces(
 		return nil
 	}
 	sources := decorativeTraceSourcePaths(powerRoutes, interClusterTraces, priorDecorativeTraces)
+	starts := append([]hexgrid.GridPosition(nil), unusedPowerSources...)
+	rng.Shuffle(len(starts), func(i, j int) {
+		starts[i], starts[j] = starts[j], starts[i]
+	})
 	return addDecorativeTraceGroups(
-		o, rng, [][]hexgrid.GridPosition{append([]hexgrid.GridPosition(nil), unusedPowerSources...)},
+		o, rng, [][]hexgrid.GridPosition{starts},
 		sources, o.DecorativePowerTraceCount,
 		allowed, blocked, reserved,
 	)
@@ -153,11 +157,6 @@ func addDecorativeTraceGroups(
 		reserved = make(map[hexgrid.GridPosition]bool)
 	}
 
-	for i := range startGroups {
-		rng.Shuffle(len(startGroups[i]), func(a, b int) {
-			startGroups[i][a], startGroups[i][b] = startGroups[i][b], startGroups[i][a]
-		})
-	}
 	groupOrder := make([]int, len(startGroups))
 	for i := range groupOrder {
 		groupOrder[i] = i
