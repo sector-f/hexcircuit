@@ -7,132 +7,231 @@ import (
 	"github.com/sector-f/hexgrid"
 )
 
-func TestAddDecorativeTracesUsesBendsParallelLinesAndClusterDistribution(t *testing.T) {
+func TestAddDecorativeTracesRunParallelToPowerAndInterclusterRoutes(t *testing.T) {
 	o := DefaultOptions()
-	o.DecorativeTraceCount = 6
+	o.DecorativeTraceCount = 4
 	o.DecorativeTraceMinLength = 4
-	o.DecorativeTraceMaxLength = 10
+	o.DecorativeTraceMaxLength = 6
 	o.DecorativeTraceMaxBends = 3
 	o.MaxParallel = 3
 
-	clusters := make([]clusterPlan, 6)
-	blocked := make(map[hexgrid.GridPosition]bool)
-	allowed := make(map[hexgrid.GridPosition]bool)
-	for i := range clusters {
-		root := hexgrid.GridPosition{Q: i * 12, R: 0}
-		leaf := hexgrid.GridPosition{Q: i*12 + 1, R: 0}
-		clusters[i] = clusterPlan{ID: i, Components: []placedComponent{
-			{Position: root},
-			{Position: leaf, Parent: &root},
-		}}
-		blocked[root], blocked[leaf] = true, true
+	powerPath := make([]hexgrid.GridPosition, 11)
+	for i := range powerPath {
+		powerPath[i] = hexgrid.GridPosition{Q: i, R: 0}
 	}
-	for q := -10; q < 90; q++ {
-		for r := -20; r <= 20; r++ {
+	interclusterPath := make([]hexgrid.GridPosition, 11)
+	for i := range interclusterPath {
+		interclusterPath[i] = hexgrid.GridPosition{Q: 20, R: i}
+	}
+	interclusterTrace := hexgrid.GridTrace{
+		Start: interclusterPath[0],
+		Path:  []hexgrid.GridPosition{interclusterPath[len(interclusterPath)-1]},
+		Lines: 1,
+	}
+
+	allowed := make(map[hexgrid.GridPosition]bool)
+	for q := -5; q <= 30; q++ {
+		for r := -5; r <= 20; r++ {
 			allowed[hexgrid.GridPosition{Q: q, R: r}] = true
 		}
 	}
-	reserved := make(map[hexgrid.GridPosition]bool)
+	blocked := map[hexgrid.GridPosition]bool{
+		powerPath[0]: true, powerPath[len(powerPath)-1]: true,
+		interclusterPath[0]: true, interclusterPath[len(interclusterPath)-1]: true,
+	}
+	reserved := decorativeRouteReservations([][]hexgrid.GridPosition{powerPath}, []hexgrid.GridTrace{interclusterTrace})
 
-	traces := addDecorativeTraces(o, rand.New(rand.NewSource(23)), clusters, allowed, blocked, reserved)
+	traces := addDecorativeTraces(
+		o, rand.New(rand.NewSource(23)),
+		[][]hexgrid.GridPosition{powerPath}, []hexgrid.GridTrace{interclusterTrace},
+		allowed, blocked, reserved,
+	)
 	if len(traces) != o.DecorativeTraceCount {
 		t.Fatalf("got %d decorative traces, want %d", len(traces), o.DecorativeTraceCount)
 	}
-	starts := make(map[hexgrid.GridPosition]bool)
-	multipleLines := false
-	for _, trace := range traces {
-		starts[trace.Start] = true
-		if len(trace.Path) < 2 {
-			t.Errorf("trace has %d waypoints, want at least one bend and an endpoint", len(trace.Path))
-		}
-		if len(trace.Path)-1 > o.DecorativeTraceMaxBends {
-			t.Errorf("trace has %d bends, maximum is %d", len(trace.Path)-1, o.DecorativeTraceMaxBends)
+
+	for i, trace := range traces {
+		if trace.HideTerminal {
+			t.Errorf("decorative trace %d should end at a hollow terminal pad", i)
 		}
 		if trace.Lines < 1 || trace.Lines > o.MaxParallel {
-			t.Errorf("trace line count %d outside [1, %d]", trace.Lines, o.MaxParallel)
+			t.Errorf("decorative trace %d line count %d outside [1, %d]", i, trace.Lines, o.MaxParallel)
 		}
-		multipleLines = multipleLines || trace.Lines > 1
-		if trace.HideTerminal {
-			t.Error("free-ended trace should render its hollow terminal pad")
+		full := expandCompressedTrace(trace)
+		if len(full) < o.DecorativeTraceMinLength+1 || len(full) > o.DecorativeTraceMaxLength+1 {
+			t.Errorf("decorative trace %d has %d steps, want [%d, %d]", i, len(full)-1, o.DecorativeTraceMinLength, o.DecorativeTraceMaxLength)
+			continue
 		}
-		totalLength := 0
-		previous := trace.Start
-		for _, waypoint := range trace.Path {
-			totalLength += hexDistance(previous, waypoint)
-			previous = waypoint
+		if !blocked[trace.Start] {
+			t.Errorf("decorative trace %d does not start at an existing component", i)
 		}
-		if totalLength < o.DecorativeTraceMinLength || totalLength > o.DecorativeTraceMaxLength {
-			t.Errorf("trace length %d outside [%d, %d]", totalLength, o.DecorativeTraceMinLength, o.DecorativeTraceMaxLength)
+		if decorativeTraceBendCount(full) < 1 || decorativeTraceBendCount(full) > o.DecorativeTraceMaxBends {
+			t.Errorf("decorative trace %d has %d bends, maximum %d", i, decorativeTraceBendCount(full), o.DecorativeTraceMaxBends)
 		}
-		if !reserved[trace.Path[len(trace.Path)-1]] {
-			t.Errorf("trace endpoint %v was not reserved", trace.Path[len(trace.Path)-1])
+		if !decorativeTracePathIsParallelToAny(full, [][]hexgrid.GridPosition{powerPath, interclusterPath}) {
+			t.Errorf("decorative trace %d does not follow an existing route at a constant one-cell offset", i)
 		}
-	}
-	if len(starts) != len(clusters) {
-		t.Fatalf("traces used %d distinct leaf components across %d clusters", len(starts), len(clusters))
-	}
-	if !multipleLines {
-		t.Error("no decorative trace used multiple parallel lines")
 	}
 }
 
-func TestAddDecorativeTracesSkipsBlockedPathsAndHonorsBestEffortTarget(t *testing.T) {
+func TestDecorativeTracesCanFollowPreviouslyPlacedDecorativeTraces(t *testing.T) {
 	o := DefaultOptions()
-	o.DecorativeTraceCount = 5
+	o.DecorativeTraceCount = 8
 	o.DecorativeTraceMinLength = 4
-	o.DecorativeTraceMaxLength = 10
-	start := hexgrid.GridPosition{}
-	cluster := clusterPlan{ID: 0, Components: []placedComponent{{Position: start}}}
+	o.DecorativeTraceMaxLength = 4
+	o.DecorativeTraceMaxBends = 3
+
+	source := make([]hexgrid.GridPosition, 12)
+	for i := range source {
+		source[i] = hexgrid.GridPosition{Q: i, R: 0}
+	}
 	allowed := make(map[hexgrid.GridPosition]bool)
-	for q := -8; q <= 8; q++ {
+	for q := -5; q <= 20; q++ {
 		for r := -8; r <= 8; r++ {
 			allowed[hexgrid.GridPosition{Q: q, R: r}] = true
 		}
 	}
-	blocked := map[hexgrid.GridPosition]bool{{Q: 2, R: 0}: true}
-	reserved := make(map[hexgrid.GridPosition]bool)
+	blocked := map[hexgrid.GridPosition]bool{source[0]: true, source[len(source)-1]: true}
+	reserved := decorativeRouteReservations([][]hexgrid.GridPosition{source}, nil)
 
-	traces := addDecorativeTraces(o, rand.New(rand.NewSource(9)), []clusterPlan{cluster}, allowed, blocked, reserved)
-	if len(traces) > o.DecorativeTraceCount {
-		t.Fatalf("got %d traces, exceeding target %d", len(traces), o.DecorativeTraceCount)
+	traces := addDecorativeTraces(
+		o, rand.New(rand.NewSource(7)), [][]hexgrid.GridPosition{source}, nil,
+		allowed, blocked, reserved,
+	)
+	if len(traces) < 2 {
+		t.Fatalf("got %d decorative traces, want at least two parallel layers", len(traces))
 	}
-	for _, trace := range traces {
-		if trace.Start != start {
-			t.Errorf("unexpected start %v", trace.Start)
+	for i, trace := range traces {
+		if !blocked[trace.Start] {
+			t.Errorf("trace %d starts at %v, not at an existing component", i, trace.Start)
 		}
+		for _, position := range expandCompressedTrace(trace)[1:] {
+			if !reserved[position] {
+				t.Errorf("trace %d path cell %v was not reserved for subsequent decorations", i, position)
+			}
+		}
+	}
+}
+
+func TestAddDecorativeTracesRequiresAnExistingLongRoute(t *testing.T) {
+	o := DefaultOptions()
+	o.DecorativeTraceCount = 3
+	path := []hexgrid.GridPosition{{Q: 0, R: 0}, {Q: 1, R: 0}, {Q: 2, R: 0}}
+	blocked := map[hexgrid.GridPosition]bool{path[0]: true, path[len(path)-1]: true}
+	allowed := map[hexgrid.GridPosition]bool{{Q: 0, R: 0}: true, {Q: 1, R: 0}: true, {Q: 2, R: 0}: true}
+	traces := addDecorativeTraces(
+		o, rand.New(rand.NewSource(1)), [][]hexgrid.GridPosition{path}, nil,
+		allowed, blocked, decorativeRouteReservations([][]hexgrid.GridPosition{path}, nil),
+	)
+	if len(traces) != 0 {
+		t.Fatalf("short source route produced %d decorative traces, want none", len(traces))
+	}
+}
+
+func TestAddDecorativeTracesSkipsBlockedOffsetsAndHonorsBestEffortTarget(t *testing.T) {
+	o := DefaultOptions()
+	o.DecorativeTraceCount = 5
+	o.DecorativeTraceMinLength = 4
+	o.DecorativeTraceMaxLength = 6
+	path := make([]hexgrid.GridPosition, 9)
+	for i := range path {
+		path[i] = hexgrid.GridPosition{Q: i, R: 0}
+	}
+	allowed := make(map[hexgrid.GridPosition]bool)
+	for q := -4; q <= 12; q++ {
+		for r := -4; r <= 4; r++ {
+			allowed[hexgrid.GridPosition{Q: q, R: r}] = true
+		}
+	}
+	blocked := map[hexgrid.GridPosition]bool{path[0]: true, path[len(path)-1]: true}
+	for q := -4; q <= 12; q++ {
+		for r := -4; r <= 4; r++ {
+			if r != 0 {
+				blocked[hexgrid.GridPosition{Q: q, R: r}] = true
+			}
+		}
+	}
+	reserved := decorativeRouteReservations([][]hexgrid.GridPosition{path}, nil)
+
+	traces := addDecorativeTraces(
+		o, rand.New(rand.NewSource(9)), [][]hexgrid.GridPosition{path}, nil,
+		allowed, blocked, reserved,
+	)
+	if len(traces) != 0 {
+		t.Fatalf("fully blocked parallel offsets produced %d routes, want none", len(traces))
 	}
 }
 
 func TestAddDecorativeTracesDisabled(t *testing.T) {
 	o := DefaultOptions()
-	clusters := []clusterPlan{{ID: 0, Components: []placedComponent{{Position: hexgrid.GridPosition{}}}}}
-	allowed := map[hexgrid.GridPosition]bool{{Q: 0, R: 0}: true}
-	if got := addDecorativeTraces(o, rand.New(rand.NewSource(1)), clusters, allowed, nil, nil); len(got) != 0 {
+	path := []hexgrid.GridPosition{{Q: 0, R: 0}, {Q: 1, R: 0}, {Q: 2, R: 0}, {Q: 3, R: 0}}
+	if got := addDecorativeTraces(
+		o, rand.New(rand.NewSource(1)), [][]hexgrid.GridPosition{path}, nil,
+		map[hexgrid.GridPosition]bool{}, map[hexgrid.GridPosition]bool{}, nil,
+	); len(got) != 0 {
 		t.Fatalf("disabled decorative traces produced %d routes", len(got))
 	}
 }
 
-func TestDecorativeTraceAcceptsMinimumLength(t *testing.T) {
-	o := DefaultOptions()
-	o.DecorativeTraceMinLength = 3
-	o.DecorativeTraceMaxLength = 3
-	o.DecorativeTraceMaxBends = 1
-	allowed := make(map[hexgrid.GridPosition]bool)
-	for q := -5; q <= 5; q++ {
-		for r := -5; r <= 5; r++ {
-			allowed[hexgrid.GridPosition{Q: q, R: r}] = true
+func TestDecorativeTraceExpandsCompressedInterclusterRoute(t *testing.T) {
+	trace := hexgrid.GridTrace{
+		Start: hexgrid.GridPosition{Q: 0, R: 0},
+		Path: []hexgrid.GridPosition{
+			{Q: 3, R: 0},
+			{Q: 3, R: 4},
+			{Q: 6, R: 4},
+		},
+	}
+	got := expandCompressedTrace(trace)
+	want := []hexgrid.GridPosition{
+		{Q: 0, R: 0}, {Q: 1, R: 0}, {Q: 2, R: 0}, {Q: 3, R: 0},
+		{Q: 3, R: 1}, {Q: 3, R: 2}, {Q: 3, R: 3}, {Q: 3, R: 4},
+		{Q: 4, R: 4}, {Q: 5, R: 4}, {Q: 6, R: 4},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("expanded route has %d cells, want %d: %v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("expanded cell %d = %v, want %v", i, got[i], want[i])
 		}
 	}
-	start := hexgrid.GridPosition{}
-	path := randomDecorativeTracePath(
-		start, axialDirections[0], o, allowed,
-		make(map[hexgrid.GridPosition]bool), make(map[hexgrid.GridPosition]bool),
-		rand.New(rand.NewSource(3)),
-	)
-	if len(path) != 4 {
-		t.Fatalf("path has %d cells, want start plus 3 steps", len(path))
+}
+
+func decorativeTracePathIsParallelToAny(
+	decorative []hexgrid.GridPosition,
+	sources [][]hexgrid.GridPosition,
+) bool {
+	if len(decorative) < 4 {
+		return false
 	}
-	if !decorativeTracePathIsClear(path, allowed, nil, nil) {
-		t.Fatal("valid three-step bent path was rejected")
+	for _, source := range sources {
+		for _, oriented := range [][]hexgrid.GridPosition{source, reversedCopy(source)} {
+			if len(oriented) < 2 || decorative[0] != oriented[0] {
+				continue
+			}
+			offset := subtractPosition(decorative[2], oriented[1])
+			if hexDistance(offset, hexgrid.GridPosition{}) != 1 {
+				continue
+			}
+			if decorative[1] != addPosition(oriented[0], offset) {
+				continue
+			}
+			for i := 2; i < len(decorative); i++ {
+				if i-1 >= len(oriented) || decorative[i] != addPosition(oriented[i-1], offset) {
+					break
+				}
+				if i == len(decorative)-1 {
+					return true
+				}
+			}
+		}
 	}
+	return false
+}
+
+func reversedCopy(path []hexgrid.GridPosition) []hexgrid.GridPosition {
+	result := append([]hexgrid.GridPosition(nil), path...)
+	reverseGridPath(result)
+	return result
 }

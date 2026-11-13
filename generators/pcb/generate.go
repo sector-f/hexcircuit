@@ -292,9 +292,35 @@ func buildBoard(
 				}
 			}
 		}
-		if o.DecorativeTraceCount > 0 {
-			plan.DecorativeTraces = addDecorativeTraces(o, rng, clusters, signalRoutes, blocked, reserved)
+	}
+
+	if o.DecorativeTraceCount > 0 {
+		decorativeAllowed := signalRoutes
+		if decorativeAllowed == nil {
+			decorativeAllowed = routingCellsWithinPowerSourceCorridor(
+				routingCellsWithoutPowerSourceRows(o, topSources, bottomSources), topSources, bottomSources, o,
+			)
+			activeSources := make([]powerSource, 0)
+			for _, cluster := range clusters {
+				activeSources = append(activeSources, cluster.PowerSources...)
+			}
+			if o.ConstrainComponentsToPowerSourceSpan {
+				spanSources := powerSourceSpanAssignments(activeSources, toPowerSources(topSources, powerSideTop), toPowerSources(bottomSources, powerSideBottom))
+				decorativeAllowed = routingCellsWithinPowerSourceSpan(decorativeAllowed, spanSources, o)
+			}
+			if o.ConstrainLayoutToPowerSourceTrapezoid {
+				bounds, err := newPowerSourceTrapezoid(topSources, bottomSources, o)
+				if err != nil {
+					return boardPlan{}, err
+				}
+				decorativeAllowed = routingCellsWithinPowerSourceTrapezoid(decorativeAllowed, bounds, o)
+			}
 		}
+		decorativeReserved := decorativeRouteReservations(plan.PowerRoutes, plan.InterClusterTraces)
+		plan.DecorativeTraces = addDecorativeTraces(
+			o, rng, plan.PowerRoutes, plan.InterClusterTraces,
+			decorativeAllowed, blocked, decorativeReserved,
+		)
 	}
 
 	adjustBaseComponentStylesForAccentCores(o, plan.Components, plan.Clusters, plan.PowerCores, plan.InterclusterComponents)

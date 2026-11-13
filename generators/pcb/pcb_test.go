@@ -1392,6 +1392,44 @@ func TestInterClusterTraceSeedRendersEndpointComponents(t *testing.T) {
 	}
 }
 
+func TestDecorativeTracesDoNotChangePrimaryRoutes(t *testing.T) {
+	o := DefaultOptions()
+	o.Seed = 1365413531639368899
+	o.SeedSet = true
+	o.InterClusterTraces = true
+	o.DecorativeTraceCount = 0
+
+	top, bottom, err := powerSourcePositions(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	withoutDecorative, err := buildBoard(o, rand.New(rand.NewSource(o.Seed)), top, bottom)
+	if err != nil {
+		t.Fatalf("build board without decorative traces: %v", err)
+	}
+
+	o.DecorativeTraceCount = 6
+	withDecorative, err := buildBoard(o, rand.New(rand.NewSource(o.Seed)), top, bottom)
+	if err != nil {
+		t.Fatalf("build board with decorative traces: %v", err)
+	}
+	if len(withDecorative.DecorativeTraces) == 0 {
+		t.Fatal("decorative-trace generation did not find any nearby existing routes")
+	}
+	if !reflect.DeepEqual(withoutDecorative.PowerRoutes, withDecorative.PowerRoutes) {
+		t.Fatal("decorative traces changed the existing power routes")
+	}
+	if !reflect.DeepEqual(withoutDecorative.PowerTraces, withDecorative.PowerTraces) {
+		t.Fatal("decorative traces changed the existing power bundles")
+	}
+	if !reflect.DeepEqual(withoutDecorative.InterClusterTraces, withDecorative.InterClusterTraces) {
+		t.Fatal("decorative traces changed the existing inter-cluster routes")
+	}
+	if !reflect.DeepEqual(withoutDecorative.SignalTraces, withDecorative.SignalTraces) {
+		t.Fatal("decorative traces changed the existing signal routes")
+	}
+}
+
 func TestAppendSVGLayerNamespacesOverlayIDs(t *testing.T) {
 	base := `<svg viewBox="0 0 1 1"><g id="background-grid"></g><g id="traces"></g></svg>`
 	overlay := `<svg viewBox="0 0 1 1"><g id="background-grid"></g><g id="traces"></g></svg>`
