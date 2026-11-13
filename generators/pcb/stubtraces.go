@@ -45,7 +45,7 @@ func addDecorativeTraces(
 		// Leaf components are visually preferable origins, so try them first.
 		// Internal components remain eligible when the requested count exceeds
 		// what can be placed from leaves alone.
-	leafStarts := make([]hexgrid.GridPosition, 0, len(cluster.Components))
+		leafStarts := make([]hexgrid.GridPosition, 0, len(cluster.Components))
 		internalStarts := make([]hexgrid.GridPosition, 0, len(cluster.Components))
 		for _, component := range cluster.Components {
 			if children[component.Position] == 0 {
