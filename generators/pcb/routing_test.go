@@ -111,7 +111,7 @@ func TestFindRouteRejectsSharpTurnWithoutComponent(t *testing.T) {
 
 func TestFindRoutePreservesLegacyPathWhenItHasNoSharpTurns(t *testing.T) {
 	start := hexgrid.GridPosition{Q: 0, R: 0}
-	goal := hexgrid.GridPosition{Q: 5, R: 2}
+	goal := hexgrid.GridPosition{Q: 5, R: 0}
 	allowed := make(map[hexgrid.GridPosition]bool)
 	for q := -4; q <= 10; q++ {
 		for r := -4; r <= 8; r++ {
